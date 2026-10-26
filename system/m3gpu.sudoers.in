@@ -1,0 +1,14 @@
+# m3gpu: exact commands @M3_USER@ may run as root without a password.
+# Installed by install/setup-nopasswd.sh. Remove with: sudo /usr/local/sbin/m3gpu-boot cleanup
+Cmnd_Alias M3GPU = /usr/local/sbin/m3gpu-boot status, \
+                   /usr/local/sbin/m3gpu-boot build-stageE, \
+                   /usr/local/sbin/m3gpu-boot use-stock, \
+                   /usr/local/sbin/m3gpu-boot use-stageC, \
+                   /usr/local/sbin/m3gpu-boot use-stageD, \
+                   /usr/local/sbin/m3gpu-boot use-stageE, \
+                   /usr/local/sbin/m3gpu-boot test-once, \
+                   /usr/local/sbin/m3gpu-boot mesa-select, \
+                   /usr/local/sbin/m3gpu-boot restart-login, \
+                   /usr/local/sbin/m3gpu-boot cleanup, \
+                   /usr/bin/systemctl reboot
+@M3_USER@ ALL=(root) NOPASSWD: M3GPU

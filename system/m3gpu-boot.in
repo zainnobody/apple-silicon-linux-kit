@@ -1,0 +1,105 @@
+#!/usr/bin/env bash
+# m3gpu-boot: fixed boot actions for the M3 GPU test. Installed root-owned in
+# /usr/local/sbin by install/setup-nopasswd.sh, which fills in the @...@ values
+# for this machine. sudoers allows only the exact subcommands listed in
+# /etc/sudoers.d/m3gpu, with no other arguments. It reads no user-writable file.
+set -euo pipefail
+
+[ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
+
+LIB=/usr/local/lib/m3gpu
+M1N1="$LIB/m1n1.bin"
+M1N1_SHA=@M1N1_SHA@
+KREL=@M3_KREL@
+DTBDIR="/boot/dtb-$KREL"
+DTB_NAME=@M3_DTB_NAME@
+DTB_SHA=@DTB_SHA@
+UBOOT=@UBOOT@
+ESP=@ESP_M1N1@
+GREETER_USER=@M3_GREETER_USER@
+GREETER_UID=@GREETER_UID@
+LOGDIR=/var/log/m3gpu
+STAGE_E_OPTS=(@M3_GPU_OPTIONS@)
+
+mkdir -p "$LOGDIR"
+log() { echo "$(date '+%F %T') $*" | tee -a "$LOGDIR/actions.log"; }
+
+check_sha() {
+	[ "$(sha256sum "$1" | cut -d' ' -f1)" = "$2" ] || { echo "Hash mismatch: $1" >&2; exit 1; }
+}
+
+build_stage() { # <stage> [chosen options...]
+	local stage="$1" target; shift
+	target="$ESP/boot.bin.$stage"
+	check_sha "$M1N1" "$M1N1_SHA"
+	check_sha "$DTBDIR/apple/$DTB_NAME" "$DTB_SHA"
+	{
+		cat "$M1N1" "$DTBDIR"/apple/t6*.dtb "$DTBDIR"/apple/t81*.dtb
+		gzip -c "$UBOOT"
+		grep -E '^(chosen\.[^=]+|display|mitigations)=' /etc/m1n1.conf || true
+		for o in "$@"; do echo "$o"; done
+	} > "$target.new"
+	mv -f "$target.new" "$target"
+	sync
+	log "built $target $(sha256sum "$target" | cut -d' ' -f1) options: $*"
+}
+
+use_stage() { # <stage>
+	local src="$ESP/boot.bin.$1"
+	[ -f "$src" ] || { echo "No $src" >&2; exit 1; }
+	[ -f "$ESP/boot.bin.stock" ] || { echo "No boot.bin.stock backup; refusing" >&2; exit 1; }
+	cp -f "$src" "$ESP/boot.bin.new"
+	sync
+	mv -f "$ESP/boot.bin.new" "$ESP/boot.bin"
+	sync
+	log "boot.bin is now $1 $(sha256sum "$ESP/boot.bin" | cut -d' ' -f1)"
+}
+
+test_once() {
+	local entry
+	entry="$(basename "$(grep -l "^linux /vmlinuz-$KREL\$" /boot/loader/entries/*.conf)" .conf)"
+	grub2-reboot "$entry"
+	log "next boot (once): $entry"
+}
+
+status() {
+	echo "kernel: $(uname -r)"
+	echo "m1n1 stage 2: $(tr -d '\0' < /proc/device-tree/chosen/asahi,m1n1-stage2-version)"
+	sha256sum "$ESP"/boot.bin*
+	grub2-editenv list | grep -E 'saved_entry|next_entry'
+	tail -n 15 "$LOGDIR/actions.log" 2>/dev/null || true
+}
+
+mesa_select() {
+	/usr/local/sbin/m3gpu-mesa-select | tee -a "$LOGDIR/actions.log"
+	ldconfig -p | grep -E 'libgbm.so.1 |libEGL.so.1 ' | head -4
+}
+
+restart_login() { # only when nobody is logged in on the screen
+	if loginctl list-sessions --no-legend | awk -v g="$GREETER_USER" '$4 == "seat0" && $3 != g' | grep -q .; then
+		echo "A user is logged in on the screen; not restarting the login screen" >&2; exit 1
+	fi
+	systemctl stop display-manager
+	systemctl restart "user@$GREETER_UID.service"
+	systemctl start display-manager
+	log "login screen restarted"
+}
+
+cleanup() {
+	rm -f /etc/sudoers.d/m3gpu
+	log "removed /etc/sudoers.d/m3gpu (tool files kept in $LIB and /usr/local/sbin)"
+}
+
+case "${1:-}" in
+	status) status ;;
+	build-stageE) build_stage stageE "${STAGE_E_OPTS[@]}" ;;
+	use-stock) use_stage stock ;;
+	use-stageC) use_stage stageC ;;
+	use-stageD) use_stage stageD ;;
+	use-stageE) use_stage stageE ;;
+	test-once) test_once ;;
+	mesa-select) mesa_select ;;
+	restart-login) restart_login ;;
+	cleanup) cleanup ;;
+	*) echo "usage: m3gpu-boot {status|build-stageE|use-stock|use-stageC|use-stageD|use-stageE|test-once|mesa-select|restart-login|cleanup}" >&2; exit 2 ;;
+esac

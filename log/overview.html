@@ -1,0 +1,356 @@
+<title>M3 Pro Linux Log</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column of engineering-log sections; the boot chain diagram is the focal visual. */
+:root {
+  --bg: #f6f7f6;
+  --surface: #ffffff;
+  --ink: #1b2120;
+  --muted: #59625f;
+  --line: #d9dedb;
+  --accent: #b4580f;      /* amber: "in progress / next" */
+  --pass: #1f7a4a;
+  --pass-bg: #e3f1e8;
+  --fail: #b3261e;
+  --fail-bg: #f8e3e1;
+  --wait: #6b6f75;
+  --wait-bg: #eceeef;
+  --warn-bg: #fbeedd;
+  --code-bg: #eef1ef;
+  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #131716; --surface: #1b201f; --ink: #e6ebe8; --muted: #9ba5a1; --line: #2e3533;
+    --accent: #f0a050; --pass: #6fcf97; --pass-bg: #17321f; --fail: #f2948c; --fail-bg: #3a1a18;
+    --wait: #a9aeb4; --wait-bg: #262b2e; --warn-bg: #3a2a16; --code-bg: #222826;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #131716; --surface: #1b201f; --ink: #e6ebe8; --muted: #9ba5a1; --line: #2e3533;
+  --accent: #f0a050; --pass: #6fcf97; --pass-bg: #17321f; --fail: #f2948c; --fail-bg: #3a1a18;
+  --wait: #a9aeb4; --wait-bg: #262b2e; --warn-bg: #3a2a16; --code-bg: #222826;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+.wrap { max-width: 900px; margin: 0 auto; display: grid; gap: 40px; }
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.2; }
+h1 { font-size: 2rem; }
+h2 { font-size: 1.35rem; }
+h3 { font-size: 1.05rem; }
+p { margin: 0; max-width: 68ch; }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+section { display: grid; gap: 14px; min-width: 0; }
+.kicker { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.04em; }
+
+/* Header */
+header { display: grid; gap: 10px; }
+.status-line { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.updated { color: var(--muted); font-size: 0.85rem; }
+
+/* State chips: semantic, never the accent */
+.chip { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.chip.pass { color: var(--pass); background: var(--pass-bg); }
+.chip.fail { color: var(--fail); background: var(--fail-bg); }
+.chip.wait { color: var(--wait); background: var(--wait-bg); }
+.chip.next { color: var(--accent); background: var(--warn-bg); }
+
+/* Headline result */
+.result {
+  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+  padding: 18px 20px; display: grid; gap: 12px;
+}
+.result .big { font-family: var(--f-display); font-size: 1.5rem; font-weight: 600; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 20px; }
+.fact { display: grid; gap: 2px; min-width: 0; }
+.fact span:first-child { font-size: 0.78rem; color: var(--muted); }
+.fact span:last-child { font-weight: 500; overflow-wrap: anywhere; }
+
+/* GPU milestone meter */
+.meter { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
+.meter i { height: 10px; border-radius: 2px; background: var(--wait-bg); }
+.meter i.done { background: var(--pass); }
+.meter i.now { background: var(--accent); }
+.milestones { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
+.milestones li {
+  display: grid; grid-template-columns: 84px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line);
+}
+.milestones li:first-child { border-top: 0; }
+.milestones .when { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); padding-top: 2px; }
+.milestones .what { display: grid; gap: 4px; min-width: 0; }
+.milestones .what b { font-weight: 600; }
+
+/* Boot chain diagram */
+.diagram { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.diagram svg { display: block; min-width: 760px; width: 100%; height: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.8rem; color: var(--muted); }
+
+/* Tables */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
+th, td { text-align: left; padding: 9px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+thead th { border-top: 0; font-size: 0.78rem; color: var(--muted); font-weight: 600; background: var(--code-bg); }
+td.mono, td code { font-variant-numeric: tabular-nums; }
+.stage-id { font-family: var(--f-display); font-weight: 600; font-size: 1.05rem; }
+
+/* Lists */
+.todo { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.todo li { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; }
+.todo li > div { min-width: 0; display: grid; gap: 2px; }
+.todo small { color: var(--muted); }
+
+.docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.doc { border-top: 2px solid var(--line); padding-top: 8px; display: grid; gap: 4px; min-width: 0; }
+.doc code { overflow-wrap: anywhere; }
+.doc p { color: var(--muted); font-size: 0.88rem; }
+
+/* Rollback */
+.cmd { display: grid; gap: 8px; }
+.cmd pre {
+  margin: 0; background: var(--code-bg); border-radius: 6px; padding: 12px; overflow-x: auto;
+  font-family: var(--f-mono); font-size: 0.82rem; line-height: 1.5;
+}
+.cmd button {
+  justify-self: start; font: inherit; font-size: 0.85rem; font-weight: 500; color: var(--ink);
+  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; min-height: 44px; cursor: pointer;
+}
+.cmd button:hover { border-color: var(--accent); }
+.copy-msg { font-size: 0.82rem; color: var(--muted); min-height: 1.2em; }
+
+footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
+@media (max-width: 520px) {
+  h1 { font-size: 1.6rem; }
+  .milestones li { grid-template-columns: 1fr; gap: 2px; }
+}
+</style>
+
+<div class="wrap">
+
+<header>
+  <span class="kicker">MacBook Pro 16-inch, M3 Pro (Mac15,7, J516s, T6030, chip revision B1)</span>
+  <h1>M3 Pro Linux Log</h1>
+  <div class="status-line">
+    <span class="chip pass">GPU renders on the test kernel</span>
+    <span class="chip pass">Desktop composites on the GPU</span>
+    <span class="chip next">Running: 1 h GPU soak (remote)</span>
+    <span class="updated">Updated 2026-10-26 13:55</span>
+  </div>
+  <p>Fedora Asahi dual boot with a private SiliconForest GPU stack. The stock Fedora kernel stays the default boot. The GPU test kernel boots only when selected for one boot.</p>
+</header>
+
+<section aria-labelledby="gpu">
+  <h2 id="gpu">GPU acceleration</h2>
+  <div class="result">
+    <div class="big">Native OpenGL and Vulkan work on the test kernel</div>
+    <div class="facts">
+      <div class="fact"><span>Renderer</span><span>Apple M3 Pro (G15S B1)</span></div>
+      <div class="fact"><span>OpenGL / GLES</span><span>4.6 core / ES 3.2</span></div>
+      <div class="fact"><span>Vulkan</span><span>1.4.363 (Honeykrisp)</span></div>
+      <div class="fact"><span>GPU cores enabled</span><span>18 (9 + 9 per cluster)</span></div>
+      <div class="fact"><span>Render readback test</span><span>3 of 3 runs, 0 of 4096 pixels wrong</span></div>
+      <div class="fact"><span>Mesa</span><span class="mono">26.3.0-devel 7515336b3d</span></div>
+    </div>
+  </div>
+
+  <div class="meter" role="img" aria-label="GPU bring-up: 8 of 9 milestones done, milestone 9 is in progress">
+    <i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="done"></i><i class="now"></i>
+  </div>
+
+  <ol class="milestones">
+    <li><span class="when">10-26</span><div class="what"><b>Review the community stack</b><span>linux-aurora / SiliconForest kernel, m1n1 and Mesa reviewed against Asahi. Safe config chosen (no SEP xART writes, no user4k).</span><span><span class="chip pass">Done</span></span></div></li>
+    <li><span class="when">10-26</span><div class="what"><b>Build kernel, m1n1 and Mesa on the M3</b><span>Kernel 7.2.11-m3gpu+, m1n1 aca1258, Mesa into /opt/mesa-m3.</span><span><span class="chip pass">Done</span></span></div></li>
+    <li><span class="when">10-26</span><div class="what"><b>Stages A to D</b><span>Backups, macOS rollback rehearsal, test kernel install, new m1n1, j516s DTB. All passed.</span><span><span class="chip pass">Done</span></span></div></li>
+    <li><span class="when">12:28</span><div class="what"><b>Stage E: GPU on</b><span>Native display and brightness work. The GPU driver refused the firmware: TEXT hash <code>cd05af6a</code> was not in its list.</span><span><span class="chip fail">Refused</span></span></div></li>
+    <li><span class="when">12:40</span><div class="what"><b>Firmware investigation</b><span>Stub and 14.8.3 values are correct. Another Mac15,7 (Asterion) has the same hash and runs the GPU. Our chip revision is B1, read from macOS.</span><span><span class="chip pass">Done</span></span></div></li>
+    <li><span class="when">13:02</span><div class="what"><b>Exact-hash pin and rebuild</b><span>One firmware entry for <code>apple,j516s</code> only. No prefix override.</span><span><span class="chip pass">Done</span></span></div></li>
+    <li><span class="when">13:06</span><div class="what"><b>Stage F: GPU accepted</b><span>Firmware identity accepted, hardware IDs matched, firmware READY, <code>renderD128</code> created. GL and Vulkan queries and the readback test passed.</span><span><span class="chip pass">Done</span></span></div></li>
+    <li><span class="when">13:40</span><div class="what"><b>Stage G: desktop and login screen on the GPU</b><span>KWin has the <code>cap_sys_nice</code> file capability, so it ignores <code>LD_LIBRARY_PATH</code>. A boot service now adds <code>/opt/mesa-m3/lib64</code> to the linker cache only when the native driver is bound. KWin reports OpenGL compositing on "Apple M3 Pro (G15S B1)", OpenGL 4.6. No failed GPU requests since. The stock kernel with stageE also boots cleanly and keeps the system Mesa.</span><span><span class="chip pass">Done</span></span></div></li>
+    <li><span class="when">now</span><div class="what"><b>Stress and soak</b><span>Desktop glmark2 (partial run): about 3,300 to 3,500 FPS on texture and shading tests, no errors. Headless shader stress at 1024x1024: about 547 frames per second with exact integer checks, 0 wrong values so far. A 1-hour idle soak follows, ending about 15:00.</span><span><span class="chip next">Running</span></span></div></li>
+  </ol>
+</section>
+
+<section aria-labelledby="chain">
+  <h2 id="chain">Boot chain on the test boot</h2>
+  <div class="diagram">
+    <svg viewBox="0 0 780 196" role="img" aria-label="Boot chain: iBoot stub, m1n1 stage 1, m1n1 stage 2, U-Boot, GRUB, kernel, GPU driver, Mesa. All stages work.">
+      <style>
+        .n rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+        .n.ok rect { stroke: var(--pass); }
+        .n.new rect { stroke: var(--accent); stroke-width: 2; }
+        .n text { fill: var(--ink); font-family: var(--f-body); font-size: 12px; }
+        .n text.t { font-weight: 600; font-size: 13px; }
+        .n text.s { fill: var(--muted); font-family: var(--f-mono); font-size: 10.5px; }
+        .ar { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+        .tip { fill: var(--muted); }
+        .lab { fill: var(--muted); font-family: var(--f-body); font-size: 11px; }
+      </style>
+      <!-- row 1 -->
+      <g class="n ok"><rect x="6" y="14" width="170" height="64" rx="6"/><text class="t" x="18" y="38">iBoot stub</text><text class="s" x="18" y="56">10151.140.19.700.2</text><text class="s" x="18" y="70">OS fw 14.7</text></g>
+      <g class="n ok"><rect x="204" y="14" width="170" height="64" rx="6"/><text class="t" x="216" y="38">m1n1 stage 1</text><text class="s" x="216" y="56">v1.6.1</text><text class="s" x="216" y="70">system fw 15.6</text></g>
+      <g class="n new"><rect x="402" y="14" width="170" height="64" rx="6"/><text class="t" x="414" y="38">m1n1 stage 2</text><text class="s" x="414" y="56">aca1258 + j516s DTB</text><text class="s" x="414" y="70">writes GPU 14 8 3</text></g>
+      <g class="n ok"><rect x="600" y="14" width="170" height="64" rx="6"/><text class="t" x="612" y="38">U-Boot, GRUB</text><text class="s" x="612" y="56">one-time entry</text><text class="s" x="612" y="70">grub2-reboot</text></g>
+      <!-- row 2 -->
+      <g class="n new"><rect x="600" y="118" width="170" height="64" rx="6"/><text class="t" x="612" y="142">Kernel</text><text class="s" x="612" y="160">7.2.11-m3gpu+</text><text class="s" x="612" y="174">with B1 pin</text></g>
+      <g class="n new"><rect x="402" y="118" width="170" height="64" rx="6"/><text class="t" x="414" y="142">asahi-g15 driver</text><text class="s" x="414" y="160">firmware cd05af6a</text><text class="s" x="414" y="174">renderD128</text></g>
+      <g class="n ok"><rect x="204" y="118" width="170" height="64" rx="6"/><text class="t" x="216" y="142">Mesa (native)</text><text class="s" x="216" y="160">/opt/mesa-m3</text><text class="s" x="216" y="174">GL 4.6, Vulkan 1.4</text></g>
+      <g class="n new"><rect x="6" y="118" width="170" height="64" rx="6"/><text class="t" x="18" y="142">KDE desktop</text><text class="s" x="18" y="160">KWin OpenGL 4.6</text><text class="s" x="18" y="174">via linker cache</text></g>
+      <!-- arrows -->
+      <path class="ar" d="M176 46 H198"/><path class="tip" d="M198 41 L204 46 L198 51 Z"/>
+      <path class="ar" d="M374 46 H396"/><path class="tip" d="M396 41 L402 46 L396 51 Z"/>
+      <path class="ar" d="M572 46 H594"/><path class="tip" d="M594 41 L600 46 L594 51 Z"/>
+      <path class="ar" d="M685 78 V112"/><path class="tip" d="M680 112 L685 118 L690 112 Z"/>
+      <path class="ar" d="M600 150 H578"/><path class="tip" d="M578 145 L572 150 L578 155 Z"/>
+      <path class="ar" d="M402 150 H380"/><path class="tip" d="M380 145 L374 150 L380 155 Z"/>
+      <path class="ar" d="M204 150 H182"/><path class="tip" d="M182 145 L176 150 L182 155 Z"/>
+    </svg>
+  </div>
+  <div class="legend">
+    <span><span class="chip pass">green edge</span> works, stock or unchanged</span>
+    <span><span class="chip next">amber edge</span> our private change, works</span>
+    <span><span class="chip wait">grey edge</span> not done yet</span>
+  </div>
+</section>
+
+<section aria-labelledby="stages">
+  <h2 id="stages">Install stages</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Stage</th><th>What it changed</th><th>Result</th></tr></thead>
+      <tbody>
+        <tr><td class="stage-id">A</td><td>Backups to <code>/root/m3gpu-backup/20261026-105221</code>, paused automatic m1n1 updates, rehearsed the macOS rollback.</td><td><span class="chip pass">Pass</span></td></tr>
+        <tr><td class="stage-id">B</td><td>Mesa into <code>/opt/mesa-m3</code>, test kernel as an extra GRUB entry.</td><td><span class="chip pass">Pass</span></td></tr>
+        <tr><td class="stage-id">C</td><td>New m1n1 (aca1258) with Fedora's DTB, no options.</td><td><span class="chip pass">Pass</span></td></tr>
+        <tr><td class="stage-id">D</td><td>New m1n1 with the SiliconForest j516s DTB. One AOP firmware crash seen once (ambient light sensor), not repeated.</td><td><span class="chip pass">Pass</span></td></tr>
+        <tr><td class="stage-id">E</td><td>GPU, display and external display options on. Native display at 3456x2160 and brightness work. GPU firmware refused.</td><td><span class="chip fail">GPU refused</span></td></tr>
+        <tr><td class="stage-id">F</td><td>Test kernel replaced with the exact-hash pin build. Old kernel backed up to <code>/root/m3gpu-backup/20261026-130500-pre-pin</code>.</td><td><span class="chip pass">Pass, GPU works</span></td></tr>
+        <tr><td class="stage-id">G</td><td>Linker-cache service, user environment generator, two new no-password actions (<code>mesa-select</code>, <code>restart-login</code>). Desktop and login screen use the native Mesa only on GPU boots.</td><td><span class="chip pass">Pass</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>The current <code>boot.bin</code> is stageD (GPU options off). The default boot is the stock Fedora kernel 7.1.13.</p>
+</section>
+
+<section aria-labelledby="firmware">
+  <h2 id="firmware">GPU firmware identity</h2>
+  <p>The driver hashes the loaded GPU firmware code and accepts only listed hashes. Our hash was missing from the SiliconForest list.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Entry</th><th>TEXT SHA-256 (start)</th><th>Scope</th><th>Status</th></tr></thead>
+      <tbody>
+        <tr><td>macOS 14.7-14.8.x stub firmware</td><td class="mono">11e49f75</td><td>any T6030</td><td><span class="chip wait">Not ours</span></td></tr>
+        <tr><td>J516S B0 RTKit-2419.140.12</td><td class="mono">da26ecca</td><td>apple,j516s</td><td><span class="chip wait">Not ours</span></td></tr>
+        <tr><td>J516S b0 build on B1 chip (our private pin)</td><td class="mono">cd05af6a</td><td>apple,j516s</td><td><span class="chip pass">Ours, accepted</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="features">
+  <h2 id="features">Hardware status</h2>
+  <p>"Asahi" is the official M3 Pro status from September 2026. "This M3" lists only what we tested here.</p>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Feature</th><th>Asahi (Sep 2026)</th><th>This M3</th></tr></thead>
+      <tbody>
+        <tr><td>GPU 3D (OpenGL / Vulkan)</td><td>Not usable</td><td><span class="chip pass">Works, test kernel</span></td></tr>
+        <tr><td>Main display (native, not framebuffer)</td><td>Work in progress</td><td><span class="chip pass">Works, test kernel</span></td></tr>
+        <tr><td>Brightness</td><td>Work in progress</td><td><span class="chip pass">Works, test kernel</span></td></tr>
+        <tr><td>Desktop acceleration</td><td>Not usable</td><td><span class="chip pass">Works, test kernel</span></td></tr>
+        <tr><td>Ambient light sensor (AOP)</td><td>Not listed</td><td><span class="chip fail">Crashed once</span></td></tr>
+        <tr><td>Wi-Fi, Bluetooth</td><td>Working</td><td><span class="chip pass">Works</span></td></tr>
+        <tr><td>HDMI, external displays</td><td>Disabled / work in progress</td><td><span class="chip wait">Not tested</span></td></tr>
+        <tr><td>Sleep and suspend</td><td>Does not work</td><td><span class="chip wait">Off on purpose</span></td></tr>
+        <tr><td>ProMotion 120 Hz</td><td>Not supported</td><td><span class="chip wait">Not tested</span></td></tr>
+        <tr><td>Video encode, ProRes, Neural Engine</td><td>TBA</td><td><span class="chip wait">Not tested</span></td></tr>
+        <tr><td>Touch ID</td><td>TBA</td><td><span class="chip wait">Not tested</span></td></tr>
+        <tr><td>Speakers, microphones, webcam</td><td>Working (docs / press)</td><td><span class="chip wait">Not tested</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="left">
+  <h2 id="left">What is left: the plan</h2>
+  <p>The steps run in this order. Each step starts only when the step before it passes.</p>
+  <ol class="todo">
+    <li><span class="chip pass">Step 1</span><div><span><b>Desktop on native Mesa.</b> Done in stage G (13:40).</span><small>KWin reports OpenGL compositing on "Apple M3 Pro (G15S B1)". Undo: create <code>/etc/m3gpu-native-mesa.off</code> and reboot.</small></div></li>
+    <li><span class="chip next">Step 2</span><div><span><b>Stress test.</b> Headless part running now (shader stress, readback runs, 1-hour idle soak). Desktop part (full glmark2, <code>vkcube</code>, video, Firefox WebGL, a QtWebEngine app) waits for a desktop login.</span><small>Pass: no GPU fault, no firmware halt, no "submit failed" lines. linux-aurora issue 90 reports one firmware halt from a QtWebEngine render fault on a J516S.</small></div></li>
+    <li><span class="chip pass">Step 3</span><div><span><b>Stock kernel with stageE.</b> Passed 13:43.</span><small>The stock kernel booted with stageE, the login screen started, and the Mesa service kept the system Mesa.</small></div></li>
+    <li><span class="chip pass">Step 4</span><div><span><b>Login screen on native Mesa.</b> Done in stage G.</span><small>The login screen was black with the system Mesa. It draws on the GPU now.</small></div></li>
+    <li><span class="chip wait">Step 5</span><div><span><b>Make the GPU boot the default.</b> Keep stageE, make the test kernel the default GRUB entry, keep the stock kernel as the fallback entry.</span><small>Needs the no-password tool to get one more action, so one sudo step.</small></div></li>
+    <li><span class="chip wait">Step 6</span><div><span><b>Fedora to macOS remotely.</b> Check <code>asahi-bless</code> read-only, then test one switch.</span><small>macOS to Fedora already works: the default startup disk is Fedora.</small></div></li>
+    <li><span class="chip next">Step 7</span><div><span><b>Upstream report.</b> Draft written: see "Upstream report draft" under Reports.</span><small>Nothing is posted without your approval of the exact text.</small></div></li>
+    <li><span class="chip wait">Step 8</span><div><span><b>Clean-up.</b> Remove the no-password sudo rule, turn m1n1 updates back on, restore KDE sleep settings if wanted.</span><small>Each item only with your agreement.</small></div></li>
+  </ol>
+</section>
+
+<section aria-labelledby="rollback">
+  <h2 id="rollback">Rollback from macOS</h2>
+  <p>Use this when Fedora does not boot. It puts the stock <code>boot.bin</code> back. Run it on this Mac while the M3 runs macOS with the USB-C cable connected.</p>
+  <div class="cmd">
+    <pre id="rollback-cmd">ssh -t m3 'sudo diskutil mount disk0s4 &amp;&amp; cp "/Volumes/EFI - FEDOR/m1n1/boot.bin.stock" "/Volumes/EFI - FEDOR/m1n1/boot.bin" &amp;&amp; shasum -a 256 "/Volumes/EFI - FEDOR/m1n1/boot.bin" &amp;&amp; sudo diskutil unmount disk0s4'</pre>
+    <button type="button" id="copy-rollback">Copy rollback command</button>
+    <span class="copy-msg" id="copy-msg" aria-live="polite"></span>
+  </div>
+  <p>The expected hash after the copy is <code class="mono">00efa22c96ecba6718e880d74578dd61546ecae7553a69c003f2c0d5879f555d</code>.</p>
+</section>
+
+<section aria-labelledby="docs">
+  <h2 id="docs">Reports and files</h2>
+  <p>These files are in the session folder on this Mac, and copies of the GPU notes are in the shared notes folder.</p>
+  <div class="docs">
+    <div class="doc"><code>asahi-m3-pro-status-report.md</code><p>What Asahi supports on the M3 Pro, with dates and sources.</p></div>
+    <div class="doc"><code>m3-pro-help-feasibility.md</code><p>How the missing parts could be built, REA, project policies.</p></div>
+    <div class="doc"><code>apple-rea-plan.md</code><p>Plan for a private "REA for Apple" toolkit, GPU first.</p></div>
+    <div class="doc"><code>m3-gpu-stack-review.md</code><p>Review of the SiliconForest kernel, m1n1 and Mesa, and the safe config.</p></div>
+    <div class="doc"><code>m3gpu/INSTALL-PLAN.md</code><p>Install plan, stage results A to E, rollback steps.</p></div>
+    <div class="doc"><code>m3gpu/GPU-FIRMWARE-INVESTIGATION.md</code><p>Why the firmware was refused, chip revision, the pin.</p></div>
+    <div class="doc"><code>m3gpu/g15-j516s-b1-pin.patch</code><p>The one-entry kernel patch.</p></div>
+    <div class="doc"><code>m3gpu/gles-readback.c</code><p>The render test that reads back exact pixels.</p></div>
+  </div>
+</section>
+
+<footer>
+  <span>Every result on this page was measured on the M3 or read from the named source. Untested items say "Not tested".</span>
+  <span>Design: draft without direction (energy 1, rhythm 1, motion 1).</span>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var btn = document.getElementById('copy-rollback');
+  var msg = document.getElementById('copy-msg');
+  var pre = document.getElementById('rollback-cmd');
+  function selectText() {
+    var range = document.createRange();
+    range.selectNodeContents(pre);
+    var sel = window.getSelection();
+    sel.removeAllRanges();
+    sel.addRange(range);
+    msg.textContent = 'Copy is blocked here. The command is selected: press Cmd+C.';
+  }
+  btn.addEventListener('click', function () {
+    var text = pre.textContent;
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        msg.textContent = 'Copied.';
+      }, selectText);
+    } else {
+      selectText();
+    }
+  });
+})();
+</script>
