@@ -4,7 +4,7 @@
 . "$(dirname "$0")/common.sh"
 
 K="$SRC/linux"
-BUILD="$M3_ROOT/build-linux"
+BUILD="$AGX_ROOT/build-linux"
 mkdir -p "$BUILD"
 
 # Start from the running Fedora Asahi kernel's config.
@@ -74,4 +74,4 @@ make -C "$K" O="$BUILD" INSTALL_DTBS_PATH="$STAGE/dtb" dtbs_install >/dev/null
 echo "$KREL" > "$OUT/kernel-release"
 echo "Kernel staged in $STAGE"
 ls -la "$STAGE/boot"
-ls -la "$STAGE/dtb/apple/$M3_DTB_NAME"
+ls -la "$STAGE/dtb/apple/$AGX_DTB_NAME"

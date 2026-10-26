@@ -1,0 +1,30 @@
+#!/bin/sh
+# agx-mesa-select: /usr/local/sbin/agx-mesa-select, run at boot by
+# agx-mesa-select.service before the login screen starts.
+# Puts @MESA_PREFIX@/lib64 in the dynamic linker cache only when the native
+# GPU driver is bound. On every other boot it removes it. KWin has file
+# capabilities, so it ignores LD_LIBRARY_PATH; the linker cache still applies.
+# Off switch: create /etc/agx-native-mesa.off
+CONF=/etc/ld.so.conf.d/00-agx-native-mesa.conf
+LIB=@MESA_PREFIX@/lib64
+NODE=/sys/bus/platform/drivers/@AGX_GPU_DRIVER@/@AGX_GPU_NODE@
+
+want=no
+if [ ! -e /etc/agx-native-mesa.off ] && [ -r "$LIB/libEGL.so.1" ]; then
+	case "$(uname -r)" in
+	*@LOCALVERSION@*)
+		# The built-in driver can bind a little after early boot.
+		i=0
+		while [ ! -e "$NODE" ] && [ "$i" -lt 20 ]; do sleep 1; i=$((i + 1)); done
+		[ -e "$NODE" ] && want=yes
+		;;
+	esac
+fi
+
+if [ "$want" = yes ]; then
+	echo "$LIB" > "$CONF"
+else
+	rm -f "$CONF"
+fi
+ldconfig
+echo "agx-mesa-select: kernel $(uname -r), native Mesa $want"

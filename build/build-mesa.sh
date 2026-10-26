@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Build Mesa for the M3 GPU into a staging folder. Copying to /opt/mesa-m3 is a
+# Build Mesa for the Apple GPU into a staging folder. Copying to $MESA_PREFIX is a
 # separate sudo step. Fedora's own Mesa is not touched.
 . "$(dirname "$0")/common.sh"
 
 S="$SRC/mesa"
-B="$M3_ROOT/build-mesa"
+B="$AGX_ROOT/build-mesa"
 STAGE="$OUT/mesa-stage"
 
 if [ ! -f "$B/build.ninja" ]; then

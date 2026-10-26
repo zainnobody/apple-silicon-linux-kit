@@ -1,0 +1,14 @@
+# agx-boot: exact commands @AGX_USER@ may run as root without a password.
+# Installed by install/setup-nopasswd.sh. Remove with: sudo /usr/local/sbin/agx-boot cleanup
+Cmnd_Alias AGX_BOOT = /usr/local/sbin/agx-boot status, \
+                   /usr/local/sbin/agx-boot build-stageE, \
+                   /usr/local/sbin/agx-boot use-stock, \
+                   /usr/local/sbin/agx-boot use-stageC, \
+                   /usr/local/sbin/agx-boot use-stageD, \
+                   /usr/local/sbin/agx-boot use-stageE, \
+                   /usr/local/sbin/agx-boot test-once, \
+                   /usr/local/sbin/agx-boot mesa-select, \
+                   /usr/local/sbin/agx-boot restart-login, \
+                   /usr/local/sbin/agx-boot cleanup, \
+                   /usr/bin/systemctl reboot
+@AGX_USER@ ALL=(root) NOPASSWD: AGX_BOOT

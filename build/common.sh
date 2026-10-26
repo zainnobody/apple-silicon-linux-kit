@@ -8,7 +8,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$SRC" "$OUT" "$LOGS"
 
 # Run long builds detached from SSH so a dropped connection does not kill them:
-#   systemd-run --user --unit=m3-kernel <repo>/build/build-kernel.sh
+#   systemd-run --user --unit=agx-kernel <repo>/build/build-kernel.sh
 # A user unit stops when the user manager stops, so stay logged in on the
 # desktop (or enable lingering) while it runs, and turn off automatic sleep.
 

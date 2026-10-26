@@ -2,7 +2,7 @@
 # Desktop GPU stress run inside the logged-in Wayland session (needs a desktop
 # login on a GPU boot): glmark2, vkcube, es2gears, 5 readback runs, kernel check.
 # Needs: glmark2 (dnf install glmark2), vulkan-tools, mesa-demos.
-# Run:  systemd-run --user --unit=m3gpu-stress tests/stress.sh
+# Run:  systemd-run --user --unit=agx-stress tests/stress.sh
 # Result: $LOGS/stress-<HHMM>/summary (last line STRESS_DONE)
 set -uo pipefail
 . "$(dirname "$0")/../config.sh"

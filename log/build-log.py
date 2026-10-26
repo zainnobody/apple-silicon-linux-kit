@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build M3-LINUX-LOG.html: one local page with the overview, every document and every script.
+"""Build TEST-LOG.html: one local page with the overview, every document and every script.
 
 Inputs (paths relative to the repository root):
   log/overview.html     overview: its <style>, its .wrap content and its <script>
@@ -15,13 +15,14 @@ import re
 import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-OUT = os.path.join(ROOT, "M3-LINUX-LOG.html")
+OUT = os.path.join(ROOT, "TEST-LOG.html")
 
 # (id, title, path, one-line summary). Order is the reading order.
 # A missing file is listed as missing on the page; ../TASKS.md exists only in
 # the working session that created this repository.
 REPORTS = [
     ("readme", "README", "README.md", "What this project is, how to build and install it, how to undo it."),
+    ("machines", "Machine profiles", "machines/README.md", "Tested machines and how to add a machine."),
     ("tasks", "Task list", "../TASKS.md", "Open follow-ups and ideas (working session only)."),
     ("performance", "Performance and stability", "docs/performance.md", "Benchmarks, soak results and the comparison plan."),
     ("firmware", "GPU firmware investigation", "docs/gpu-firmware-investigation.md", "Why the GPU firmware was refused, the B1 chip revision, the pin and the stage F result."),
@@ -35,7 +36,7 @@ REPORTS = [
     ("install-findings", "Asahi install findings", "docs/asahi-install-findings.md", "Notes from the session that installed Fedora Asahi."),
 ]
 
-CODE_DIRS = ["config.sh", "build", "install", "system", "patches", "tests", "log/build-log.py"]
+CODE_DIRS = ["config.sh", "config.local.example.sh", "machines", "build", "install", "system", "patches", "tests", "log/build-log.py"]
 CODE_EXT = (".sh", ".in", ".c", ".swift", ".py", ".patch", ".service")
 
 
@@ -303,7 +304,7 @@ pre.code { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 1
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>M3 Pro Linux Log</title>
+<title>agx-linux-kit Test Log</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>%(style)s
 %(extra)s</style>

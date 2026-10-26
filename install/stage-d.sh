@@ -7,17 +7,17 @@
 need_root; need_machine; need_krel
 
 D="$(dirname "$0")"
-DTBDIR="/boot/dtb-$M3_KREL"
-BUILT_DTB="$OUT/kernel-$M3_KREL/dtb/apple/$M3_DTB_NAME"
+DTBDIR="/boot/dtb-$AGX_KREL"
+BUILT_DTB="$OUT/kernel-$AGX_KREL/dtb/apple/$AGX_DTB_NAME"
 LOG="$LOGS/stage-d.log"
 set -o pipefail
 {
 	# The installed board DTB must be the one this build produced.
-	[ "$(sha "$DTBDIR/apple/$M3_DTB_NAME")" = "$(sha "$BUILT_DTB")" ] \
-		|| { echo "$M3_DTB_NAME in $DTBDIR differs from the build output" >&2; exit 1; }
+	[ "$(sha "$DTBDIR/apple/$AGX_DTB_NAME")" = "$(sha "$BUILT_DTB")" ] \
+		|| { echo "$AGX_DTB_NAME in $DTBDIR differs from the build output" >&2; exit 1; }
 	"$D/make-bootbin.sh" stageD "$M1N1_BIN" "$DTBDIR"
 	"$D/use-bootbin.sh" stageD
-	ENTRY="$(basename "$(grep -l "^linux /vmlinuz-$M3_KREL\$" /boot/loader/entries/*.conf)" .conf)"
+	ENTRY="$(basename "$(grep -l "^linux /vmlinuz-$AGX_KREL\$" /boot/loader/entries/*.conf)" .conf)"
 	grub2-reboot "$ENTRY"
 	echo "GRUB: $(grub2-editenv list | grep -E 'saved_entry|next_entry' | tr '\n' ' ')"
 	echo "STAGE_D_READY $(date)"

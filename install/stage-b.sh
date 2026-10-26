@@ -6,7 +6,7 @@
 . "$(dirname "$0")/lib.sh"
 need_root; need_machine; need_krel
 
-KREL="$M3_KREL"
+KREL="$AGX_KREL"
 KSTAGE="$OUT/kernel-$KREL"
 MSTAGE="$OUT/mesa-stage$MESA_PREFIX"
 ENTRIES=/boot/loader/entries
@@ -51,7 +51,7 @@ if grep -q '^devicetree' "$SRC_ENTRY"; then
 fi
 NEW_ID="$(basename "$SRC_ENTRY" .conf | sed "s/$FEDORA_KREL/$KREL/")"
 sed -e "s/$FEDORA_KREL/$KREL/g" \
-    -e "s/^title .*/title Fedora m3gpu test ($KREL)/" \
+    -e "s/^title .*/title Fedora agx test ($KREL)/" \
     "$SRC_ENTRY" > "$ENTRIES/$NEW_ID.conf"
 restorecon -F "$ENTRIES/$NEW_ID.conf"
 

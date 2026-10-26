@@ -7,9 +7,9 @@
 . "$(dirname "$0")/lib.sh"
 need_root; need_machine; need_krel
 
-KREL="$M3_KREL"
+KREL="$AGX_KREL"
 KSTAGE="$OUT/kernel-$KREL"
-BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-replace"
+BACKUP="/root/agx-backup/$(date +%Y%m%d-%H%M%S)-pre-replace"
 
 [ "$(uname -r)" != "$KREL" ] || { echo "Boot the Fedora kernel before replacing $KREL" >&2; exit 1; }
 [ -e "/usr/lib/modules/$KREL" ] || { echo "No installed $KREL to replace (use stage B)" >&2; exit 1; }

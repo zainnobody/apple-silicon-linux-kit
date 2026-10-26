@@ -1,13 +1,13 @@
 #!/bin/sh
 # systemd user environment generator:
-#   /etc/systemd/user-environment-generators/60-m3gpu-native-mesa
+#   /etc/systemd/user-environment-generators/60-agx-native-mesa
 # Runs when each user manager starts (the login screen's and yours). Prints the
-# native Mesa environment only when the native G15 GPU driver is bound, so the
+# native Mesa environment only when the native GPU driver is bound, so the
 # stock Fedora kernel keeps the system Mesa.
-# Off switch: create /etc/m3gpu-native-mesa.off
+# Off switch: create /etc/agx-native-mesa.off
 P=@MESA_PREFIX@
-[ -e /etc/m3gpu-native-mesa.off ] && exit 0
-[ -e /sys/bus/platform/drivers/asahi-g15/@M3_GPU_NODE@ ] || exit 0
+[ -e /etc/agx-native-mesa.off ] && exit 0
+[ -e /sys/bus/platform/drivers/@AGX_GPU_DRIVER@/@AGX_GPU_NODE@ ] || exit 0
 [ -e /dev/dri/renderD128 ] || exit 0
 [ -r "$P/lib64/libEGL.so.1" ] && [ -r "$P/lib64/dri/asahi_dri.so" ] || exit 0
 echo "LD_LIBRARY_PATH=$P/lib64"
@@ -17,4 +17,4 @@ echo "VK_DRIVER_FILES=$P/share/vulkan/icd.d/asahi_icd.aarch64.json"
 echo "VK_ICD_FILENAMES=$P/share/vulkan/icd.d/asahi_icd.aarch64.json"
 echo "VK_LOADER_LAYERS_DISABLE=~implicit~"
 echo "QSG_RHI_BACKEND=opengl"
-echo "M3GPU_NATIVE_MESA=1"
+echo "AGX_NATIVE_MESA=1"

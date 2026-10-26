@@ -1,12 +1,12 @@
-# Boot service: runs m3gpu-mesa-select before the login screen starts.
+# Boot service: runs agx-mesa-select before the login screen starts.
 [Unit]
-Description=Select native M3 Mesa when the native G15 GPU driver is bound
+Description=Select the native Apple GPU Mesa when the native GPU driver is bound
 After=systemd-udev-settle.service local-fs.target
 Before=display-manager.service systemd-user-sessions.service
 
 [Service]
 Type=oneshot
-ExecStart=/usr/local/sbin/m3gpu-mesa-select
+ExecStart=/usr/local/sbin/agx-mesa-select
 RemainAfterExit=yes
 
 [Install]

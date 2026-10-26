@@ -1,0 +1,33 @@
+# Plasma login env script: ~/.config/plasma-workspace/env/agx-native-mesa.sh
+# Sourced by plasma-sourceenv.sh before the Plasma session starts.
+# Uses the native Mesa in @MESA_PREFIX@ only when the native GPU driver is
+# bound (test kernel with boot.bin.stageE). On any other boot it does nothing,
+# so the stock Fedora kernel keeps the system Mesa.
+# Off switch: create ~/.config/agx-native-mesa.off
+_agx_log="${XDG_STATE_HOME:-$HOME/.local/state}/agx-native-mesa.log"
+_agx_p=@MESA_PREFIX@
+_agx_why=
+if [ -e "$HOME/.config/agx-native-mesa.off" ]; then
+	_agx_why="off switch present"
+elif [ ! -e /sys/bus/platform/drivers/@AGX_GPU_DRIVER@/@AGX_GPU_NODE@ ]; then
+	_agx_why="@AGX_GPU_DRIVER@ not bound ($(uname -r))"
+elif [ ! -e /dev/dri/renderD128 ]; then
+	_agx_why="no render node"
+elif [ ! -r "$_agx_p/lib64/libEGL.so.1" ] || [ ! -r "$_agx_p/lib64/dri/asahi_dri.so" ]; then
+	_agx_why="native Mesa files missing"
+fi
+if [ -z "$_agx_why" ]; then
+	export LD_LIBRARY_PATH="$_agx_p/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+	export LIBGL_DRIVERS_PATH="$_agx_p/lib64/dri"
+	export GBM_BACKENDS_PATH="$_agx_p/lib64/gbm"
+	export VK_DRIVER_FILES="$_agx_p/share/vulkan/icd.d/asahi_icd.aarch64.json"
+	export VK_ICD_FILENAMES="$VK_DRIVER_FILES"
+	# The system's implicit Vulkan layers belong to the system drivers.
+	export VK_LOADER_LAYERS_DISABLE='~implicit~'
+	export QSG_RHI_BACKEND=opengl
+	export AGX_NATIVE_MESA=1
+	_agx_why="active"
+fi
+mkdir -p "${_agx_log%/*}" 2>/dev/null
+echo "$(date '+%F %T') $(uname -r) native-mesa: $_agx_why" >> "$_agx_log" 2>/dev/null
+unset _agx_log _agx_p _agx_why

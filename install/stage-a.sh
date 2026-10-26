@@ -6,8 +6,8 @@ need_root; need_machine
 
 ESP_BIN="$ESP_M1N1/boot.bin"
 STAMP="$(date +%Y%m%d-%H%M%S)"
-BK="/root/m3gpu-backup/$STAMP"
-USER_BK="$M3_ROOT/backup"
+BK="/root/agx-backup/$STAMP"
+USER_BK="$AGX_ROOT/backup"
 
 mkdir -p "$BK" "$USER_BK"
 
@@ -22,7 +22,7 @@ sync
 # 2. boot.bin copies in /root and for the user (copy it to another computer).
 cp --preserve=timestamps "$ESP_BIN" "$BK/boot.bin.stock"
 cp --preserve=timestamps "$ESP_BIN" "$USER_BK/boot.bin.stock"
-chown "$M3_USER:" "$USER_BK" "$USER_BK/boot.bin.stock"
+chown "$AGX_USER:" "$USER_BK" "$USER_BK/boot.bin.stock"
 
 # 3. Boot configuration.
 cp -a /etc/m1n1.conf /etc/sysconfig/update-m1n1 "$BK/"
@@ -35,7 +35,7 @@ grub2-editenv list > "$BK/grubenv.txt" 2>/dev/null || true
 if grep -q '^M1N1_UPDATE_DISABLED=' /etc/sysconfig/update-m1n1; then
 	echo "M1N1_UPDATE_DISABLED already set"
 else
-	printf '\n# m3gpu test (%s): pause boot.bin rebuilds. Remove after testing.\nM1N1_UPDATE_DISABLED=1\n' "$(date +%F)" >> /etc/sysconfig/update-m1n1
+	printf '\n# agx-linux-kit test (%s): pause boot.bin rebuilds. Remove after testing.\nM1N1_UPDATE_DISABLED=1\n' "$(date +%F)" >> /etc/sysconfig/update-m1n1
 fi
 
 echo "=== Results"
