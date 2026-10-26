@@ -144,7 +144,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
   <div class="status-line">
     <span class="chip pass">GPU renders on the test kernel</span>
     <span class="chip pass">Desktop composites on the GPU</span>
-    <span class="chip next">Running: 1 h GPU load soak (remote)</span>
+    <span class="chip next">Done: idle and load soaks pass</span>
     <span class="updated">Updated 2026-10-26 13:55</span>
   </div>
   <p>Fedora Asahi dual boot with a private SiliconForest GPU stack. The stock Fedora kernel stays the default boot. The GPU test kernel boots only when selected for one boot.</p>
@@ -177,7 +177,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
     <li><span class="when">13:02</span><div class="what"><b>Exact-hash pin and rebuild</b><span>One firmware entry for <code>apple,j516s</code> only. No prefix override.</span><span><span class="chip pass">Done</span></span></div></li>
     <li><span class="when">13:06</span><div class="what"><b>Stage F: GPU accepted</b><span>Firmware identity accepted, hardware IDs matched, firmware READY, <code>renderD128</code> created. GL and Vulkan queries and the readback test passed.</span><span><span class="chip pass">Done</span></span></div></li>
     <li><span class="when">13:40</span><div class="what"><b>Stage G: desktop and login screen on the GPU</b><span>KWin has the <code>cap_sys_nice</code> file capability, so it ignores <code>LD_LIBRARY_PATH</code>. A boot service now adds <code>/opt/mesa-m3/lib64</code> to the linker cache only when the native driver is bound. KWin reports OpenGL compositing on "Apple M3 Pro (G15S B1)", OpenGL 4.6. No failed GPU requests since. The stock kernel with stageE also boots cleanly and keeps the system Mesa.</span><span><span class="chip pass">Done</span></span></div></li>
-    <li><span class="when">now</span><div class="what"><b>Stress and soak</b><span>Desktop glmark2 (partial run): about 3,300 to 3,500 FPS on texture and shading tests, no errors. Headless shader stress at 1024x1024: about 547 frames per second with exact integer checks, 0 wrong values so far. 1-hour idle soak (13:57 to 14:57): pass, readback 3/3 after it, 0 kernel GPU or display problems. A 1-hour load soak follows, ending about 16:00.</span><span><span class="chip next">Running</span></span></div></li>
+    <li><span class="when">now</span><div class="what"><b>Stress and soak</b><span>Desktop glmark2 (partial run): about 3,300 to 3,500 FPS on texture and shading tests, no errors. Headless shader stress at 1024x1024: about 547 frames per second with exact integer checks, 0 wrong values so far. 1-hour idle soak (13:57 to 14:57): pass, readback 3/3 after it, 0 kernel GPU or display problems. 1-hour load soak (14:57 to 15:57): pass, 228 G pixel-iterations/s for the full hour, 0 wrong values in 195,843 checks.</span><span><span class="chip next">Running</span></span></div></li>
   </ol>
 </section>
 
@@ -286,7 +286,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
   <p>The steps run in this order. Each step starts only when the step before it passes.</p>
   <ol class="todo">
     <li><span class="chip pass">Step 1</span><div><span><b>Desktop on native Mesa.</b> Done in stage G (13:40).</span><small>KWin reports OpenGL compositing on "Apple M3 Pro (G15S B1)". Undo: create <code>/etc/agx-native-mesa.off</code> and reboot.</small></div></li>
-    <li><span class="chip next">Step 2</span><div><span><b>Stress test.</b> Headless part: shader stress and the 1-hour idle soak pass; the 1-hour load soak runs now. Desktop part (full glmark2, <code>vkcube</code>, video, Firefox WebGL, a QtWebEngine app) waits for a desktop login.</span><small>Pass: no GPU fault, no firmware halt, no "submit failed" lines. linux-aurora issue 90 reports one firmware halt from a QtWebEngine render fault on a J516S.</small></div></li>
+    <li><span class="chip next">Step 2</span><div><span><b>Stress test.</b> Headless part: shader stress and the 1-hour idle soak pass; the 1-hour load soak also passes. Desktop part (full glmark2, <code>vkcube</code>, video, Firefox WebGL, a QtWebEngine app) waits for a desktop login.</span><small>Pass: no GPU fault, no firmware halt, no "submit failed" lines. linux-aurora issue 90 reports one firmware halt from a QtWebEngine render fault on a J516S.</small></div></li>
     <li><span class="chip pass">Step 3</span><div><span><b>Stock kernel with stageE.</b> Passed 13:43.</span><small>The stock kernel booted with stageE, the login screen started, and the Mesa service kept the system Mesa.</small></div></li>
     <li><span class="chip pass">Step 4</span><div><span><b>Login screen on native Mesa.</b> Done in stage G.</span><small>The login screen was black with the system Mesa. It draws on the GPU now.</small></div></li>
     <li><span class="chip wait">Step 5</span><div><span><b>Make the GPU boot the default.</b> Keep stageE, make the test kernel the default GRUB entry, keep the stock kernel as the fallback entry.</span><small>Needs the no-password tool to get one more action, so one sudo step.</small></div></li>

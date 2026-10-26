@@ -44,7 +44,9 @@ We added one `FirmwareBuild` entry for `apple,j516s` with this digest (no prefix
 - Exact pixel readback tests pass. KWin 6.7.5 composites with OpenGL on "Apple M3 Pro (G15S B1)".
 - Headless shader stress with exact integer checks: see the soak result below.
 
-SOAK_RESULT_PLACEHOLDER
+- Shader stress, 10 min: 228.04 G pixel-iterations/s, 0 wrong values in 32,621 checks.
+- Idle soak, 60 min, login screen on the GPU: readback 3/3 after it, no GPU or display errors in the kernel log.
+- Load soak, 60 min: 228.17 G pixel-iterations/s for the full hour, 0 wrong values in 195,843 checks, no GPU or display errors in the kernel log.
 
 ### Request
 
