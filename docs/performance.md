@@ -38,8 +38,8 @@ No GPU errors during the run. The full run (`tests/stress.sh`) needs a desktop l
 | 2026-10-26 13:06 | Readback test, 3 runs | 3 of 3 pass, 0 of 4096 pixels wrong |
 | 2026-10-26 13:47 | Shader stress, 600 s (`tests/soak.sh`) | Pass, 0 wrong values |
 | 2026-10-26 13:57 | Readback test, 20 runs | 20 of 20 pass |
-| 2026-10-26 13:57 | Idle soak, 60 min, login screen on the GPU | running |
-| 2026-10-26 | Load soak, 60 min (`tests/load-soak.sh`) | queued after the idle soak |
+| 2026-10-26 13:57 | Idle soak, 60 min, login screen on the GPU | Pass: readback 3/3 after the soak, 0 kernel GPU or display problems |
+| 2026-10-26 | Load soak, 60 min (`tests/load-soak.sh`) | running, ends about 16:00 |
 
 ## Planned: how far each part of the chip goes
 
