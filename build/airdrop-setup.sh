@@ -9,11 +9,13 @@
 #   firewall  put awdl0 in the "work" zone and open TCP 8771; runtime only (root)
 #   receiver  start the receiver in a retry loop (no root)
 #   window N  become visible for N seconds (root; needs a terminal if sudo asks for a password)
+#   send ADDR FILE  send a file to a peer on awdl0 (user; needs an open window). ADDR is the peer link-local
+#             address with port, e.g. "[fe80::...%awdl0]:8770"; list peers with: ip -6 neigh show dev awdl0
 #   status    read-only
 #   undo      remove awdl0, the NetworkManager file, the firewall change; restore the MAC setting (root)
 set -u
 SRC=${AIRDROP_SRC:-$HOME/omdrop-test}
-OUT=${AIRDROP_OUT:-$SRC/received}
+OUT=${AIRDROP_OUT:-$HOME/Downloads}
 AWDL_REV=9c846cd598e234cf874019a868a777e85dce05fe
 PLUGIN_REV=48867c6d5bb6ee08eb6b7e6e4e20a8210d65fdee
 UP=$SRC/omdrop-awdl/userspace/awdl-up
@@ -69,6 +71,10 @@ receiver)
 window)
 	sudo "$DISC" start "${2:-180}"
 	;;
+send)
+	[ -n "${2:-}" ] && [ -f "${3:-}" ] || bad "usage: send ADDR FILE"
+	python3 "$SRC/omdrop-awdl/userspace/airdrop-send.py" --direct "$2" --ask-timeout 45 --op-timeout 10 "$3"
+	;;
 status)
 	ip -br link show awdl0 2>&1
 	"$DISC" status --json 2>&1
@@ -86,6 +92,6 @@ undo)
 	ok "undone; the three Python packages stay installed (sudo dnf remove python3-ifaddr python3-libarchive-c python3-zeroconf)"
 	;;
 *)
-	sed -n '2,13p' "$0"
+	sed -n '2,15p' "$0"
 	;;
 esac

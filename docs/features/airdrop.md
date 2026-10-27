@@ -1,6 +1,6 @@
 # AirDrop (J516S, 7.2.11-m3gpu+, Fedora Asahi Remix 44)
 
-Status 2026-10-26: `awdl0` works on the built-in Broadcom BCM4388. The M3 opens a visible window with Wi-Fi staying up. The iPhone to M3 transfer is not proven yet (see Results).
+Status 2026-10-26: `awdl0` works on the built-in Broadcom BCM4388 with Wi-Fi staying up. Mac to M3 and M3 to iPhone transfers work. iPhone to M3 (M3 in the iPhone share sheet) and M3 to Mac do not work yet (see Results).
 
 ## Result in one paragraph
 
@@ -28,6 +28,9 @@ All steps are in `build/airdrop-setup.sh`, run on the M3 in this order.
 | 5 | `airdrop-setup.sh firewall` | firewalld runtime: `awdl0` in zone `work`, TCP 8771 open | reboot, or `undo` |
 | 6 | `airdrop-setup.sh receiver` | receiver in a retry loop (it exits while `awdl0` has no link-local address) | stop the loop |
 | 7 | `airdrop-setup.sh window 180` | `omdrop-discoverable start 180`: makes the M3 visible for 180 s | `omdrop-discoverable stop` |
+| 8 | `airdrop-setup.sh send ADDR FILE` | sends a file to a peer; no root | none |
+
+Received files go to `~/Downloads`.
 
 Why step 3: Fedora's default is a random per-network Wi-Fi MAC (`stable-ssid`). `awdl-up` derives the AWDL address from the permanent MAC and exits with code 5 on a random one. The side effect is that the router sees the real MAC.
 
@@ -42,10 +45,12 @@ Why step 3: Fedora's default is a random per-network Wi-Fi MAC (`stable-ssid`). 
 | Data-path gate (`omdrop-discoverable start`) | 20 of 20 frame completions |
 | Firmware 23.30.58 service record | the BCM4387 format is rejected (`EBADE`); the helper's length-header fallback works. Same quirk the project reports for 23.20.95 |
 | Receiver | serves `<awdl0 MAC>._airdrop._tcp.local` on the link-local address, TCP 8771 |
-| Visible window, 180 s, iPhone nearby | `rx_proven: true` (data frames arrived); no transfer reached the receiver; window expired before the log was read |
-| iPhone to M3 file transfer | NOT proven |
-| M3 in the iPhone share sheet by name | NOT proven |
-| M3 to iPhone send | NOT tested |
+| Mac to M3 (Finder AirDrop, Everyone) | works: the M3 shows by name in Finder; `/Discover`, `/Ask`, `/Upload` all answered 200; a 5-byte file arrived |
+| M3 to iPhone (`airdrop-setup.sh send`) | works: the iPhone asked, the user accepted, 18-byte file arrived (`Upload ... ok`). Needs the iPhone unlocked and on "Everyone for 10 Minutes"; a few tries are normal (the iPhone listens in bursts) |
+| iPhone to M3 | NOT working: the M3 neighbour appears on the iPhone side, but the iPhone never connected to the receiver and the M3 did not appear in the share sheet, in three windows. Not yet explained |
+| M3 to Mac | NOT working: the Mac refuses TCP on the fixed port 8770 that `--direct` uses. The Mac listens on a port it announces by mDNS, so the sender must discover that port first |
+
+Found on the way: with the iPhone on "Contacts Only" (iOS drops "Everyone for 10 Minutes" after 10 minutes) it answers the M3's TLS handshake with `certificate unknown`. A refused handshake therefore means: reset the iPhone to Everyone.
 
 ## Limits and open points
 
