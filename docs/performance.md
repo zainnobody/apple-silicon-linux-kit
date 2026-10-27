@@ -269,17 +269,27 @@ No macOS value on this Mac.
 
 ## Heat and fans under sustained load (2026-10-27)
 
-`tests/heat-soak.sh` (with `tests/heat-sample.sh` and the safety stop `tests/heat-guard.sh`), stage O kernel, charger in, Plasma desktop up. Output `~/gpu-perf/heat-soak-20261027-101316` on the M3.
+`tests/heat-soak.sh` (with `tests/heat-sample.sh` and the safety stop `tests/heat-guard.sh`), stage O kernel, charger in, Plasma desktop up.
+
+**Fans off (10:13, the baseline).** Before the fan fix, the fans never ran. Output `~/gpu-perf/heat-soak-20261027-101316` on the M3.
 
 | Phase | Length | Throughput over the run | PMP CPU hotspot | SoC die max | Others max | Fans |
 |---|---|---|---|---|---|---|
 | GPU only: vk-stress, no wait | 600 s | 628-629 fps in every 30 s step (263.6 Gpix-iter/s): flat | 64 C at start, 80.8 C max, about 80 C steady, still rising slowly | 68.6 C | charger 48.9 C, Wi-Fi 54.0 C, battery 25.5 C | 0 / 0 rpm |
 | CPU + GPU: 7-Zip benchmark, 12 threads, in a loop, plus vk-stress | 336 s (stopped by the guard) | 7-Zip 67.6k-73.3k per pass: flat; P cores 4034 MHz mean in the first quarter, 4038 MHz in the last | 95-100 C at the start of each 7-Zip pass (about every 8 s), about 77 C between; 61 of 164 samples at 90 C or more; 100.0 C at 10:31:52 | 66.1 C | charger 43.5 C, Wi-Fi 51.5 C | 0 / 0 rpm |
 
-- **No throttling seen.** The GPU rate did not drop in 10 min. The P cores stayed at 4056 MHz even at the 100 C sample, and the kernel logged no thermal lines. The GPU rate during the CPU + GPU phase is not known: vk-stress buffered its output and the stop lost it (fixed: `stdbuf -oL`). A 35 s check run gave 627 fps with the CPU load, the same as without it.
-- **The fans never spun.** The readings are real: the device tree names the SMC keys `F0Ac`/`F1Ac` (actual), `F0Tg`/`F1Tg` (target), `F0Mn`/`F0Mx` (min/max) and `F0Md` (mode). Fan 1 reads min 1350 and max 5349 rpm, Fan 2 min 1458 and max 5777 rpm, both actual 0 and target 0. `macsmc_hwmon.fan_control` is N, so Linux never writes the mode or target: the fans are in SMC automatic mode, and the SMC itself keeps its target at 0 with a 100 C hotspot.
-- **macOS reference:** Notebookcheck measured up to 2,400 rpm and 31.1 dB(A) after 30 min of Cinebench R23. The macOS dumps of this machine have no fan data. In them, `thermalmonitord` (pid 124) holds SMC user clients. Linux has no such daemon. Whether the SMC waits for an OS request or only has a later trigger is not known. The test is the same load on macOS while reading the fans.
-- **Until that is known:** run every long load with `tests/heat-guard.sh` (it stops at 100 C, or above 95 C for 60 s with the fans at 0 rpm). An all-core CPU load plus the GPU reaches a 100 C hotspot in under 6 min with the fans off.
+**Fans on (11:25).** The coordinator found the cause: the M3 SMC rejects the fan mode write until the key `Ftst` is set to 1. `patches/macsmc-hwmon-ftst-unlock.patch` (in the Documents copy of this repo) sets `Ftst`, and `m3-fancurve.service` (installed and enabled at 11:23) runs a fan curve. Same script, phases of 240 s. Full data: `docs/features/fans-heat.md` in the Documents copy (commit 75a6054).
+
+| Phase | Length | Throughput | PMP CPU hotspot max | SoC die max | Fans max |
+|---|---|---|---|---|---|
+| GPU only | 240 s | not changed by the fans | 72.8 C (fans off: 80.8 C) | | 1616 rpm |
+| CPU + GPU | 240 s | vk-stress 263.26 G; 7-Zip 69,563 mean; P cores 4,030 MHz mean | 93.8 C, never 95 C (fans off: 100 C, guard stop) | 61.4 C | 4028 rpm |
+
+- **No throttling seen**, with or without fans. Fans off: the GPU rate did not drop in 10 min, the P cores stayed at 4056 MHz even at the 100 C sample, and the kernel logged no thermal lines. A 35 s check run gave 627 fps for the GPU with the CPU load, the same as without it.
+- **The guard did not stop the fans-on run.** With the fans, an all-core CPU load plus the GPU stays below 95 C in 240 s. Without them, it reached 100 C in under 6 min.
+- **Fan keys:** the device tree names the SMC keys `F0Ac`/`F1Ac` (actual), `F0Tg`/`F1Tg` (target), `F0Mn`/`F0Mx` (min/max) and `F0Md` (mode). Fan 1 reads min 1350 and max 5349 rpm, Fan 2 min 1458 and max 5777 rpm. In SMC automatic mode the SMC kept its own target at 0 with a 100 C hotspot.
+- **macOS reference:** Notebookcheck measured up to 2,400 rpm and 31.1 dB(A) after 30 min of Cinebench R23.
+- **Keep the fans working:** every M3 kernel build must carry `macsmc-hwmon-ftst-unlock.patch`. The patched module is in `/lib/modules/7.2.11-m3gpu+/updates/`, so a new kernel version does not get it. Keep `tests/heat-guard.sh` on for long loads.
 
 ## Planned: how far each part of the chip goes
 
