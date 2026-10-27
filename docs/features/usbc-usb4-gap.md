@@ -153,6 +153,18 @@ Go with **Option A**. It is one config line, no new code, and the dry run shows 
 
 This also covers the open item "USB-C displays: PD controllers 1-0a, 1-0c, 2-08" and the USB-C part of `ports-wireless-storage.md` (that file did not exist when this report was written).
 
+## 6a. Update after the GPU session build (2026-10-26)
+
+The GPU session built the change (`agx-linux-kit` commit `12f52d3`, staged in `~/m3gpu/out/kernel-7.2.11-m3gpu+-usb4`). Nothing is installed and no reboot is done. Their report:
+
+- `olddefconfig` changed only `CONFIG_USB4_APPLE_SOC`. `vmlinuz` and all existing modules are byte-identical to the installed ones.
+- The one new file is `thunderbolt_apple.ko`. It depends on `pcie-apple`, `typec` and `apple-tunable`.
+- Its aliases have `apple,t6030-usb4-acio` but no `t6030` NHI alias.
+
+**The missing `t6030` NHI alias is not a problem.** The NHI match table (`apple.c` line 2312) lists `apple,t8142-usb4-nhi` and `apple,t8103-usb4-nhi`. The live device tree node `cio@701ac0000/nhi@f00000` has `compatible = "apple,t6030-usb4-nhi", "apple,t8103-usb4-nhi"`. The `t8103` fallback matches.
+
+Because the kernel image is identical, the module can be tested without a reboot: copy the one `.ko` into `/usr/lib/modules/7.2.11-m3gpu+`, run `depmod`, then `sudo modprobe thunderbolt_apple`. This needs the user's go and sudo. Udev may also load the module at the next boot by itself, so keep the blacklist idea from step A4 in mind. Test stages 2 to 7 above apply unchanged.
+
 ## 7. What was not checked
 
 - `/sys/kernel/debug/devices_deferred` and `dyndbg` traces (need root). The deferral cause comes from source and sysfs.
