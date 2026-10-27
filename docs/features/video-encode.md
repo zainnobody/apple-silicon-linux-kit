@@ -268,3 +268,11 @@ Upstream is cloned to `ave-m3/upstream` (9ab14e4, GPL-2.0). Our scripts and draf
 Still blocked on the user:
 1. Stage 0b read-only look at the live Linux tree on the M3 (power-domain labels, interrupt cell format, whether the boot tree still carries `pre-loaded` and `segment-ranges`). You said not to touch the M3, so I did not.
 2. The macOS version pair (section 11.4).
+
+### 11.8 Stage 0 row values (2026-10-27, offline, coordinator go)
+
+- **DevInfo (DevID, DevType, ChipType).** Two sources. The macOS 26.7.1 kext says 21, 19, 12 for t6030 (controls: t6000 = 11, 9, 6 and t6001 = 12, 10, 7, both as in upstream docs/08). The H15S firmware has its own table, indexed by DevID, and its entry 21 says DevType 19 and ChipType 11. DevID and DevType agree. ChipType differs by one, as it also does for t6001 (firmware 6, kext 7). The firmware comes from macOS 15.6.1, so **21, 19, 11 is the working value for the 15.6.1 pair**. Which DevID means t6030 in 15.6.1 is inferred from the same ordering. Confidence: medium. The driver needs a new ABI slot for macOS 15.6.1 (today it has 13.5 and 26.6).
+- **STKG offset:** DATA + 0x2a28. The firmware uses the same fill tags as M1 and M2 (STKG, SOC_, SOCR, CpAd, WrAd, IOBA). Its tunables table is 0x5b0 bytes with capacity 36 (M1 had 21 to 23 entries). So iBoot fills the image the same way as before.
+- **TEXT identity windows:** three 16 KiB windows at TEXT + 0, + 0x80000 and + 0x124000 (the last 16 KiB). Digests are in the local draft.
+- **Draft row** is updated with these values. It is not compiled. Still open in the row: DPE enum for the Janus tables, `data_literal`, the CpAd, WrAd and IOBA tag addresses, and whether the DATA is iBoot-owned.
+- **Left for the user:** Stage 0b (live device tree read) and the version pair. Nothing was compiled or loaded.
