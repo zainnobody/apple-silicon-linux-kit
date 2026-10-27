@@ -18,7 +18,7 @@ Asahi status column: from `docs/asahi-m3-pro-status.md`.
 | H.264 hardware decode | GStreamer `v4l2slh264dec`, 1080p30 10 s clip (OpenH264 encoded), against `libopenh264` on the CPU | **Works.** 300 of 300 frames. Shapes and text match the CPU decode; shades differ (colour range or matrix handling in the conversion step, not isolated) | 60 s clip: CPU 3.00 s wall, user 3.01 s. AVD 3.16 s wall, user 2.25 s, 72% of one core. The gain is small, because GStreamer still parses and copies on the CPU | Working |
 | AV1 hardware decode | `v4l2slav1dec`, 1080p30 10 s clip (SVT-AV1) against `libdav1d` | **Works, with a driver warning.** 300 of 300 frames, picture correct | CPU (dav1d): 2.16 s wall, user 4.38 s, 211% of one core. AVD: 1.07 s wall, user 0.69 s, 69%. **Kernel log: `UBSAN: array-index-out-of-bounds` in `avd-av1.c:452` (`is_valid_ref_frame`) and `avd-av1.c:581`, 12 lines. The driver reads past an array** | AV1 on M3 and later: working |
 | VP9 hardware decode | `v4l2slvp9dec`, 1080p30 10 s clip (libvpx) | **Works.** 300 of 300 frames, picture correct | CPU: 0.65 s wall, user 1.44 s, 231%. AVD: 1.10 s wall, user 0.37 s, 34%. No kernel warning | Working |
-| HEVC hardware decode | Not tested | **Blocked: no HEVC test clip.** No HEVC encoder exists in this ffmpeg-free or GStreamer install, and downloading a clip needs the user's go | The device lists HEVC (`S265`) as a format | Working |
+| HEVC hardware decode | `v4l2slh265dec`, public 1080p30 10 s sample clip (Big Buck Bunny, 1 MB, test-videos.co.uk), downloaded with the user's go, deleted after the test | **Works.** 300 of 300 frames. The picture is correct (natural colour, no green) | Decode only: 0.46 s wall, user 0.34 s, 80% of one core. No CPU comparison: Fedora's ffmpeg-free has no HEVC decoder. No kernel warning | Working |
 | Software decode baseline | 1080p 30 fps 10 s AV1 test clip (SVT-AV1), `libdav1d` | Works | Wall 2.18 s, user 4.43 s, sys 0.22 s, CPU 212% of 1200% (12 cores) | n/a |
 | Video encode | `ffmpeg -encoders` | **No hardware encoder** | Only `*_vaapi` and `*_v4l2m2m` wrappers are listed. No VA driver exists, and the only v4l2 video node is the camera | TBA |
 | ProRes | `ffmpeg -encoders` | Software only | `prores`, `prores_aw`, `prores_ks` run on the CPU. No hardware ProRes block is exposed | TBA |
@@ -51,7 +51,7 @@ Asahi status column: from `docs/asahi-m3-pro-status.md`.
 ## Next steps
 
 1. Reload `apple_avd` (needs the user's go), check the kernel log and `/dev/video*`, then run the H.264 and HEVC decode tests with CPU use.
-2. Test HEVC: download one small HEVC sample clip (needs the user's go), or install an HEVC encoder. Report the AV1 UBSAN warning to the Asahi AVD driver author with our own data only, after the user approves. Applications cannot use the decoder yet: the VA-API layer (patched `libva-v4l2_request`) is not in Fedora Asahi Remix. Decide with the user whether to build it.
+2. Report the AV1 UBSAN warning to the Asahi AVD driver author with our own data only, after the user approves. Applications cannot use the decoder yet: the VA-API layer (patched `libva-v4l2_request`) is not in Fedora Asahi Remix. Decide with the user whether to build it.
 3. Repeat the speaker test with the user listening, with a 5 s tone, and ask about left and right.
 4. Test the headphone jack when headphones are available: jack state, quiet tone, headset mic.
 5. Camera LED: lit on a 15 s run, dark on short runs. Repeat with 30 s and 5 s runs and note the timing. Treat the camera as active whenever an app uses it until this is understood.
