@@ -267,6 +267,20 @@ GPU time per 10 frames = 10 / frames per second minus the CPU check time; the to
 
 Next: measure, do not guess. Run the pstate sampler (root) during `VK_STRESS_CHECK_EVERY=10` on the normal boot, to see the clock state per burst and whether the GPU powers down in the CPU gaps. Only then choose the next controller word (the boost words at util 90/step 50, the filter a 0.2/0.005, or the idle power-down delay).
 
+e) Clock probe (2026-10-27 12:50, normal boot, `tests/gpu-clock-probe.sh`, 2 ms `pstate` sampling from debugfs):
+
+| Run | G pixel-iter/s | Fast bursts (state 8, about 17 ms) | Then |
+|---|---|---|---|
+| check 10, 60 s | 67.22 | first 19.97 s | every burst at state 1 (338 MHz, about 66 ms), power-off (state 0) between |
+| check 10, uclamp P core, 60 s | 78.79 | first 19.99 s | same |
+| no wait, 20 s | 263.60 | whole run | |
+| check 10, 30 s, after idle gaps of about 3, 2, 10 and 30 s | 87.08, 88.71, 86.68, 87.31 | first 19.96-19.99 s each time | same |
+
+- The firmware keeps the top clock for exactly 20 s of a new GPU client's work. Then its controller target steps 4, 3, 2 to 1 within about 300 ms, and every later burst runs at state 1, 4 times slower. A 2 s gap is enough to get a new 20 s window, so the window probably starts with a new client (context), not after a long idle.
+- So the stop-and-go result depends on the run length: 30 s gives 87 G, 60 s gives 64-67 G. The macOS 133 G figure needs the same check: is macOS also fast only for 20 s, or does it stay fast?
+- The template has no DVFS word that clearly encodes 20 s (value 20 only at 0xb20, 0xb54 and HardwareDataA +0xf7c, units not known). The 50 % target test did not change the state-1 phase.
+- Next: find what starts the window (a new context, a new queue or a firmware message), and whether the driver can send it again. The firmware words to try in a test boot are the boost words (HardwareDataA +0x790 = 90 % minimum busy, +0x794 = step 50), or the base state (+0x7d8/+0x7e0 = 100, state 1).
+
 ### GPU suite (2026-10-27 00:12, `tests/gpu-perf-suite.sh 60`, desktop idle)
 
 | Test | Result |
