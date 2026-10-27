@@ -1,0 +1,51 @@
+# Private diagnostic: logs full / patchbay-masked / pre-marker digests and the patchbay hex (local only) at GPU probe. Not for upstream. Apply with: git -C <linux> apply <this file>
+--- a/drivers/gpu/drm/asahi-m3/g15/identity.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/identity.rs
+@@ -68,6 +68,39 @@
+     }
+ }
+ 
++/// Private diagnostic (not for upstream): logs digests that tell which TEXT bytes vary between
++/// machines. `copy` has its 8 entropy bytes zeroed. Reads only; changes nothing.
++fn log_diagnostic_digests(dev: &device::Device, copy: &[u8], at: usize) -> Result {
++    const HDR: usize = 0x4200;
++    let word = |o: usize| -> Option<usize> {
++        let b = copy.get(HDR + o..HDR + o + 4)?;
++        Some(u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize)
++    };
++    let (Some(off), Some(len)) = (word(0x2c), word(0x30)) else {
++        dev_warn!(dev, "fwdiag: no image-info header\n");
++        return Ok(());
++    };
++    let Some(end) = off.checked_add(len) else {
++        return Ok(());
++    };
++    let Some(patchbay) = copy.get(off..end) else {
++        dev_warn!(dev, "fwdiag: patchbay {:#x}+{:#x} out of range\n", off, len);
++        return Ok(());
++    };
++    let mut masked = KVVec::from_elem(0u8, copy.len(), GFP_KERNEL)?;
++    masked.copy_from_slice(copy);
++    masked[off..end].fill(0);
++    dev_info!(dev, "fwdiag: patchbay {:#x}+{:#x} marker {:#x}\n", off, len, at);
++    dev_info!(dev, "fwdiag: full {}\n", Hex(&glue::sha256(copy)));
++    dev_info!(dev, "fwdiag: masked {}\n", Hex(&glue::sha256(&masked)));
++    dev_info!(dev, "fwdiag: premarker {}\n", Hex(&glue::sha256(&copy[..at])));
++    dev_info!(dev, "fwdiag: patchbay {}\n", Hex(&glue::sha256(patchbay)));
++    for (i, chunk) in patchbay.chunks(32).enumerate() {
++        dev_info!(dev, "fwdiag: pb+{:#05x} {}\n", i * 32, Hex(chunk));
++    }
++    Ok(())
++}
++
+ /// Identifies the loaded firmware build: the pinned build, or `None` for a build admitted by
+ /// its digest prefix (`g15_accept_text_prefix`).
+ pub(crate) fn firmware(
+@@ -87,6 +120,7 @@
+         EINVAL
+     })?;
+     copy[at + 8..at + 16].fill(0);
++    log_diagnostic_digests(dev, &copy, at)?;
+     let m = Measured {
+         text_size: size as u64,
+         data_size,

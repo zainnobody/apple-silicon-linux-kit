@@ -18,6 +18,7 @@ Other machines need a profile in `machines/` (see `machines/README.md`). Unteste
 |---|---|
 | GPU driver | Accepts the firmware after a one-entry pin (`patches/`). 18 cores. |
 | OpenGL / GLES / Vulkan | 4.6 / 3.2 / 1.4.363, renderer "Apple M3 Pro (G15S B1)" |
+| Vulkan compute | Exact results (`tests/vk-compute.c`). llama.cpp runs on the GPU: Llama 3.1 8B at 125 tokens/s prompt, 5.8 tokens/s generation. Flash attention not yet. |
 | KDE desktop and login screen | KWin composites with OpenGL on the GPU |
 | Render correctness | Exact pixel and integer readback tests pass |
 | Shader stress, 10 min | 228 billion pixel-iterations per second, 0 wrong values in 32,621 checks |
@@ -51,7 +52,7 @@ Details: `docs/performance.md` and the test log `TEST-LOG.html` (build it with `
 | `install/` | Stages A to G. Each one runs with `sudo`, checks the machine, and prints what it changed. |
 | `system/` | Templates for the root-owned files. The install stages fill in the machine's values. |
 | `patches/` | Kernel patches, for example the J516S B1 firmware pin. |
-| `tests/` | GPU tests: readback, stress, soak, desktop stress, and a Metal version for macOS. |
+| `tests/` | GPU tests: readback, stress, soak, desktop stress, Vulkan compute, and a Metal version for macOS. |
 | `docs/` | Research, reviews, the install plan, the firmware investigation, performance. |
 | `log/` | Generator and overview for `TEST-LOG.html`. |
 
@@ -95,6 +96,10 @@ Run everything on the target Mac in Fedora, as your normal user, from this folde
    ```
    ```bash
    nohup setsid tests/soak.sh >/dev/null 2>&1 < /dev/null &
+   ```
+   In an SSH shell, select the native Vulkan driver before any Vulkan test. The desktop session does this for you.
+   ```bash
+   export VK_DRIVER_FILES=/opt/mesa-agx/share/vulkan/icd.d/asahi_icd.aarch64.json
    ```
 
 ### Boot actions without a password

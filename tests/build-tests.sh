@@ -12,3 +12,9 @@ for t in gles-readback gles-stress; do
 done
 # Quick check on the CPU renderer (works on any boot, no GPU needed).
 LIBGL_ALWAYS_SOFTWARE=1 "$OUT/gles-stress" 2 | tail -1
+# Vulkan compute check (needs glslc and the Vulkan headers).
+if command -v glslc >/dev/null; then
+	glslc "$T/vk-compute.comp" -o "$OUT/vk-compute.spv"
+	gcc -O2 -Wall "$T/vk-compute.c" -lvulkan -o "$OUT/vk-compute"
+	echo "built $OUT/vk-compute (run it from $OUT, or set VK_COMPUTE_SPV)"
+fi
