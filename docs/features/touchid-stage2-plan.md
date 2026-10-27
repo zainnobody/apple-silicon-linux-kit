@@ -60,11 +60,37 @@ Self-test results (no root writes, before the window): `--dry` passes with base 
 
 **SEP.** Kernel lines after the insmod: DART changeset applied (BIT(40) alias window), SEP node enabled, platform device created, profile `T6030/J516s`, xART parsed read-only (170 slots, 10 live records, max revision 301, 0 malformed, 0 duplicate, 0 repaired), "created a new host-state store". Nothing after that for 5 minutes, and no crash, panic, IOMMU fault or UBSAN line. `insmod` returned at once, so probe finished. In the driver, the warm registration is sent in probe and a settle timer then logs either `attach: N endpoints advertised` or `attach: ... no endpoint advertised` within about 3 seconds plus message idle time. Neither line appeared. That means either the timer kept restarting (messages kept arriving) or it did not run. Which one is not known. The check run was cut off by its caller during the poll, so the diag attributes were never read.
 
-What this proves: the device tree, DART, profile choice and the read-only APFS parse work on this Mac, and the load is safe. What it does not prove: that the SEP answered the registration. Likely suspects for a silent SEP: the profile fields copied from the M3 Air recipe (shared-memory layout, first item spelling, size) were tuned on firmware 26.x, and this boot runs an older firmware.
+What this proves: the device tree, DART, profile choice and the read-only APFS parse work on this Mac, and the load is safe. It does not prove that the SEP answered. **Update: see the next section, the silence has a cause in my test DTB.**
 
 **Changes to the scripts after the window** (carried from the coordinator's fixes plus mine): run as the user, not with sudo (guard added); paths from `UHOME`; the module is loaded from `/lib/modules/.../touchid-test/` (SELinux blocks modules in the home folder; the check installs it if missing); `touchid-boot.sh` builds the SEP-only DTB by default and `--camera` is opt-in and marked do-not-use; the camera log match no longer hits `disp`; the dry load now starts a detached observer that records the kernel log, diag attributes, `/dev/sep*` and hwrng at 1 to 240 seconds into a log file, so a killed caller loses nothing; `xarm_trace=1` is added (opcode and status only, no payload or key material); a PARTIAL verdict exists for "profile and xART fine, no attach line".
 
 **Next step, one more test boot (about 12 minutes):** same plan, SEP only (camera filter stays 0), with the observer and trace above. Needs the user's go and the same recovery readiness. Because the registration is one-shot, the current normal boot cannot retry it.
+
+## Second test boot (SEP only, 12:31) and the cause of the silence (offline analysis, 2026-10-27)
+
+The second boot gave the same result: the same eight `apple_sep` lines, then nothing for 240 s. `xarm_trace=1` printed no trace line, so no mailbox message went out or came in. No `/dev/sep*`, hwrng `none`. The observer found no diag directory.
+
+**Cause (found in the source, not by a test): my test DTB left the SEP mailbox node disabled.** The driver enables only the SEP node and its DART (`enable_sep_and_dart` in `dt.rs`). The M3 Air tree has the mailbox node enabled by default. I copied the `status = "disabled"` line from the t6030 style and the mailbox stayed off. Chain of events:
+1. `Mailbox::new_byname` calls `apple_mbox_get_byname`, which calls `of_find_device_by_node` on the mailbox node.
+2. A disabled node has no platform device, so it returns `-EPROBE_DEFER`.
+3. The driver core prints nothing for `-EPROBE_DEFER`. The module load returns at once, and the probe waits for a mailbox that never appears.
+4. This fits every observation: the xART line is printed before the mailbox lookup, and nothing after it runs (no registration message, no settle timer, no attach line, no diag directory, no trace line).
+
+This is not the shared-memory layout. The suspicion about firmware 26.x versus older firmware stays open, but it cannot be judged until a registration is actually sent.
+
+**What changed:**
+- `make-window-dtb.py` no longer disables the mailbox node (54 lines added, 0 removed; SEP node and DART stay disabled).
+- `touchid-boot.sh` stops if the built DTB has a disabled or missing mailbox node.
+- `touchid-check.sh` has a new part 1b: the SEP mailbox platform device must exist and be bound. It runs before the load, so this bug shows up without loading the module. Part 5 is skipped when 1b fails. The observer and the verdict now also read `devices_deferred`, so a deferred probe is reported by name.
+- `--dry` passes on the normal boot with the new DTB. Part 1b correctly FAILs on a normal boot.
+
+**Risk of the fix:** the mailbox node is now enabled at boot, so `apple-mailbox` probes it. Its probe only maps registers and requests four interrupts with `IRQF_NO_AUTOEN`; the interrupts stay off until the driver starts the channel. The M3 Air tree does the same. m1n1 has a comment that querying this mailbox before the OS desynchronises the iBoot warm registration, so the first test boot must also show that the SEP still answers.
+
+**What a third test boot needs** (about 12 minutes, one reboot, same recovery readiness):
+1. The user's go. The module file is unchanged (same hash), so nothing new is installed. Only the DTB in `boot.bin.sep` changes.
+2. `~/window/touchid-boot.sh` (as the user), reboot, `~/window/touchid-check.sh --no-camera`, then read `logs/sep-observe-*.log`.
+3. Pass criteria in order: part 1 and 1b PASS (before the load); then at the dry load, a `SEP platform profile` line, then `attach: N endpoints advertised`. That last line is new information. If it says no endpoint advertised, the registration was sent and the SEP stayed silent: then the profile fields (shared-memory layout and size for this firmware) are the next suspect.
+4. After the load, no suspend and no sleep until the next reboot. The registration is one-shot.
 
 ## Gates before step A2 (all must be true)
 
