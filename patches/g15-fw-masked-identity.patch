@@ -1,0 +1,333 @@
+# Private test: admit the J516S b0 image by UUID plus the patchbay-masked digest (no full digest). Stacks on g15-j516s-b1-pin.patch and g15-fw-digest-diag.patch (it replaces the pin entry). Apply with: git -C <linux> apply <this file>
+--- a/drivers/gpu/drm/asahi-m3/g15/hw.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/hw.rs
+@@ -27,8 +27,17 @@
+     /// Offset of the GKTS marker in TEXT; the 8 entropy bytes after it are zeroed before hashing.
+     pub(crate) marker: u32,
+     pub(crate) text_sha256: [u8; 32],
++    /// Admission by image UUID and the TEXT digest with the whole patchbay zeroed (the patchbay
++    /// holds machine-dependent words, such as the UAT region addresses at the top of DRAM).
++    pub(crate) masked: Option<MaskedId>,
+ }
+ 
++/// The identity of a build that does not depend on the patchbay (see [`FirmwareBuild::masked`]).
++pub(crate) struct MaskedId {
++    pub(crate) uuid: [u8; 16],
++    pub(crate) sha256: [u8; 32],
++}
++
+ /// Where a SoC's GPU regions, firmware segments and performance states come from, and how its
+ /// GPU is powered.
+ #[derive(Copy, Clone, PartialEq, Eq)]
+@@ -137,6 +146,7 @@
+           FirmwareBuild {
+             name: "macOS 14.7-14.8.x stub firmware (iBoot-10151.140.19.700.2)",
+             machine: None,
++            masked: None,
+             text_size: 0x5c000,
+             data_size: 0x114000,
+             marker: 0x58e88,
+@@ -154,6 +164,7 @@
+           FirmwareBuild {
+             name: "J516S B0 RTKit-2419.140.12 (maintained 14.x handoff)",
+             machine: Some(kernel::c_str!("apple,j516s")),
++            masked: None,
+             text_size: 0x5c000,
+             data_size: 0x114000,
+             marker: 0x58e88,
+@@ -164,23 +175,31 @@
+                 0xe7, 0x9b, 0xb9, 0xb0, 0x22, 0x09, 0xdb, 0x53,
+             ],
+           },
+-          // The same UUID dbf37c40 image as measured on two B1 (chip-revision
+-          // 0x11) J516S Macs on the 14.7 boot chain (iBoot-10151.140.19.700.2).
+-          // It differs from the entry above outside the GKTS entropy bytes.
+-          // Private pin, 2026-10-26; also pinned by LisaScheers/Forge cb671eaec9.
++          // The UUID dbf37c40 image on B1 silicon (chip-revision 0x11), 14.7 boot chain
++          // (iBoot-10151.140.19.700.2). Its full TEXT digest depends on the machine: the patchbay
++          // holds the UAT region addresses, which iBoot places at the top of DRAM. So it is
++          // admitted by UUID plus the digest with the whole patchbay zeroed. No full digest
++          // (the zero digest never matches). Private test entry, 2026-10-26.
+           #[cfg(CONFIG_SILICONFOREST_NATIVE_GPU)]
+           FirmwareBuild {
+-            name: "J516S g15s b0 on B1 silicon (14.7 boot chain, private pin)",
++            name: "J516S g15s b0 (UUID dbf37c40, patchbay masked)",
+             machine: Some(kernel::c_str!("apple,j516s")),
++            masked: Some(MaskedId {
++              uuid: [
++                0xdb, 0xf3, 0x7c, 0x40, 0xea, 0xd5, 0x37, 0x60,
++                0x94, 0x41, 0x99, 0x50, 0x18, 0x78, 0x29, 0x55,
++              ],
++              sha256: [
++                0x6a, 0xd4, 0xba, 0x48, 0x4e, 0x9a, 0x78, 0x4d,
++                0x77, 0x83, 0x20, 0x5f, 0x66, 0x61, 0x89, 0x33,
++                0x73, 0x2f, 0x84, 0xc0, 0x0e, 0x18, 0xa5, 0xf7,
++                0x83, 0x18, 0x29, 0x08, 0xe5, 0x28, 0x40, 0x92,
++              ],
++            }),
+             text_size: 0x5c000,
+             data_size: 0x114000,
+             marker: 0x58e88,
+-            text_sha256: [
+-                0xcd, 0x05, 0xaf, 0x6a, 0x82, 0x8b, 0x52, 0xe4,
+-                0xc2, 0xfe, 0xd2, 0x00, 0x86, 0xd3, 0xd1, 0x8a,
+-                0x7d, 0xb4, 0x2e, 0x03, 0xa8, 0xfd, 0x6f, 0x83,
+-                0x54, 0xf9, 0xf0, 0x6e, 0x0a, 0x61, 0x36, 0x3e,
+-            ],
++            text_sha256: [0; 32],
+           },
+         ],
+         machine: kernel::c_str!("apple,t6030"),
+--- a/drivers/gpu/drm/asahi-m3/g15/hw/t6031.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/hw/t6031.rs
+@@ -150,6 +150,7 @@
+         FirmwareBuild {
+             name: "macOS 14.7 stub firmware (iBoot-10151.140.19.700.2), J516C",
+             machine: None,
++            masked: None,
+             text_size: 0x64000,
+             data_size: 0x140000,
+             marker: 0x5cf28,
+@@ -162,6 +163,7 @@
+         FirmwareBuild {
+             name: "macOS 14.8 stub firmware, J516C",
+             machine: None,
++            masked: None,
+             text_size: 0x64000,
+             data_size: 0x140000,
+             marker: 0x5cf28,
+--- a/drivers/gpu/drm/asahi-m3/g15/identity.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/identity.rs
+@@ -101,6 +101,41 @@
+     Ok(())
+ }
+ 
++/// Admission by image UUID plus the TEXT digest with the whole patchbay zeroed, for the builds
++/// that name one. `copy` has its entropy bytes zeroed; `m` is the full measurement.
++fn masked_build(
++    copy: &[u8],
++    at: usize,
++    m: &Measured,
++    builds: &'static [FirmwareBuild],
++) -> Result<Option<&'static FirmwareBuild>> {
++    let Some((uuid, patchbay)) = lookup::image_info(copy, at) else {
++        return Ok(None);
++    };
++    let mut masked = KVVec::from_elem(0u8, copy.len(), GFP_KERNEL)?;
++    masked.copy_from_slice(copy);
++    masked[patchbay].fill(0);
++    let measured = Measured {
++        sha256: glue::sha256(&masked),
++        ..*m
++    };
++    let qualified = builds.iter().map(|b| {
++        b.masked.as_ref().map(|id| {
++            (
++                Measured {
++                    text_size: b.text_size,
++                    data_size: b.data_size,
++                    marker: b.marker,
++                    sha256: id.sha256,
++                },
++                id.uuid,
++                b.machine.map_or(true, glue::machine),
++            )
++        })
++    });
++    Ok(lookup::masked_verdict(&measured, &uuid, qualified).and_then(|i| builds.get(i)))
++}
++
+ /// Identifies the loaded firmware build: the pinned build, or `None` for a build admitted by
+ /// its digest prefix (`g15_accept_text_prefix`).
+ pub(crate) fn firmware(
+@@ -148,7 +183,16 @@
+             );
+             return Ok(None);
+         }
+-        Verdict::Refused => {}
++        Verdict::Refused => {
++            if let Some(build) = masked_build(&copy, at, &m, builds)? {
++                dev_info!(
++                    dev,
++                    "GPU firmware build: {} (image UUID and patchbay-masked digest)\n",
++                    build.name
++                );
++                return Ok(Some(build));
++            }
++        }
+     }
+     dev_err!(
+         dev,
+--- a/drivers/gpu/drm/asahi-m3/g15/identity/lookup.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/identity/lookup.rs
+@@ -93,6 +93,58 @@
+     }
+ }
+ 
++/// Offset of the image-info header in TEXT.
++const IMAGE_INFO: usize = 0x4200;
++
++/// The image-info header fields admission uses: the image UUID and the patchbay range. `None`
++/// unless the header is well formed (branch word, `uuid` magic, version 5, TEXT size equal to
++/// `text.len()`) and the patchbay holds the GKTS marker at `marker` and its entropy bytes.
++pub(crate) fn image_info(text: &[u8], marker: usize) -> Option<([u8; 16], core::ops::Range<usize>)> {
++    let word = |o: usize| -> Option<usize> {
++        let b = text.get(IMAGE_INFO + o..IMAGE_INFO + o + 4)?;
++        Some(u32::from_le_bytes([b[0], b[1], b[2], b[3]]) as usize)
++    };
++    if word(0)? != 0x1400_0011 || word(4)? != 0x6469_7575 || word(8)? != 5 {
++        return None;
++    }
++    if word(0x34)? != text.len() {
++        return None;
++    }
++    let start = word(0x2c)?;
++    let end = start.checked_add(word(0x30)?)?;
++    if end > text.len() || marker < start || marker.checked_add(16)? > end {
++        return None;
++    }
++    let mut uuid = [0u8; 16];
++    uuid.copy_from_slice(text.get(IMAGE_INFO + 0x14..IMAGE_INFO + 0x24)?);
++    Some((uuid, start..end))
++}
++
++/// Looks the patchbay-masked digest `m` (its `sha256` is the digest with the whole patchbay
++/// zeroed) and the image `uuid` up in `qualified`: each build's masked identity, if it has one,
++/// and whether this machine is the one it names. Same size, marker and machine rules as
++/// [`verdict`]; the UUID must be equal too.
++pub(crate) fn masked_verdict(
++    m: &Measured,
++    uuid: &[u8; 16],
++    qualified: impl IntoIterator<Item = Option<(Measured, [u8; 16], bool)>>,
++) -> Option<usize> {
++    qualified.into_iter().position(|q| {
++        q.map_or(false, |(q, q_uuid, machine)| {
++            q_uuid == *uuid
++                && matching::exact(
++                    (q.text_size, q.data_size),
++                    (m.text_size, m.data_size),
++                    q.marker,
++                    m.marker as usize,
++                    &q.sha256,
++                    &m.sha256,
++                    machine,
++                )
++        })
++    })
++}
++
+ #[cfg(test)]
+ mod tests {
+     use super::*;
+@@ -216,5 +268,111 @@
+     fn hint_says_what_to_report() {
+         assert!(REPORT_HINT.contains("report this line"));
+         assert!(REPORT_HINT.contains("macOS version"));
++    }
++
++    const TEXT: usize = 0x5c000;
++    const PB: usize = 0x58e88;
++
++    /// A TEXT image with a valid header, the patchbay `[PB, PB + 0x1e8)` and the marker in it.
++    fn image(uuid_byte: u8) -> Vec<u8> {
++        let mut t = vec![0u8; TEXT];
++        for (o, v) in [(0usize, 0x1400_0011u32), (4, 0x6469_7575), (8, 5), (0x2c, PB as u32),
++                       (0x30, 0x1e8), (0x34, TEXT as u32)] {
++            t[IMAGE_INFO + o..IMAGE_INFO + o + 4].copy_from_slice(&v.to_le_bytes());
++        }
++        t[IMAGE_INFO + 0x14..IMAGE_INFO + 0x24].fill(uuid_byte);
++        t[PB..PB + 8].copy_from_slice(&MARKER);
++        for (i, b) in t[PB + 16..PB + 0x1e8].iter_mut().enumerate() {
++            *b = (i * 7) as u8;
++        }
++        for (i, b) in t[0x100..0x4000].iter_mut().enumerate() {
++            *b = (i * 13 + 1) as u8;
++        }
++        t
++    }
++
++    /// What admission measures: the masked digest stand-in is the masked image itself.
++    fn masked_form(t: &[u8]) -> Vec<u8> {
++        let (_, pb) = image_info(t, PB).unwrap();
++        let mut m = t.to_vec();
++        m[pb].fill(0);
++        m
+     }
++
++    fn measured_of(bytes: &[u8]) -> Measured {
++        let mut sha256 = [0u8; 32];
++        for (i, b) in bytes.iter().enumerate() {
++            sha256[i % 32] = sha256[i % 32].wrapping_mul(31).wrapping_add(*b).wrapping_add(i as u8);
++        }
++        Measured { text_size: TEXT as u64, data_size: 0x114000, marker: PB as u32, sha256 }
++    }
++
++    fn pinned(t: &[u8], uuid: u8, machine: bool) -> Option<(Measured, [u8; 16], bool)> {
++        Some((measured_of(&masked_form(t)), [uuid; 16], machine))
++    }
++
++    #[test]
++    fn reads_uuid_and_patchbay() {
++        let (uuid, pb) = image_info(&image(0xdb), PB).unwrap();
++        assert_eq!(uuid, [0xdb; 16]);
++        assert_eq!(pb, PB..PB + 0x1e8);
++    }
++
++    #[test]
++    fn refuses_a_malformed_header() {
++        let mut t = image(1);
++        t[IMAGE_INFO + 4] ^= 1;
++        assert!(image_info(&t, PB).is_none());
++        let mut t = image(1);
++        t[IMAGE_INFO + 0x34] ^= 1;
++        assert!(image_info(&t, PB).is_none());
++        // the marker must lie inside the patchbay
++        assert!(image_info(&image(1), PB - 8).is_none());
++        assert!(image_info(&image(1), PB + 0x1e8).is_none());
++        // patchbay past the end of TEXT
++        let mut t = image(1);
++        t[IMAGE_INFO + 0x30..IMAGE_INFO + 0x34].copy_from_slice(&0x10_0000u32.to_le_bytes());
++        assert!(image_info(&t, PB).is_none());
++    }
++
++    #[test]
++    fn a_patchbay_change_keeps_the_masked_identity() {
++        // The patchbay holds the UAT addresses: another RAM size changes them.
++        let known = image(0xdb);
++        let mut other = image(0xdb);
++        other[PB + 0x60] ^= 0xff; // an address slot
++        other[PB + 0x1d0] ^= 0x01; // a late slot
++        assert_ne!(known, other);
++        assert_eq!(masked_form(&known), masked_form(&other));
++        let m = measured_of(&masked_form(&other));
++        assert_eq!(masked_verdict(&m, &[0xdb; 16], [pinned(&known, 0xdb, true)]), Some(0));
++    }
++
++    #[test]
++    fn a_change_outside_the_patchbay_is_refused() {
++        let known = image(0xdb);
++        for at in [0x100usize, 0x3fff, PB - 1, PB + 0x1e8, TEXT - 1] {
++            let mut other = image(0xdb);
++            other[at] ^= 1;
++            let m = measured_of(&masked_form(&other));
++            assert_eq!(masked_verdict(&m, &[0xdb; 16], [pinned(&known, 0xdb, true)]), None, "{at:#x}");
++        }
++    }
++
++    #[test]
++    fn the_uuid_machine_sizes_and_marker_must_match() {
++        let known = image(0xdb);
++        let m = measured_of(&masked_form(&known));
++        assert_eq!(masked_verdict(&m, &[0xdc; 16], [pinned(&known, 0xdb, true)]), None);
++        assert_eq!(masked_verdict(&m, &[0xdb; 16], [pinned(&known, 0xdb, false)]), None);
++        let mut o = m;
++        o.data_size += 0x1000;
++        assert_eq!(masked_verdict(&o, &[0xdb; 16], [pinned(&known, 0xdb, true)]), None);
++        let mut o = m;
++        o.marker += 8;
++        assert_eq!(masked_verdict(&o, &[0xdb; 16], [pinned(&known, 0xdb, true)]), None);
++        // builds without a masked identity never match
++        assert_eq!(masked_verdict(&m, &[0xdb; 16], [None, pinned(&known, 0xdb, true)]), Some(1));
++        assert_eq!(masked_verdict(&m, &[0xdb; 16], [None]), None);
++    }
+ }
