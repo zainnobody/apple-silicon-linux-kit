@@ -66,7 +66,16 @@ Two open bugs: the render-path fault itself (kernel or Mesa G15 render state; th
 | After the memory floor fix (2026-10-26 20:43): 3B GPU / CPU | pp512 356 / 169, tg128 48.1 / 55.7 tokens/s |
 | After the memory floor fix: 8B GPU / CPU | pp512 150 / 71, tg128 22.7 / 25.1 tokens/s |
 
-Flash attention: the native compiler refused one instruction in the `flash_attn_f32_f16_aligned` shader, an f32 multiply with a half result (`fmul` f32 x f32 -> f16). Its short encodings hold only 8 of the 64 wait masks, and the shader needed a wider one. `patches/mesa-agx3-fmul-narrow-wait.patch` first runs the wait as its own instruction, as the compiler already does for the other short forms. With the patch, llama.cpp `test-backend-ops -o FLASH_ATTN_EXT` passes 5368 of 5368 tests on the GPU (11 cases are not supported by llama.cpp's Vulkan backend). With `-fa 1`, the speed is the same as with `-fa 0` (8B: 150 / 22.8 tokens/s), and the text is the same as the CPU text. The patch is in the Mesa build folder only, not yet in `/opt/mesa-m3`, so use `-fa 0` until it is installed. Details and the full table: `ane-linux/docs/llm-baseline.md`.
+Flash attention: the native compiler refused one instruction in the `flash_attn_f32_f16_aligned` shader, an f32 multiply with a half result (`fmul` f32 x f32 -> f16). Its short encodings hold only 8 of the 64 wait masks, and the shader needed a wider one. `patches/mesa-agx3-fmul-narrow-wait.patch` first runs the wait as its own instruction, as the compiler already does for the other short forms. With the patch, llama.cpp `test-backend-ops -o FLASH_ATTN_EXT` passes 5368 of 5368 tests on the GPU (11 cases are not supported by llama.cpp's Vulkan backend). With `-fa 1`, the speed is the same as with `-fa 0` (8B: 150 / 22.8 tokens/s), and the text is the same as the CPU text. Details and the full table: `ane-linux/docs/llm-baseline.md`.
+
+Installed in `/opt/mesa-m3` (stage M, 2026-10-27 01:36). Rerun 2026-10-27 07:40, new boot, on the charger at 12 % battery, `llama-bench -p 512 -n 128 -r 3 -ngl 99`, tokens/s:
+
+| Model | `-fa 0` pp512 / tg128 | `-fa 1` pp512 / tg128 |
+|---|---|---|
+| Llama 3.1 8B Q4_K_M | 149.98 / 22.79 | 150.13 / 22.69 |
+| Llama 3.2 3B Q4_K_M | 357.11 / 47.97 | 357.65 / 47.60 |
+
+0 GPU faults. Text check (40 tokens, greedy, 2 models x 2 prompts): the installed Mesa and the old Mesa build give the same text in 4 of 4 cases, and the GPU gives the same text as the CPU in 3 of 4. In the 4th case (8B, "The capital of France is") the GPU picks a different first word than the CPU with the old Mesa too, so it is GPU and CPU rounding, not the patch. Results on the M3: `~/llm-work/results/fa-20261027-0734`.
 
 **Select the native Vulkan driver outside the desktop.** The desktop session gets the native Mesa variables from the user environment generator. An SSH shell does not, so the Vulkan loader picks the distribution's Mesa. That driver writes an older compute format, and the kernel refuses every job (`G15: rejecting CDM record ... 00001212`, `submit failed ... EINVAL`). Benchmarks then report impossible speeds. Set this first:
 
