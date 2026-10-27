@@ -10,12 +10,14 @@ Measurements on the MacBook Pro 16-inch M3 Pro (Mac15,7, 12-core CPU, 18-core GP
 |---|---|---|---|---|---|---|
 | 2026-10-26 | M3 Pro, 18 cores | Fedora, kernel 7.2.11-m3gpu+, SiliconForest Mesa 26.3.0-devel | 600 s | 543.7 | 228.0 | 0 of 32,621 checks |
 | 2026-10-26 | M5, 10 cores (host Mac) | macOS 26, Metal | 20 s | 242.3 | 101.6 | 0 of 485 checks |
-| planned | M3 Pro, 18 cores | macOS 15.6.1 on the same M3, Metal | 600 s | | | |
+| 2026-10-27 | M3 Pro, 18 cores | macOS 15.6.1 on the same M3, Metal compute kernel | 0 to 450 s of a 600 s run | about 317 | about 133 | 0 of 14,831 checks |
 
 Notes:
 - Per GPU core: M3 Pro on Linux about 12.7, M5 on macOS about 10.2 G pixel-iter/s.
 - Estimate of the hardware limit (not measured): 18 cores x 128 ALUs x 1.38 GHz (top GPU state in the kernel log) is about 3.2 trillion integer operations per second. One step is about 7 operations, so about 450 G steps per second. Linux reaches about 50% of that, and the CPU checks stop the GPU every 10 frames. The 128 ALUs per core is the commonly reported figure, not an Apple specification.
-- Fragment shader (Linux) and compute kernel (macOS) are not identical paths. The macOS run on the M3 gives the fair comparison.
+- Fragment shader (Linux) and compute kernel (macOS) are not identical paths. Both rows on the M3 Pro do the same math on the same chip, but through different shader stages, so the ratio is not a pure driver comparison.
+- macOS on the M3 (2026-10-27): the steady rate is about 9,510 frames per 30 s from 0 to 450 s. After 450 s the SSH link dropped and macOS most likely went to sleep: only 5,710 frames ran from 450 s to 740 s. The printed average of 84.02 G pixel-iter/s includes that gap, so it is not used here. Binary sha256 2a97d90b...
+- On this test, the Linux fragment shader (228 G) runs about 1.7 times faster than the macOS compute kernel (about 133 G). A Linux compute version of the test would make a fairer comparison.
 
 ## Desktop benchmark (partial)
 
@@ -118,6 +120,17 @@ Kernel log on the test boot: `memory floor try 1: DVFS state 0x30200/0x30200 -> 
 The P cores now read more than macOS with 6 threads (89.3 GB/s best). The GPU reads 4.2 times faster than before. Llama 3.1 8B token generation goes from 5.8 to 22.7 tokens/s on the GPU, and from 6.6 to 25.1 on the CPU. GPU and CPU text still match. The kernel log has no GPU fault, firmware halt or refused submit.
 
 Limits: the floor is fixed, not load-based, so idle power is higher than in macOS. The test measured one boot only.
+
+### Linux after the fix and macOS, same CPU test (`tests/cpu-bw.c`)
+
+| CPU threads | macOS 15.6.1, 2026-10-27 (5 runs, best / mean) | Linux with the memory floor, 2026-10-26 (best / mean) |
+|---|---|---|
+| 1 | 83.1 / 60.7 GB/s | not measured |
+| 6 | 125.1 / 121.0 GB/s | 127.1 / 126.4 GB/s (P cores, `taskset`) |
+| 12 | 116.9 / 115.9 GB/s | 109.7 GB/s (mean) |
+| GPU read, `vk-bandwidth` | no Metal version | 134.7 / 131.7 GB/s |
+
+macOS binary sha256 e51a4d49... (pthreads build for macOS 14 and later). The 6-thread macOS value is higher than in the first macOS run (89.3 GB/s best on 2026-10-26). macOS places threads freely, so it can use E cores. With 6 threads on the P cores, Linux now matches macOS.
 
 ## Planned: how far each part of the chip goes
 
