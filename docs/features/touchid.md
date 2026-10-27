@@ -117,6 +117,17 @@ Use this only with the user's own go in the session that owns the kernel. Do not
 
 Rollback summary: remove the test boot entry, restore the default entry, unload and blacklist `apple_sep`, delete `/var/lib/aurora-sep-*.bin` only if no sealed blob matters, and restore the raw APFS images if step 5 ran.
 
+## Stage 1 status (2026-10-26, offline only)
+
+Done, nothing installed, loaded or rebooted. The files hold values from the private ADT dumps, so they live outside the repo (private, gitignored).
+
+- The ADT of this Mac has the SEP, SEP DART, SEP mailbox and the Touch ID sensor on an SPI bus. The SEP block layout matches the M3 Air nodes. The SEP node reports that iBoot booted and loaded its firmware.
+- A draft test device tree adds those nodes, all disabled, to the J516S tree. It compiles with `dtc` and adds no new warning. The `dt-validate` check was not run (no `dtschema` on the M3).
+- A draft driver patch adds a `T6030/J516s` profile (the M3 Air recipe, guarded xART records) and limits it to the J516S board. `rustfmt` parses it. The full Rust build was not run, because the build directory is shared with the GPU session.
+- Unverified: the SPI mode of the sensor, the spi2 pin mux, and the key store settings for firmware 15.6. Only the first matters for the dry load. The other two matter for enrol.
+- **Blocker for the dry load:** the driver needs the `iboot-manifest` and `local-policy-manifest` properties on the SEP node. Our boot chain does not pass them. The driver fails safe before it talks to the SEP. The ADT holds manifest data, but I have not identified which blob the driver wants. Passing it needs an m1n1 change or a static property in a test DTB. Both touch the boot chain and need the user's go.
+- Next: identify the manifest blob (read-only), then a kernel build with `APPLE_SEP=m` and the second boot entry from "Staged experiment" step 2 and 3.
+
 ## Sources (all read on 2026-10-26)
 
 - Asahi M3 feature support: <https://asahilinux.org/docs/platform/feature-support/m3/>
