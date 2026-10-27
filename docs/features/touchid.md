@@ -130,6 +130,39 @@ Done, nothing installed, loaded or rebooted. The files hold values from the priv
 - **Open risk:** with the alias, m1n1 stops the boot if it cannot find the SEP firmware region (`SEPFW`) in the ADT. The macOS dumps do not show that entry, which does not prove it is absent. Checking needs the ADT read from m1n1 itself (USB proxy mode, one reboot) or a test `boot.bin`.
 - Next: confirm `SEPFW` exists (m1n1 proxy read, needs a reboot and your go), then a kernel build with `APPLE_SEP=m` and the `boot.bin` rebuild with a tested rollback. Steps 2 and 3 of "Staged experiment" need this change: a second boot entry alone does not protect the DT.
 
+## Maintenance window request (for the coordinator, 2026-10-27)
+
+Nothing here runs until the coordinator sends the start signal and the user says go. No separate reboot is wanted. The reboot already planned for the maintenance window carries this change. Full detail and rollback: [touchid-stage2-plan.md](touchid-stage2-plan.md).
+
+**The proxy read of the ADT is not part of the request.** The plan reaches the dry load without it (see the plan, "Decision in one page"). The exact proxy steps are below only so the coordinator and the user can choose it instead.
+
+### What to schedule (route A, no cable, no policy change)
+
+Before the window reboot (no reboot needed, about 15 minutes):
+1. A0 to A4, no root: check the boot hashes, build the test DTB from the installed one, check that the diff only adds lines, check the module build (A1b), run the pre-reboot and health checks.
+2. A2, user types the sudo password: build `boot.bin.sep` (a new file in the ESP, `boot.bin` untouched).
+3. A5, user types the sudo password: `use-bootbin.sh sep`. This must be the last boot.bin change before the window reboot. It must come after the USB4 steps if those also need a clean state, so that a boot failure has only one new cause.
+
+At the window reboot: the same single reboot. If the machine does not come back in 3 minutes, use rollback F5 in the plan (force off, boot macOS from the picker, copy `boot.bin.stageE` back, user types the macOS password).
+
+After the reboot (about 10 minutes):
+4. A7, read only: the manifests and the reserved region are in the device tree. If not, run `m3gpu-boot use-stageE` and stop.
+5. A8 and A9, user types the sudo password: dry load with `xart_writes=0 provision_keybag=0`, read `dmesg` and the diag files. **Run this last in the window**: the module cannot be unloaded safely, so the SEP stays registered until the next reboot. No sleep tests and no suspend until then.
+6. A10 without a reboot: `m3gpu-boot use-stageE` (no password) so the next boot goes back to the known `boot.bin`. The next natural reboot clears the loaded module.
+
+Cost and risk added to the window: two typed sudo passwords before the reboot, one after, one extra failure mode (m1n1 stops on the new device tree, recovery F5 needs the macOS password). No finger is enrolled and no xART write is possible in this run.
+
+### Route B steps, only if chosen instead (m1n1 proxy over USB, not tried on this Mac)
+
+Source: Asahi m1n1 user guide, read 2026-10-27 (<https://asahilinux.org/docs/sw/m1n1-user-guide/>).
+1. User only, in the recovery environment on the Linux stub volume: `csrutil disable` and `nvram boot-args=-v`. This lowers a security policy and changes data the SEP sees. It needs the user's own go.
+2. Cable: USB-C to USB-A, C end into a Thunderbolt port on the M3, A end into this Mac.
+3. Host (this Mac), changes the host, needs the user's OK: `python3 -m pip install --user pyserial construct`, then copy `m3gpu/src/m1n1/proxyclient` from the M3 to a local folder.
+4. Power on the M3 with the cable attached. Stage 1 waits about 5 seconds for a proxy. This Mac then shows `/dev/cu.usbmodemP_01` (proxy) and `/dev/cu.usbmodemP_03` (virtual UART).
+5. On this Mac: `export M1N1DEVICE=/dev/cu.usbmodemP_01`, then start the m1n1 shell from the copied `proxyclient/tools` folder and read `/chosen/memory-map` for `SEPFW`. The guide documents no shell or ADT commands, so these commands are unverified.
+6. Boot back to Fedora: power cycle the M3 (hold the power button about 10 seconds, power on without the cable). Stage 1 then loads `boot.bin` from the ESP and GRUB boots the default kernel. Then, in recovery: `nvram boot-args=` and `csrutil enable` (not full security: the guide says that uninstalls m1n1).
+7. Cost: the M3 is off the network for the whole session, so all other sessions pause.
+
 ## Sources (all read on 2026-10-26)
 
 - Asahi M3 feature support: <https://asahilinux.org/docs/platform/feature-support/m3/>
