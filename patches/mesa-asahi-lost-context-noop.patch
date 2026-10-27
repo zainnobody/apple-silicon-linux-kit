@@ -1,29 +1,21 @@
-Mesa (SiliconForest 7515336), asahi gallium: a lost context does no GPU work instead of crashing.
+Mesa (SiliconForest 7515336), asahi gallium: mark the device lost on EIO and turn GPU work into no-ops.
+RESULT: NOT EFFECTIVE. DO NOT INSTALL. Kept as a record of the test (docs/gpu-fault-2026-10-26.md).
 After a GPU fault, the G15 kernel gives the VM a sticky error: VM_BIND, GEM_CREATE and SUBMIT fail
-with EIO. agx_encoder_allocate() and the batch pools then used NULL buffers, and plasmashell crashed in
-agx_batch_init (2026-10-26 23:23, docs/gpu-fault-2026-10-26.md). With this patch:
-- agx_device.c sets dev->lost when one of those three ioctls fails with EIO.
-- agx_context_lost() (agx_state.h) marks the context lost and reports PIPE_GUILTY_CONTEXT_RESET once.
-  draw_vbo, launch_grid, clear, clear_buffer, blit and resource_copy_region return at once on a lost
-  context (GL robustness: commands are no-ops after a reset).
-- When the loss first shows inside a new batch, the encoder and the pools use CPU scratch memory
-  instead of a NULL BO; agx_batch_submit never submits a batch of a lost context.
-The process still needs a new device to draw again (the VM error is per DRM file). Shaders, healthy
-contexts and Vulkan are unchanged. Private SiliconForest Mesa: do not redistribute.
-NOT TESTED YET. Test plan (on the M3, Mesa built into a separate prefix, not /opt/mesa-m3):
- 1. Build check: ninja -C build-mesa with the patch; no new warnings in the changed files.
- 2. Fault injection: tests/lost-context-inject.c (LD_PRELOAD) makes the three ioctls fail with EIO
-    after LOST_AFTER_S seconds. Run es2gears_wayland, glmark2-wayland and a Qt Quick app
-    (e.g. a plasmoid viewer) with LOST_AFTER_S=5 for 30 s each: before the patch they crash with
-    SIGSEGV (check coredumpctl); with the patch they keep running with a frozen picture, print
-    "BO creation failed" lines and exit normally when closed.
- 3. Robust client: a small EGL test with EGL_EXT_create_context_robustness and
-    GL_LOSE_CONTEXT_ON_RESET returns GL_GUILTY_CONTEXT_RESET from glGetGraphicsResetStatus after
-    the injection.
- 4. No change when healthy: tests/gpu-perf-suite.sh 60 and gles-stress, same values as without the
-    patch (within run-to-run spread), 0 wrong values; llama.cpp -fa 1 text the same as the CPU.
- 5. Desktop: install only after steps 1 to 4 pass, with a backup of /opt/mesa-m3.
-Apply with: git -C <mesa> apply <this patch>
+with EIO. This patch sets dev->lost on EIO, makes draw, launch_grid, clear, clear_buffer, blit,
+resource_copy_region and the reset status query see the loss, uses CPU scratch for encoders and
+pools instead of NULL BOs, and never submits a lost batch.
+Tested on J516S, 2026-10-27, with tests/lost-context-inject.c (EIO after 3 to 5 s), installed Mesa
+against this patch (separate prefix, built with patches/mesa-agx3-fmul-narrow-wait.patch):
+- es2gears_wayland, glmark2-wayland (no reset notification): SIGSEGV with both. With the patch the
+  crash moves from agx_batch_init to st_update_vs_constants: the GL state tracker uploads constants
+  into a stream-uploader buffer that resource_create cannot make, and it does not check for NULL.
+- tests/robust-reset-test.c (LOSE_CONTEXT_ON_RESET): passes with both. The existing failed-submit
+  path already reports PIPE_GUILTY_CONTEXT_RESET, and Mesa's GL layer then makes all calls no-ops.
+- vkcube: no crash with both.
+So a client without reset notification cannot continue once the whole VM refuses new memory, unless
+buffer creation itself keeps working. Better places for a fix: the kernel (keep the error on the
+faulting queue, not on the whole VM, so new memory and new contexts still work), or the client
+(request reset notification, as KWin does). Private SiliconForest Mesa: do not redistribute.
 
 diff --git a/src/asahi/lib/agx_device.c b/src/asahi/lib/agx_device.c
 index 3a6d551..ad84c0f 100644
@@ -204,7 +196,7 @@ index 8a432f4..bced072 100644
        struct agx_batch *batch = agx_get_compute_batch(agx_context(pctx));
        agx_batch_init_state(batch);
 diff --git a/src/gallium/drivers/asahi/agx_pipe.c b/src/gallium/drivers/asahi/agx_pipe.c
-index 1332d83..7b07537 100644
+index 1332d83..2a99ce8 100644
 --- a/src/gallium/drivers/asahi/agx_pipe.c
 +++ b/src/gallium/drivers/asahi/agx_pipe.c
 @@ -1133,6 +1133,9 @@ agx_clear(struct pipe_context *pctx, unsigned buffers,
@@ -217,7 +209,18 @@ index 1332d83..7b07537 100644
     struct agx_batch *batch = agx_get_batch(ctx);
  
     if (unlikely(!agx_render_condition_check(ctx)))
-@@ -1836,6 +1839,9 @@ asahi_clear_buffer(struct pipe_context *pipe, struct pipe_resource *resource,
+@@ -1816,7 +1819,9 @@ asahi_get_device_reset_status(struct pipe_context *pipe)
+ {
+    struct agx_context *ctx = agx_context(pipe);
+ 
+-   return ctx->any_faults ? PIPE_GUILTY_CONTEXT_RESET : PIPE_NO_RESET;
++   /* Also reports a device the kernel refuses, so a robust client sees the
++    * reset at its next check, before it builds more work. */
++   return agx_context_lost(ctx) ? PIPE_GUILTY_CONTEXT_RESET : PIPE_NO_RESET;
+ }
+ 
+ static void
+@@ -1836,6 +1841,9 @@ asahi_clear_buffer(struct pipe_context *pipe, struct pipe_resource *resource,
                     unsigned offset, unsigned size, const void *clear_value,
                     int clear_value_size)
  {
