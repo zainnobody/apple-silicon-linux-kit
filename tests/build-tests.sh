@@ -18,6 +18,8 @@ if command -v glslc >/dev/null; then
 	gcc -O2 -Wall "$T/vk-compute.c" -lvulkan -o "$OUT/vk-compute"
 	glslc "$T/vk-bandwidth.comp" -o "$OUT/vk-bandwidth.spv"
 	gcc -O2 -Wall "$T/vk-bandwidth.c" -lvulkan -o "$OUT/vk-bandwidth"
-	echo "built $OUT/vk-compute and $OUT/vk-bandwidth (run them from $OUT)"
+	glslc "$T/vk-stress.comp" -o "$OUT/vk-stress.spv"
+	gcc -O2 -Wall "$T/vk-stress.c" -lvulkan -o "$OUT/vk-stress"
+	echo "built $OUT/vk-compute, $OUT/vk-bandwidth and $OUT/vk-stress (run them from $OUT)"
 fi
 gcc -O3 -march=native -fopenmp "$T/cpu-bw.c" -o "$OUT/cpu-bw" && echo "built $OUT/cpu-bw"
