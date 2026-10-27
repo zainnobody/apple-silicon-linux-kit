@@ -37,9 +37,17 @@ Asahi status column: from `docs/asahi-m3-pro-status.md`.
 - Calibration files are installed: `/lib/firmware/vendor/apple/isp_{1820,1822,1921,1922,8720,8723}_*.dat` (6 files, dated install time). The driver has a table of about 40 names. A start of the camera printed no "setfile not loaded, streaming without calibration" warning, so a setfile was probably loaded. Which file matched was not logged. The hypothesis that calibration is missing is not supported. The remaining gap may be missing exposure and tone control in Linux (the driver exposes no exposure or gain control), or ISP behaviour that macOS tunes further.
 - Next test: bright daylight, and 5 min of video to see whether auto exposure settles.
 
+## AVD firmware: built and installed (2026-10-26 23:31), driver not yet reloaded
+
+- No Fedora, Asahi or Fedora Asahi Remix package exists. Searched: `dnf repoquery` on the M3 (only `asahi-fwupdate` 20250713 and `python3-asahi_firmware` 0.9.1), the Asahi progress reports 7.1 and 7.2, the `AsahiLinux/avd-fw` releases (none). NixOS and Asahi ALARM package `avd-fw`, but those do not apply to Fedora.
+- Built from `AsahiLinux/avd-fw` commit `220b1e70c9d7dcccbf66d5194e372300aa3c5a32` (version 0.1, MIT) with `clang`, `lld`, `llvm-objcopy`, `meson` 1.11.2 and `ninja`, all already installed. No extra package was installed. Script: `build/build-avd-fw.sh` (builds only). I ran the same steps by hand on the M3; I did not run the script end to end.
+- The kernel module asks for `apple/avd-fw-v4-t0.bin` for `apple,t6030-avd` (`avd-drv.c` line 739). The repository builds that exact name: 73728 bytes, SHA-256 `692b44ab15e79fe09dd61b5a6a61545954a4eb175688d3fac1928e6db5a331c4`.
+- Installed: `/lib/firmware/apple/avd-fw-v4-t0.bin` (new directory `/lib/firmware/apple/`, mode 0644, SELinux `lib_t`). Nothing else was added. To undo: `sudo rm /lib/firmware/apple/avd-fw-v4-t0.bin && sudo rmdir /lib/firmware/apple`.
+- `apple_avd` stays loaded and failed at boot; it is not reloaded. A reload needs the user's go. Open risks from the Asahi 7.2 report: the driver works "mostly reliably", and the VA-API layer (patched `libva-v4l2_request`) is not in Fedora Asahi Remix, so applications cannot use it yet.
+
 ## Next steps
 
-1. Get the AVD firmware `apple/avd-fw-v4-t0.bin` into `/lib/firmware`. Ask the firmware session where it comes from (extract from macOS, or the Asahi firmware tool). This needs root on the M3 and a change to the system, so it needs the user's go. Then rerun the decode tests.
+1. Reload `apple_avd` (needs the user's go), check the kernel log and `/dev/video*`, then run the H.264 and HEVC decode tests with CPU use.
 2. Install `libva-utils`, `v4l-utils` and a full ffmpeg (RPM Fusion) so H.264 and HEVC clips can be tested. Needs root and the user's go.
 3. Repeat the speaker test with the user listening, with a 5 s tone, and ask about left and right.
 4. Test the headphone jack when headphones are available: jack state, quiet tone, headset mic.
