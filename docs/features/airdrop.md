@@ -65,15 +65,14 @@ Found on the way: with the iPhone on "Contacts Only" (iOS drops "Everyone for 10
 - The firewall change is runtime only. The receiver is not a service yet. Nothing starts at boot.
 - Firmware 23.30.58 is newer than any version the project lists as tested. Sending is verified upstream only on the BCM4387 (M1 Pro).
 
-## Surviving a reboot (NOT applied)
+## Surviving a reboot
 
-A reboot removes `awdl0`, the firewalld zone binding and the receiver. Nothing here is applied; each item needs the user's go.
+`build/airdrop-persist.sh` has two parts. A reboot removes `awdl0`, the firewalld zone binding, the receiver and the watcher unless both parts are installed.
 
-| Item | Why it is lost | Proposed fix |
-|---|---|---|
-| `awdl0` | the interface is created by `awdl-up`, which runs once | install `packaging/awdl0.service` to `/etc/systemd/system/` and `systemctl enable` it; it creates `awdl0` idle, no window |
-| firewalld zone for `awdl0` and TCP 8771 | runtime only (`--change-interface`, `--add-port` without `--permanent`) | `firewall-cmd --permanent --zone=work --add-port=8771/tcp`, and a drop-in `ExecStartPost=/usr/bin/firewall-cmd --zone=work --change-interface=awdl0` on `awdl0.service` (NetworkManager does not manage `awdl0`, so a permanent interface binding is not reapplied when it reappears) |
-| receiver | started by hand in a retry loop | a systemd user unit for `airdrop-serve.py` with `Restart=always`; it must wait for the link-local address on `awdl0` |
-| Wi-Fi permanent MAC | NetworkManager profile setting, already permanent | nothing to do |
+| Part | Command | What it installs | Status 2026-10-27 |
+|---|---|---|---|
+| user | `airdrop-persist.sh user` | systemd user services `airdrop-receiver` (Restart=always, log to `receiver.log`) and `airdrop-notify`, both enabled | installed and running |
+| root | `sudo airdrop-persist.sh root` | copies the reviewed helpers to root-owned `/usr/lib/omdrop`, installs `awdl0.service` plus a drop-in that rebinds `awdl0` to firewalld zone `work`, opens TCP 8771 permanently, installs the upstream polkit policy (a local desktop session opens a window without a password), enables the unit | NOT applied: needs the user's own approval and password |
+| undo root | `sudo airdrop-persist.sh remove` | removes the unit, drop-in, policy, `/usr/lib/omdrop`, the permanent port | |
 
-Windows stay a manual step: they need root, and `sudo` needs a password in this setup. The upstream project uses a polkit policy (`packaging/org.omarchy.omdrop.policy`) so that a local desktop session can open a window without a password. That policy is not installed here.
+Windows stay manual until the polkit policy is installed. The policy applies only to an active local session on the M3, not to SSH.
