@@ -61,7 +61,7 @@ The tree (`origin` is a fork named siliconforest-linux, branch merged from "inte
 
 ## What is missing
 
-1. **Device tree.** Needs `sep` (the SEP block), `sep_mbox` (ASC mailbox with four interrupts), `sep_dart` (SEP DART with a restricted DMA window) and a `ps_sep` link. The t8122 nodes in the tree are a template (SEP at `0x29e400000`, mailbox at `0x29e408000`, DART at `0x29cac0000`). The t6030 addresses and interrupt numbers must come from the Apple device tree (ADT) of this Mac. Guessing them is not safe. Wrong addresses in a DT can hang the boot.
+1. **Device tree.** Needs `sep` (the SEP block), `sep_mbox` (ASC mailbox with four interrupts), `sep_dart` (SEP DART with a restricted DMA window) and a `ps_sep` link. The t8122 nodes in the tree are a template (SEP, mailbox at SEP plus 0x8000, DART). The t6030 addresses and interrupt numbers must come from the Apple device tree (ADT) of this Mac. Guessing them is not safe. Wrong addresses in a DT can hang the boot.
 2. **Sensor description.** The Touch ID sensor sits on an SPI bus with GPIOs. The driver can create the node at a fixed address, but the J516S address is unknown. Only J613 and J615 ADTs were read by the driver authors.
 3. **Driver profile.** `profile.rs::detect()` has no t6030 entry. Needed: DART window, shared memory geometry, key store variant, keybag encoding, and the `xart_guard` setting for this SoC and for firmware 15.6. These come from tracing macOS on this Mac, which nobody has done.
 4. **Bootloader data.** The SEP needs `iboot-manifest` and `local-policy-manifest` in `/chosen`. Our m1n1 does not pass them. Changing m1n1 is a boot-chain change.
