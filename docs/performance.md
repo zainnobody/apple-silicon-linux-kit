@@ -267,6 +267,20 @@ c) macOS evidence: only the pattern number (133 G at about 317 frames/s, 31.5 ms
 
 No macOS value on this Mac.
 
+## Heat and fans under sustained load (2026-10-27)
+
+`tests/heat-soak.sh` (with `tests/heat-sample.sh` and the safety stop `tests/heat-guard.sh`), stage O kernel, charger in, Plasma desktop up. Output `~/gpu-perf/heat-soak-20261027-101316` on the M3.
+
+| Phase | Length | Throughput over the run | PMP CPU hotspot | SoC die max | Others max | Fans |
+|---|---|---|---|---|---|---|
+| GPU only: vk-stress, no wait | 600 s | 628-629 fps in every 30 s step (263.6 Gpix-iter/s): flat | 64 C at start, 80.8 C max, about 80 C steady, still rising slowly | 68.6 C | charger 48.9 C, Wi-Fi 54.0 C, battery 25.5 C | 0 / 0 rpm |
+| CPU + GPU: 7-Zip benchmark, 12 threads, in a loop, plus vk-stress | 336 s (stopped by the guard) | 7-Zip 67.6k-73.3k per pass: flat; P cores 4034 MHz mean in the first quarter, 4038 MHz in the last | 95-100 C at the start of each 7-Zip pass (about every 8 s), about 77 C between; 61 of 164 samples at 90 C or more; 100.0 C at 10:31:52 | 66.1 C | charger 43.5 C, Wi-Fi 51.5 C | 0 / 0 rpm |
+
+- **No throttling seen.** The GPU rate did not drop in 10 min. The P cores stayed at 4056 MHz even at the 100 C sample, and the kernel logged no thermal lines. The GPU rate during the CPU + GPU phase is not known: vk-stress buffered its output and the stop lost it (fixed: `stdbuf -oL`). A 35 s check run gave 627 fps with the CPU load, the same as without it.
+- **The fans never spun.** The readings are real: the device tree names the SMC keys `F0Ac`/`F1Ac` (actual), `F0Tg`/`F1Tg` (target), `F0Mn`/`F0Mx` (min/max) and `F0Md` (mode). Fan 1 reads min 1350 and max 5349 rpm, Fan 2 min 1458 and max 5777 rpm, both actual 0 and target 0. `macsmc_hwmon.fan_control` is N, so Linux never writes the mode or target: the fans are in SMC automatic mode, and the SMC itself keeps its target at 0 with a 100 C hotspot.
+- **macOS reference:** Notebookcheck measured up to 2,400 rpm and 31.1 dB(A) after 30 min of Cinebench R23. The macOS dumps of this machine have no fan data. In them, `thermalmonitord` (pid 124) holds SMC user clients. Linux has no such daemon. Whether the SMC waits for an OS request or only has a later trigger is not known. The test is the same load on macOS while reading the fans.
+- **Until that is known:** run every long load with `tests/heat-guard.sh` (it stops at 100 C, or above 95 C for 60 s with the fans at 0 rpm). An all-core CPU load plus the GPU reaches a 100 C hotspot in under 6 min with the fans off.
+
 ## Planned: how far each part of the chip goes
 
 The goal is the limit of each block on Linux, and the same numbers on macOS on the same Mac.
