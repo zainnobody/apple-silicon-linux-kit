@@ -1,0 +1,31 @@
+Mesa (SiliconForest 7515336), AGX3B packer: retire a wide wait before the narrow f32 multiply (f32 x f32 -> f16).
+agx3_alu_fmul_narrow has only the compact ep0/ep1 forms, which take the wait masks 0,1,2,3,4,8,16,32.
+A wider mask made the packer refuse llama.cpp's flash_attn_f32_f16_aligned shader. This uses the same
+agx3_fuse_compact_minifloat_wait prelude as the compact minifloat forms. Shaders that compiled before are unchanged.
+Tested on J516S, 2026-10-26: test-backend-ops FLASH_ATTN_EXT 5368/5368 pass on Vulkan0; Llama 3.2 3B and 3.1 8B with -fa on
+give the same text as the CPU. Private SiliconForest Mesa: do not redistribute.
+Apply with: git -C <mesa> apply <this patch>
+
+diff --git a/src/asahi/compiler/agx3_pack_binary.c b/src/asahi/compiler/agx3_pack_binary.c
+index b93b25c2b87..aea7f5790ea 100644
+--- a/src/asahi/compiler/agx3_pack_binary.c
++++ b/src/asahi/compiler/agx3_pack_binary.c
+@@ -13735,9 +13735,17 @@ agx3_pack_binary(agx_context *ctx, struct util_dynarray *emission)
+                   AGX3_REFUSE(I);
+                src[i]=x.value; hints[i]=agx3_post_ra_hint(x);
+             }
++            /* The narrow multiply has only the compact ep0/ep1 forms, which
++             * take the same eight wait masks as the minifloat forms. Retire a
++             * wider wait first, as those do (flash attention reaches this). */
++            uint16_t encoded_wait = wait;
++            if (!agx3_fuse_compact_minifloat_wait(emission, enc, I,
++                                                  &encoded_wait))
++               AGX3_REFUSE(I);
+             uint8_t bytes[AGX3_ALU_MAX_LENGTH],len;
+             if (!agx3_alu_fmul_narrow(enc,I->dest[0].value,src,hints,
+-                                      I->dest[0].cache,wait,bytes,&len) ||
++                                      I->dest[0].cache,encoded_wait,bytes,
++                                      &len) ||
+                 !agx3_append(emission,bytes,len))
+                AGX3_REFUSE(I);
+             continue;

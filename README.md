@@ -18,7 +18,7 @@ Other machines need a profile in `machines/` (see `machines/README.md`). Unteste
 |---|---|
 | GPU driver | Accepts the firmware after a one-entry pin (`patches/`). 18 cores. |
 | OpenGL / GLES / Vulkan | 4.6 / 3.2 / 1.4.363, renderer "Apple M3 Pro (G15S B1)" |
-| Vulkan compute | Exact results (`tests/vk-compute.c`). llama.cpp runs on the GPU: Llama 3.1 8B at 150 tokens/s prompt, 22.7 tokens/s generation (with the memory floor patch). Flash attention not yet. |
+| Vulkan compute | Exact results (`tests/vk-compute.c`). llama.cpp runs on the GPU: Llama 3.1 8B at 150 tokens/s prompt, 22.7 tokens/s generation (with the memory floor patch). Flash attention works with `patches/mesa-agx3-fmul-narrow-wait.patch` (not yet installed). |
 | Memory bandwidth | 123 GB/s (P cores) and 130 GB/s (GPU) with `patches/t6030-pmp-memory-floor.patch`; about 32 GB/s without it. See `docs/performance.md`. |
 | KDE desktop and login screen | KWin composites with OpenGL on the GPU |
 | Render correctness | Exact pixel and integer readback tests pass |
