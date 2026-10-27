@@ -28,6 +28,9 @@ cfg --disable DEBUG_INFO_BTF       # pahole/BTF often breaks Rust builds; not ne
 cfg --set-str SYSTEM_TRUSTED_KEYS ""
 cfg --set-str SYSTEM_REVOCATION_KEYS ""
 cfg --disable MODULE_SIG_ALL       # Fedora's signing key is not available here
+# Apple USB4/Thunderbolt host router (ACIO). Without it the M3 USB-C PD controllers stay in deferred
+# probe. New in this tree, so the stock config leaves it off. See docs/features/usbc-usb4-gap.md.
+cfg --module USB4_APPLE_SOC
 
 make -C "$K" O="$BUILD" olddefconfig
 
@@ -57,6 +60,8 @@ check "CONFIG_DRM_ASAHI=y"
 check "CONFIG_DRM_GPUVM=y"
 check_off LIVEPATCH
 check "CONFIG_APPLE_PMP=y"
+check "CONFIG_USB4=y"
+check "CONFIG_USB4_APPLE_SOC=m"
 make -C "$K" O="$BUILD" rustavailable
 [ "${CONFIG_ONLY:-0}" = 1 ] && { echo "CONFIG_ONLY: all checks passed"; exit 0; }
 
