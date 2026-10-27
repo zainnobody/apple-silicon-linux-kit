@@ -124,3 +124,20 @@ The user said the T7 was on the left rear port, the one closest to MagSafe. Linu
 | Link | `PSSD T7 Shield`, 10000M (USB 3.2 Gen 2), driver `uas` |
 | Raw read, `dd iflag=direct`, 2 GB, two runs | 699 MB/s and 660 MB/s |
 | Write test | Not done. The drive holds user data. |
+
+## SD card in the built-in slot, 2026-10-27 14:26 (my own test, read only)
+
+| Item | Result |
+|---|---|
+| Detect | Card found at insert: `mmc0: new UHS-I speed SDR50 SDHC card`, no errors in the kernel log |
+| Card | 29.7 GiB SDHC, vfat, one partition |
+| Link | 4-bit bus, 100 MHz, 1.8 V, mode SDR50 |
+| Raw read, `dd iflag=direct`, 400 MB, two runs | 46.6 MB/s and 46.5 MB/s (near the SDR50 limit of about 50 MB/s) |
+| Write | Not tested. Linux shows the card as read-only (`ro=1`). The card lock switch is the likely cause. |
+
+The built-in SD slot works for reading. The write test needs the lock switch moved, or another card.
+
+## T7 on the right port, 2026-10-27 14:27
+
+The user said the T7 was moved to the right port. Linux again showed the partner on `port2`. The T7 link is the same, 10000M. The right port number is still not known. Ask the user to confirm the side.
+
