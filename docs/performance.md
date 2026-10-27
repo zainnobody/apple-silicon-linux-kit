@@ -282,7 +282,7 @@ No macOS value on this Mac.
 
 | Phase | Length | Throughput | PMP CPU hotspot max | SoC die max | Fans max |
 |---|---|---|---|---|---|
-| GPU only | 240 s | not changed by the fans | 72.8 C (fans off: 80.8 C) | | 1616 rpm |
+| GPU only | 240 s | not recorded | 72.8 C (fans off: 80.8 C) | 61.6 C | 1616 rpm |
 | CPU + GPU | 240 s | vk-stress 263.26 G; 7-Zip 69,563 mean; P cores 4,030 MHz mean | 93.8 C, never 95 C (fans off: 100 C, guard stop) | 61.4 C | 4028 rpm |
 
 - **No throttling seen**, with or without fans. Fans off: the GPU rate did not drop in 10 min, the P cores stayed at 4056 MHz even at the 100 C sample, and the kernel logged no thermal lines. A 35 s check run gave 627 fps for the GPU with the CPU load, the same as without it.
