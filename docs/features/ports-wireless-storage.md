@@ -171,3 +171,10 @@ The user connected a cable from the M3 left rear port (`port3`) to a port on the
 
 Thunderbolt and USB4 host to host work on the M3. The link trains at 20 Gb/s, not 40 Gb/s. The cable or the M3 port may set this limit (see `usbc-usb4-gap.md` section 9). The throughput numbers come from a simple single stream and use the CPU, so they are lower bounds. The Mac to M3 number is lower. The `nc | wc` receiver on the M3 likely sets it.
 
+## Open items and paused tests, 2026-10-27
+
+- **Thunderbolt at 40 Gb/s: not completely tested.** The user has no certified 40 Gb/s cable now. The link trained at 20 Gb/s with the cable in use. The test is paused until a certified Thunderbolt 4 cable is available. Repeat the host-to-host test then.
+- **Thunderbolt dock and display tunnels:** not tested. No dock is available now (see `usbc-usb4-gap.md` section 9).
+- **Daily port:** the user will use all USB-C ports on the M3. All three ports pass the USB 3 test with the T7 (left front, left rear, right).
+- **SD card speed limit:** the slot limit is not known. The test card is slow to write (7.9 MB/s). A fast UHS-I card would show it.
+
