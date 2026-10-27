@@ -15,7 +15,13 @@ canroot() { sudo -n true 2>/dev/null; }
 
 [ "$(sha256sum /boot/vmlinuz-$KREL | cut -d' ' -f1)" = "$IMG_SHA" ] && ok "kernel image is the memory-floor image" || bad "kernel image sha differs"
 [ "$(sha256sum /boot/efi/m1n1/boot.bin 2>/dev/null | cut -d' ' -f1)" = "$STAGEE_SHA" ] && ok "boot.bin is stageE" \
-	|| { canroot && [ "$(root sha256sum /boot/efi/m1n1/boot.bin | cut -d' ' -f1)" = "$STAGEE_SHA" ] && ok "boot.bin is stageE" || bad "boot.bin is not stageE (or unreadable)"; }
+	|| { st="$(root sha256sum /boot/efi/m1n1/boot.bin || root /usr/local/sbin/m3gpu-default status)"
+	     echo "$st" | grep -q "^$STAGEE_SHA " && ok "boot.bin is stageE" || bad "boot.bin is not stageE (or unreadable)"; }
+# The no-password switch also shows the default entry and any one-time entry.
+st="$(root /usr/local/sbin/m3gpu-default status || true)"
+[ -n "$st" ] && { echo "$st" | grep -q "^saved_entry=.*-$KREL\$" && ok "default entry: $KREL (m3gpu-default status)" || bad "default entry: $(echo "$st" | grep saved_entry)"
+	echo "$st" | grep -q "^next_entry=." && bad "a one-time next_entry is set" || ok "no one-time next_entry (m3gpu-default status)"
+	echo "$st" | grep -q "^menu_auto_hide=1" && bad "GRUB menu is hidden" || ok "GRUB menu shows (m3gpu-default status)"; }
 
 if canroot; then
 	env="$(root grub2-editenv list)"
