@@ -66,6 +66,17 @@ What is known: the ISP firmware does the image processing. The driver only expos
 | 7 | Make libcamera claim the node (Asahi issue 616). Gives libcamera apps access; libcamera cannot denoise firmware-processed NV12 | Low to medium | Low | Yes (kernel patch) | None for grain |
 | 8 | Check which `isp_*.dat` setfile the driver loads. No "not loaded" warning was logged on 2026-10-26, so low value | Low | None | No | Small |
 
+### Proposal only: switch on the temporal filter in the next boot-file window (not done)
+
+Status: proposal for the GPU session, which owns the boot files. Nothing was changed. The user has not given a go. It would ride in the Touch ID boot-file window (its own later reboot), see `touchid-stage2-plan.md`.
+
+1. Copy the device tree the kernel passes to m1n1 (`/boot/dtb-<release>/apple/t6030-j516s.dtb`, see `AGX_DTB_NAME` in `machines/j516s.sh`) to a work folder. Never edit the file in `/boot`.
+2. Set the property on the copy: `fdtput -t u <copy>.dtb /soc/isp@2c8000000 apple,temporal-filter 1` (needs `dtc`; alternatively change the `.dts` source and run `make dtbs`). Check with `fdtget`.
+3. Pack it into a new `boot.bin` with `install/make-bootbin.sh <stage> <m1n1.bin> <dtb-dir>` (the script takes a DTB folder and packs the `t6*.dtb` and `t81*.dtb` files). Keep the current `boot.bin` as the undo copy and record both SHA-256 values.
+4. One reboot with the user's go. Then: `journalctl -k -b | grep -iE "isp|apple-isp"`, `ls /dev/video*`, one 10 s capture, and a same-light frame compared with `linux-fedora-same-light-2026-10-26.jpg` (kept in the private folder).
+5. Pass: the camera appears and the grain is lower. Fail: no `apple-isp` node or a firmware handshake error (as in [Asahi issue 630](https://github.com/AsahiLinux/linux/issues/630)). Undo: put the old `boot.bin` back from macOS or by the usual rollback in `docs/install-plan.md` section 3.
+6. Risk: the camera may vanish if the firmware does not support the filter on this board. Nothing else in the boot path changes.
+
 Plan: do ranks 2 and 3 first, because they use the firmware's own denoise. If rank 3 fails, use rank 4 as a fallback.
 
 ## Next steps
