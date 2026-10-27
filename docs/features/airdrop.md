@@ -76,3 +76,15 @@ Found on the way: with the iPhone on "Contacts Only" (iOS drops "Everyone for 10
 | undo root | `sudo airdrop-persist.sh remove` | removes the unit, drop-in, policy, `/usr/lib/omdrop`, the permanent port | |
 
 Windows stay manual until the polkit policy is installed. The policy applies only to an active local session on the M3, not to SSH.
+
+## Buttons (built, not yet deployed or tested)
+
+`build/airdrop-persist.sh ui` installs user-level files from `build/airdrop-ui/`:
+
+| Button | File | Does |
+|---|---|---|
+| AirDrop on (10 min) | `airdrop-on` + `.desktop` launcher | `pkexec omdrop-discoverable start 600`, then a notification; pin it to the panel |
+| AirDrop off | `airdrop-off` + `.desktop` launcher | closes the window |
+| Send via AirDrop (Dolphin right-click) | `airdrop-send` + service menu | opens a window if needed, lists devices (`send-to-peer --list --names`), asks which one with kdialog, sends, notifies |
+
+All three need the root part (`/usr/lib/omdrop` and the polkit policy), so they work only after `sudo airdrop-persist.sh root`. They have not run on the M3 yet. The device picker parses `send-to-peer --list --names` by assuming the first field of each row is the MAC; this is untested. The picker lists every device it hears. The standing rule that nothing goes from the M3 to the user's own Mac is not enforced by the picker.

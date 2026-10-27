@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Close the AirDrop visibility window.
+pkexec /usr/lib/omdrop/omdrop-discoverable stop && notify-send -a AirDrop -i emblem-shared "AirDrop is off" "No longer visible."

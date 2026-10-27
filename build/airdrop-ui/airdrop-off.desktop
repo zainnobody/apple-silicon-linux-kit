@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=AirDrop off
+Comment=Stop being visible
+Exec=airdrop-off
+Icon=emblem-unshared
+Categories=Network;
+Terminal=false

@@ -2,6 +2,7 @@
 # Make AirDrop on the M3 survive a reboot. Runs on the M3 after `airdrop-setup.sh fetch` and the first manual test.
 #   root    sudo ./airdrop-persist.sh root    root-owned helpers, awdl0 boot service, firewall, polkit policy
 #   user    ./airdrop-persist.sh user         user services for the receiver and the notification watcher
+#   ui      ./airdrop-persist.sh ui           buttons: AirDrop on/off launchers and a Dolphin "Send via AirDrop" entry (user files only)
 #   remove  sudo ./airdrop-persist.sh remove  undo the root part (the user part: systemctl --user disable --now ...)
 # Nothing here opens a visible window. A window stays a manual step (polkit lets a local desktop session do it without a password).
 set -eu
@@ -71,6 +72,16 @@ EOF
 	systemctl --user enable --now airdrop-receiver.service airdrop-notify.service
 	ok "user services enabled"
 	;;
+ui)
+	b=$(dirname "$(readlink -f "$0")")/airdrop-ui
+	mkdir -p "$HOME/.local/bin" "$HOME/.local/share/applications" "$HOME/.local/share/kio/servicemenus"
+	for f in airdrop-on airdrop-off airdrop-send; do install -m755 "$b/$f" "$HOME/.local/bin/$f"; done
+	install -m644 "$b/airdrop-on.desktop" "$b/airdrop-off.desktop" "$HOME/.local/share/applications/"
+	# Plasma 6 only honours service menus that are executable
+	install -m755 "$b/airdrop-send.desktop" "$HOME/.local/share/kio/servicemenus/airdrop-send.desktop"
+	kbuildsycoca6 >/dev/null 2>&1 || true
+	ok "buttons installed: find \"AirDrop on\" in the application menu and pin it to the panel; right-click a file for Send via AirDrop"
+	;;
 remove)
 	[ "$(id -u)" = 0 ] || bad "run with sudo"
 	systemctl disable --now awdl0.service || true
@@ -83,6 +94,6 @@ remove)
 	ok "root part removed"
 	;;
 *)
-	sed -n '2,6p' "$0"
+	sed -n '2,7p' "$0"
 	;;
 esac

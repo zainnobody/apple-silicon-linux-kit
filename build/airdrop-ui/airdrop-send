@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Send the given files to a nearby AirDrop device. Opens a window if none is open, asks which device, then sends.
+# Needs the root part of airdrop-persist.sh (helpers in /usr/lib/omdrop and the polkit policy).
+[ $# -gt 0 ] || { echo "usage: airdrop-send FILE..." >&2; exit 2; }
+H=/usr/lib/omdrop/omdrop-discoverable
+S=/usr/lib/omdrop/send-to-peer
+note() { notify-send -a AirDrop -i emblem-shared "$1" "$2"; }
+"$H" status --json | grep -q '"visible":true' || airdrop-on 600 || exit 1
+# Lookup names; one row per device. The first field is the MAC, the rest is signal and name.
+rows=$("$S" --list --names 2>/dev/null | grep -E '^[[:space:]]*([0-9a-f]{2}:){5}[0-9a-f]{2}')
+[ -n "$rows" ] || { note "AirDrop: nobody found" "Open AirDrop on the other device and set it to Everyone."; exit 1; }
+args=()
+while IFS= read -r line; do
+	mac=$(echo "$line" | awk '{print $1}')
+	args+=("$mac" "$(echo "$line" | sed -E 's/^[[:space:]]*[^[:space:]]+[[:space:]]+//')")
+done <<< "$rows"
+mac=$(kdialog --title "Send via AirDrop" --menu "Send to which device?" "${args[@]}") || exit 0
+if out=$("$S" --mac "$mac" --wait 60 "$@" 2>&1); then
+	note "AirDrop: sent" "$# file(s) sent."
+else
+	note "AirDrop: not sent" "$(echo "$out" | tail -2)"
+	exit 1
+fi

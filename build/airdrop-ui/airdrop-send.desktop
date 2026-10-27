@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Service
+MimeType=all/allfiles;
+Actions=airdropSend;
+X-KDE-Priority=TopLevel
+
+[Desktop Action airdropSend]
+Name=Send via AirDrop
+Icon=emblem-shared
+Exec=airdrop-send %F

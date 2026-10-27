@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Make this machine visible to AirDrop for N seconds (default 600). Needs the polkit policy installed by airdrop-persist.sh root.
+secs=${1:-600}
+H=/usr/lib/omdrop/omdrop-discoverable
+if pkexec "$H" start "$secs"; then
+	notify-send -a AirDrop -i emblem-shared "AirDrop is on" "Visible for $((secs / 60)) minutes. Set the iPhone or Mac to Everyone."
+else
+	rc=$?
+	# 5 = a window is already open and was extended
+	[ "$rc" = 5 ] && notify-send -a AirDrop -i emblem-shared "AirDrop window extended" "Still visible." && exit 0
+	notify-send -a AirDrop -u critical "AirDrop did not start" "Exit code $rc. Check: journalctl -k | grep awdl"
+	exit "$rc"
+fi
