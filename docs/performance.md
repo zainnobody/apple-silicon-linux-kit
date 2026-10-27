@@ -85,7 +85,16 @@ Every reader alone reaches about 30 to 32 GB/s, and two readers together share a
 
 The CPU and the GPU both stop near 32 GB/s, so the limit is in the memory system, not in the GPU driver or the shaders. Probable cause: under Linux the memory controller or fabric stays in a low performance state. On this kernel the CPU clock driver binds the M3 clusters as `apple,t8112-cluster-cpufreq`, which sends no memory vote (`has_ps2 = false`). This is not proven yet.
 
-Next: run `tests/cpu-bw.c` on the same machine in macOS (offline) for the reference number. Research notes: `docs/memory-bandwidth-research.md` (no Linux driver casts a memory or fabric performance vote on T6030; the fork has one only for T8140).
+Same machine in macOS 15.6.1 (offline, 2026-10-26 18:40, `tests/cpu-bw.c` built with pthreads, same binary hash for every run):
+
+| CPU threads | macOS best / mean | Linux best / mean |
+|---|---|---|
+| 1 | 60.6 / 48.8 GB/s | 29.3 GB/s (best) |
+| 6 | 89.3 / 80.9 GB/s | 32.6 / 32.4 GB/s |
+| 12 | 115.3 / 110.4 GB/s | 32.5 / 32.2 GB/s |
+| 6, background QoS (E cores) | 38.9 / 31.3 GB/s | 29.8 GB/s (E cores, mean) |
+
+macOS reads 3.4 times faster with all cores, and 2 times faster with one thread. So the hardware is not the limit: Linux leaves the memory system in a slow state. In macOS one thread alone goes beyond the whole Linux limit. Research notes: `docs/memory-bandwidth-research.md` (no Linux driver casts a memory or fabric performance vote on T6030; the fork has one only for T8140).
 
 ## Planned: how far each part of the chip goes
 
