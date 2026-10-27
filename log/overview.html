@@ -237,10 +237,11 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
         <tr><td class="stage-id">F</td><td>Test kernel replaced with the exact-hash pin build. Old kernel backed up to <code>/root/agx-backup/20261026-130500-pre-pin</code>.</td><td><span class="chip pass">Pass, GPU works</span></td></tr>
         <tr><td class="stage-id">G</td><td>Linker-cache service, user environment generator, two new no-password actions (<code>mesa-select</code>, <code>restart-login</code>). Desktop and login screen use the native Mesa only on GPU boots.</td><td><span class="chip pass">Pass</span></td></tr>
         <tr><td class="stage-id">J</td><td>Test kernel image with the PMP memory floor patch (20:41). Image, System.map and config only; backup in <code>/root/m3gpu-backup/20261026-204139-pre-memfloor</code>.</td><td><span class="chip pass">Pass, memory 4x faster</span></td></tr>
+        <tr><td class="stage-id">K</td><td>GPU kernel with the memory floor is the default boot; boot.bin stageE; GRUB menu always shown; <code>m3gpu-default</code> switch. Backup in <code>/root/m3gpu-backup/20261026-205413-pre-default</code>.</td><td><span class="chip pass">Installed, boot not tested</span></td></tr>
       </tbody>
     </table>
   </div>
-  <p>The current <code>boot.bin</code> is stageD (GPU options off). The default boot is the stock Fedora kernel 7.1.13.</p>
+  <p>The current <code>boot.bin</code> is stageE (GPU options on). The default boot is the GPU kernel 7.2.11-m3gpu+; stock 7.1.13 is the fallback entry.</p>
 </section>
 
 <section aria-labelledby="firmware">
@@ -291,7 +292,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
     <li><span class="chip next">Step 2</span><div><span><b>Stress test.</b> Headless part: shader stress and the 1-hour idle soak pass; the 1-hour load soak also passes. Desktop part (full glmark2, <code>vkcube</code>, video, Firefox WebGL, a QtWebEngine app) waits for a desktop login.</span><small>Pass: no GPU fault, no firmware halt, no "submit failed" lines. linux-aurora issue 90 reports one firmware halt from a QtWebEngine render fault on a J516S.</small></div></li>
     <li><span class="chip pass">Step 3</span><div><span><b>Stock kernel with stageE.</b> Passed 13:43.</span><small>The stock kernel booted with stageE, the login screen started, and the Mesa service kept the system Mesa.</small></div></li>
     <li><span class="chip pass">Step 4</span><div><span><b>Login screen on native Mesa.</b> Done in stage G.</span><small>The login screen was black with the system Mesa. It draws on the GPU now.</small></div></li>
-    <li><span class="chip wait">Step 5</span><div><span><b>Make the GPU boot the default.</b> Keep stageE, make the test kernel the default GRUB entry, keep the stock kernel as the fallback entry.</span><small>Needs the no-password tool to get one more action, so one sudo step.</small></div></li>
+    <li><span class="chip pass">Step 5</span><div><span><b>Make the GPU boot the default.</b> Done in stage K (20:54): boot.bin stageE, default entry 7.2.11-m3gpu+ with the memory floor, stock 7.1.13 as the fallback in the GRUB menu.</span><small>Kernel updates keep the default (<code>UPDATEDEFAULT=no</code>). Undo without a password: <code>sudo -n /usr/local/sbin/m3gpu-default stock</code>. Not yet booted as the default.</small></div></li>
     <li><span class="chip pass">Step 6</span><div><span><b>Fedora to macOS remotely.</b> Done: <code>install/setup-macos-switch.sh</code> adds <code>agx-os macos-once</code>, tested once.</span><small>macOS to Fedora already works: the default startup disk is Fedora.</small></div></li>
     <li><span class="chip next">Step 7</span><div><span><b>Upstream report.</b> Draft written: see "Upstream report draft" under Reports.</span><small>Nothing is posted without your approval of the exact text.</small></div></li>
     <li><span class="chip wait">Step 8</span><div><span><b>Clean-up.</b> Remove the no-password sudo rule, turn m1n1 updates back on, restore KDE sleep settings if wanted.</span><small>Each item only with your agreement.</small></div></li>
