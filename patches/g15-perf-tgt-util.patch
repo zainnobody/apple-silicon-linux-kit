@@ -1,0 +1,81 @@
+Kernel (SiliconForest 0e1f46661376 + the M3 tree patch), asahi-m3 G15: module parameter
+asahi.g15_perf_tgt_util (percent, 30..95; 0 = default = unchanged) for the firmware DVFS target
+utilization. The G15S HardwareData template carries perf_tgt_utilization = 80 and
+perf_tgt_utilization_2 = 80 at HardwareDataA +0x788 / +0x7ec (template +0x4d08 / +0x4d6c). The offsets
+are the G15C record layout (g15/board/record.rs) shifted by HardwareDataA (+0x4580); the fixed
+neighbours that record.rs also writes (6, 1 at +0x7a0; 95.0 at +0x7c8) sit at the same shift in the
+template, which confirms the layout. The override is written after the template hash check and is
+refused unless both words read 80. Neighbouring values for reference: boost min util 90, boost step 50,
+filter a 0.2 / a2 0.005, integral gain 1.755, proportional gain 5.85, base pstate 1, max pstate 8.
+Why: in stop-and-go loads (the metal-stress pattern: wait and CPU check every 10th frame) the GPU is
+busy about half the time, so the firmware lowers the clock to state 1 (338 MHz) to reach 80 % busy.
+Built 2026-10-27 (image sha256 3f032b51...); NOT TESTED YET (needs install/stage-n-tgt-util.sh and one boot).
+Test plan: boot with asahi.g15_perf_tgt_util=50; check "DVFS target utilization 50 %" in the kernel log;
+tests/g1-cpu-side.sh 60 (3 x 60 s per CPU setting) with the pstate sampler; target >= 120 G in the
+macOS pattern; then tests/gpu-perf-suite.sh 60 (no change expected in steady loads), idle power on
+battery for 10 min against the default, 0 GPU faults. Remove the argument if it does not help.
+
+--- a/drivers/gpu/drm/asahi-m3/g15/fw/initdata.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/fw/initdata.rs
+@@ -135,6 +135,11 @@
+     pub(crate) const COMPUTE_ACTIVITY: usize = 0x3740;
+     /// HardwareDataA: the maintained S8 request words.
+     pub(crate) const HWDATA_A: usize = 0x4580;
++    /// HardwareDataA perf_tgt_utilization and perf_tgt_utilization_2 (percent): the busy share
++    /// the firmware DVFS aims for (template 80). Located by the record layout (+0x788, +0x7ec)
++    /// and its fixed neighbours (6, 1 at +0x7a0; 95.0 at +0x7c8).
++    pub(crate) const PERF_TGT_UTIL: usize = HWDATA_A + 0x788;
++    pub(crate) const PERF_TGT_UTIL_2: usize = HWDATA_A + 0x7ec;
+     /// HardwareDataA word holding the machine's maximum GPU power in mW (Globals +0x78 and
+     /// Power +0xd0 repeat it).
+     pub(crate) const MAX_POWER_A: usize = 0x6a4;
+--- a/drivers/gpu/drm/asahi-m3/g15/initdata.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/initdata.rs
+@@ -154,6 +154,17 @@
+     if !reference {
+         dev_info!(dev, "board data sha256 {}\n", Hex(&glue::sha256(&hw_img)));
+     }
++    let tgt = super::params::perf_tgt_util();
++    if tgt != 0 {
++        let template = get32(&hw_img, hwdata::PERF_TGT_UTIL)?;
++        if template != 80 || get32(&hw_img, hwdata::PERF_TGT_UTIL_2)? != 80 {
++            dev_err!(dev, "DVFS target utilization: template {} is not 80, override refused\n", template);
++            return Err(EINVAL);
++        }
++        put32(&mut hw_img, hwdata::PERF_TGT_UTIL, tgt)?;
++        put32(&mut hw_img, hwdata::PERF_TGT_UTIL_2, tgt)?;
++        dev_info!(dev, "DVFS target utilization {} % from the module parameter (template 80 %)\n", tgt);
++    }
+     Ok((hw_img, glob, pwr, max_khz))
+ }
+ 
+--- a/drivers/gpu/drm/asahi-m3/g15/params.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/params.rs
+@@ -41,6 +41,14 @@
+     *module_parameters::g15_idle_standby_us.value()
+ }
+ 
++/// Firmware DVFS target utilization override, percent (0: the template value, 80).
++pub(crate) fn perf_tgt_util() -> u32 {
++    match *module_parameters::g15_perf_tgt_util.value() {
++        0 => 0,
++        v => v.clamp(30, 95),
++    }
++}
++
+ /// Firmware idle minimum confidence, permille.
+ pub(crate) fn idle_min_conf() -> u32 {
+     (*module_parameters::g15_idle_min_conf.value()).clamp(1, 1000)
+--- a/drivers/gpu/drm/asahi-m3/asahi_core.rs
++++ b/drivers/gpu/drm/asahi-m3/asahi_core.rs
+@@ -135,6 +135,10 @@
+             default: 0,
+             description: "G15: firmware idle standby time override, us (Globals +0x7a8, 100..100000; 0: the device tree's, else the tuned value)",
+         },
++        g15_perf_tgt_util: u32 {
++            default: 0,
++            description: "G15: firmware DVFS target utilization override, percent (HardwareDataA +0x788/+0x7ec, 30..95; 0: the template value 80)",
++        },
+         g15_idle_min_conf: u32 {
+             default: 500,
+             description: "G15: firmware idle minimum confidence, permille (Globals +0x7c4)",

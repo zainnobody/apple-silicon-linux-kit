@@ -216,6 +216,32 @@ The GPU still ran at state 1 (338 MHz) for most of the wait test. So the firmwar
 
 So the macOS figure of 133 G is a mixed CPU and GPU DVFS result, not a GPU limit. Linux reaches 255 G when the GPU is kept busy, which is 1.9 times the macOS figure for the check pattern. A fair GPU comparison needs the no-wait run in macOS too (`metal-stress` with no checks). That needs a macOS boot.
 
+**G1: closing the stop-and-go gap (2026-10-27).**
+
+a) CPU side (`tests/g1-cpu-side.sh 60`, 3 runs of 60 s each, macOS pattern, on the charger):
+
+| CPU setting | G pixel-iter/s | CPU check per 10 frames |
+|---|---|---|
+| Default | 63.2 / 63.2 / 64.0 | 27.0 to 28.9 ms |
+| `taskset -c 7` (P core) | 62.9 / 63.0 / 63.3 | 28.8 to 29.0 ms |
+| `uclampset -m 1024 taskset -c 7` | **81.0 / 81.1 / 81.3** | **14.4 to 14.6 ms** |
+
+Pinning alone does not help: `schedutil` keeps the P core slow because the thread mostly waits. `uclamp.min` 1024 halves the check time (+28 %). The GPU is then still busy only about 53 % of the time. The pstate sampler was not run (it needs root after 07:35).
+
+b) Driver side. The DVFS controller words come from the G15S HardwareData template of the firmware build (the macOS configuration), not from this Mac's ADT (its `sgx` node has no `perf-*` controller properties). Decoded at HardwareDataA (+0x4580) with the G15C record offsets, confirmed by the fixed neighbours:
+
+| Word | Value |
+|---|---|
+| `perf_tgt_utilization`, `_2` | 80 % |
+| `perf_boost_min_util`, `perf_boost_ce_step` | 90, 50 |
+| filter a / a2 | 0.2 / 0.005 |
+| integral / proportional gain | 1.755 / 5.85 |
+| base / max pstate (scaled) | 100 (state 1) / 800 (state 8) |
+
+So the firmware aims for 80 % busy. At about 50 % busy it lowers the clock until the GPU is busy 80 % of the time, near state 1. The driver has no module parameter or debugfs knob for this and no minimum-pstate request. `patches/g15-perf-tgt-util.patch` adds `asahi.g15_perf_tgt_util` (30 to 95, 0 = unchanged); built (image sha256 3f032b51...), install script `install/stage-n-tgt-util.sh`, not tested yet (needs root and one boot).
+
+c) macOS evidence: only the pattern number (133 G at about 317 frames/s, 31.5 ms per 10 frames). If the M3 GPU at the top clock needs 16.4 ms for 10 frames (Linux no-wait value), macOS spends about 15 ms per check and keeps the GPU near the top clock at about 52 % busy. With the same firmware words that would not happen, so macOS likely sends a performance hint with its work or uses other controller words. Not proven: a macOS run with `METAL_STRESS_CHECK_EVERY=0` and `powermetrics` GPU frequency would show it.
+
 ### GPU suite (2026-10-27 00:12, `tests/gpu-perf-suite.sh 60`, desktop idle)
 
 | Test | Result |
