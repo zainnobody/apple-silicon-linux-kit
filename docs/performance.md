@@ -125,12 +125,24 @@ Limits: the floor is fixed, not load-based, so idle power is higher than in macO
 
 | CPU threads | macOS 15.6.1, 2026-10-27 (5 runs, best / mean) | Linux with the memory floor, 2026-10-26 (best / mean) |
 |---|---|---|
-| 1 | 83.1 / 60.7 GB/s | not measured |
+| 1 | 83.1 / 60.7 GB/s | 60.2 / 52.0 GB/s (P core, four-chain build; see below) |
 | 6 | 125.1 / 121.0 GB/s | 127.1 / 126.4 GB/s (P cores, `taskset`) |
 | 12 | 116.9 / 115.9 GB/s | 109.7 GB/s (mean) |
 | GPU read, `vk-bandwidth` | no Metal version | 134.7 / 131.7 GB/s |
 
 macOS binary sha256 e51a4d49... (pthreads build for macOS 14 and later). The 6-thread macOS value is higher than in the first macOS run (89.3 GB/s best on 2026-10-26). macOS places threads freely, so it can use E cores. With 6 threads on the P cores, Linux now matches macOS.
+
+**One-thread result (2026-10-27).** A first Linux run gave 20 GB/s with one thread, 3 times slower than macOS. Most of that gap came from the test build, not from the memory system. The old sum loop had one add chain. gcc kept it as one dependent chain, so add latency limited it to about 20 GB/s. Apple clang (macOS build) splits the loop into several chains. The same source built with clang on Linux reads 43 to 56 GB/s. `tests/cpu-bw.c` now uses four chains, so both compilers measure memory.
+
+| Linux build, one thread on a P core (cpu 7) | best / mean |
+|---|---|
+| gcc, old one-chain loop | 20.3 / 18.4 GB/s |
+| clang, old loop | 43.3 / 34.8 GB/s |
+| gcc, four chains (pthreads) | 60.2 / 52.0 GB/s |
+| gcc, four chains (OpenMP) | 54.5 / 52.5 GB/s |
+| gcc, four chains, one E core | 31.4 / 30.2 GB/s |
+
+The remaining gap to macOS (60.7 GB/s mean) is about 15 %. A possible cause: with one memory-bound thread, the P core clock sometimes drops (samples from 0.7 to 4.06 GHz), but a compute loop holds 4.06 GHz. The `schedutil` governor and the Apple cpufreq driver choose that clock. Also, this kernel drives M3 clusters with the t8112 table, which does not set the PS2 field of the DVFS command. The driver sets PS2 only on M1 (t8103). What PS2 does on M3 is not known; no value is guessed. A test with the `performance` governor (needs root) separates the clock effect from the rest.
 
 ## Planned: how far each part of the chip goes
 

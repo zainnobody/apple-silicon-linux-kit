@@ -34,9 +34,14 @@ static void *fill_part(void *arg)
 static void *sum_part(void *arg)
 {
 	struct part *p = arg;
-	uint64_t acc = 0;
-	for (size_t i = p->begin; i < p->end; i++) acc += p->a[i];
-	p->sum = acc;
+	/* Four chains: one chain is limited by add latency (about 20 GB/s), not by memory. */
+	uint64_t a0 = 0, a1 = 0, a2 = 0, a3 = 0;
+	size_t i = p->begin;
+	for (; i + 4 <= p->end; i += 4) {
+		a0 += p->a[i]; a1 += p->a[i + 1]; a2 += p->a[i + 2]; a3 += p->a[i + 3];
+	}
+	for (; i < p->end; i++) a0 += p->a[i];
+	p->sum = a0 + a1 + a2 + a3;
 	return NULL;
 }
 
@@ -80,7 +85,7 @@ int main(int c, char **v)
 		uint64_t acc = 0;
 #ifdef _OPENMP
 		#pragma omp parallel for reduction(+:acc)
-		for (size_t i = 0; i < n; i++) acc += a[i];
+		for (size_t i = 0; i < n; i += 4) acc += a[i] + a[i + 1] + a[i + 2] + a[i + 3];
 #else
 		acc = run_threads(sum_part, a, n, threads);
 #endif
