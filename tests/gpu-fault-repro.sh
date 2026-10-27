@@ -27,14 +27,22 @@ DBG=bodumpverbose
 [ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ] || { echo "no Wayland socket $XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"; exit 1; }
 [ -x "$VKSTRESS" ] || { echo "no vk-stress at $VKSTRESS"; exit 1; }
 
+# Heat sampling (tests/heat-sample.sh, next to this script or in ~/m3gpu): max temps and fan rpm.
+HEAT=${HEAT:-$(dirname "$(readlink -f "$0")")/heat-sample.sh}
+[ -x "$HEAT" ] || HEAT=$HOME/m3gpu/heat-sample.sh
+HEAT_PID=
+heat_start() { [ -x "$HEAT" ] && { "$HEAT" "$1" > "${1%.csv}.txt" & HEAT_PID=$!; }; }
+heat_stop() { [ -n "$HEAT_PID" ] || return 0; kill "$HEAT_PID" 2>/dev/null; wait "$HEAT_PID" 2>/dev/null; HEAT_PID=; cat "${1%.csv}.txt" 2>/dev/null; }
 PIDS=()
 cleanup() {
 	for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null; done
+	heat_stop "$OUT/heat.csv"
 	wait 2>/dev/null
 }
 trap cleanup EXIT INT TERM
 
 START=$(date '+%Y-%m-%d %H:%M:%S')
+heat_start "$OUT/heat.csv"
 echo "start $START, $SECONDS_RUN s, output $OUT"
 journalctl -k -f --since "$START" --no-pager >"$OUT/kernel.log" 2>&1 &
 PIDS+=($!)

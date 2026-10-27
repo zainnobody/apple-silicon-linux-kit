@@ -19,6 +19,13 @@ export VK_DRIVER_FILES=$MESA/share/vulkan/icd.d/asahi_icd.aarch64.json
 export XDG_RUNTIME_DIR=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}
 export WAYLAND_DISPLAY=${WAYLAND_DISPLAY:-wayland-0}
 START=$(date '+%Y-%m-%d %H:%M:%S')
+# Heat sampling (tests/heat-sample.sh, next to this script or in ~/m3gpu): max temps and fan rpm.
+HEAT=${HEAT:-$(dirname "$(readlink -f "$0")")/heat-sample.sh}
+[ -x "$HEAT" ] || HEAT=$HOME/m3gpu/heat-sample.sh
+HEAT_PID=
+heat_start() { [ -x "$HEAT" ] && { "$HEAT" "$1" > "${1%.csv}.txt" & HEAT_PID=$!; }; }
+heat_stop() { [ -n "$HEAT_PID" ] || return 0; kill "$HEAT_PID" 2>/dev/null; wait "$HEAT_PID" 2>/dev/null; HEAT_PID=; cat "${1%.csv}.txt" 2>/dev/null; }
+heat_start "$OUT/heat.csv"
 
 say() { echo "$*" | tee -a "$OUT/summary.txt"; }
 run() {
@@ -55,4 +62,5 @@ if [ "${SKIP_GLMARK:-0}" != 1 ]; then
 fi
 
 say "kernel GPU faults since start: $(journalctl -k --since "$START" --no-pager | grep -c 'GPU fault')"
+heat_stop "$OUT/heat.csv" | tee -a "$OUT/summary.txt"
 say "output $OUT"

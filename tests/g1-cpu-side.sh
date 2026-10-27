@@ -6,6 +6,16 @@ set -u
 T=${1:-60}
 MESA=${MESA:-/opt/mesa-m3}
 export LD_LIBRARY_PATH=$MESA/lib64 VK_DRIVER_FILES=$MESA/share/vulkan/icd.d/asahi_icd.aarch64.json
+# Heat sampling (tests/heat-sample.sh, next to this script or in ~/m3gpu): max temps and fan rpm.
+HEAT=${HEAT:-$(dirname "$(readlink -f "$0")")/heat-sample.sh}
+[ -x "$HEAT" ] || HEAT=$HOME/m3gpu/heat-sample.sh
+HEAT_PID=
+heat_start() { [ -x "$HEAT" ] && { "$HEAT" "$1" > "${1%.csv}.txt" & HEAT_PID=$!; }; }
+heat_stop() { [ -n "$HEAT_PID" ] || return 0; kill "$HEAT_PID" 2>/dev/null; wait "$HEAT_PID" 2>/dev/null; HEAT_PID=; cat "${1%.csv}.txt" 2>/dev/null; }
+HEAT_CSV=$HOME/gpu-perf/g1-heat-$(date +%Y%m%d-%H%M%S).csv
+mkdir -p "$HOME/gpu-perf"
+heat_start "$HEAT_CSV"
+trap 'heat_stop "$HEAT_CSV"' EXIT
 for mode in default pcore pcore-uclamp; do
 	for r in 1 2 3; do
 		case $mode in

@@ -5,6 +5,8 @@
 // Prints ROBUST_PASS when it sees the reset and keeps calling GL for 2 s after it without a crash.
 // Build: gcc -O2 -o robust-reset-test tests/robust-reset-test.c -lEGL -lGLESv2
 // Usage: LD_PRELOAD=./lost-context-inject.so LOST_AFTER_S=3 ./robust-reset-test 15
+// ROBUST_ALLOC=1 also creates, fills and deletes a 1024x1024 texture every frame, so the driver
+// needs new buffers after the loss (with LOST_SUBMIT=0: the kwin_wayland order of 2026-10-27).
 #include <EGL/egl.h>
 #include <EGL/eglext.h>
 #include <GLES2/gl2.h>
@@ -70,6 +72,8 @@ int main(int argc, char **argv)
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, tri);
 
+	int alloc = getenv("ROBUST_ALLOC") && atoi(getenv("ROBUST_ALLOC"));
+	static unsigned char texels[1024 * 1024 * 4];
 	double t0 = now(), reset_at = 0;
 	long frames = 0, after = 0;
 	GLenum seen = GL_NO_ERROR;
@@ -77,7 +81,17 @@ int main(int argc, char **argv)
 		glUniform1f(ut, (float)frames * 0.01f);
 		glClearColor(0, 0, (float)(frames % 2), 1);
 		glClear(GL_COLOR_BUFFER_BIT);
-		glDrawArrays(GL_TRIANGLES, 0, 3);
+		if (alloc) {
+			GLuint tex;
+			texels[frames % sizeof(texels)] = (unsigned char)frames;
+			glGenTextures(1, &tex);
+			glBindTexture(GL_TEXTURE_2D, tex);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, 1024, 1024, 0, GL_RGBA, GL_UNSIGNED_BYTE, texels);
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+			glDeleteTextures(1, &tex);
+		} else {
+			glDrawArrays(GL_TRIANGLES, 0, 3);
+		}
 		glFinish();
 		frames++;
 		if (seen == GL_NO_ERROR) {
