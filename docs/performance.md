@@ -117,6 +117,8 @@ Kernel log on the test boot: `memory floor try 1: DVFS state 0x30200/0x30200 -> 
 | P cores and GPU at the same time | 19.0 + 17.8 GB/s | 123.2 + 131.2 GB/s |
 | P cores and E cores at the same time | 21.2 + 16.2 GB/s | 64.3 + 56.3 GB/s |
 
+Rerun on 2026-10-27 with the four-chain `cpu-bw.c` (OpenMP build, sha256 3908a5b1...): P cores 126.0 / 125.1, E cores 64.9 / 64.6, all cores 113.2 / 110.8, GPU 133.7 / 129.9 GB/s (best / mean). Together: P cores 125.4 / 94.4 with GPU 133.4 / 127.0; P cores 65.0 / 61.9 with E cores 64.9 / 55.9. These match the first run, so the table above stays valid. With many threads, OpenMP gives each thread its own add chain, so the one-chain problem (see below) did not affect it.
+
 The P cores now read more than macOS with 6 threads (89.3 GB/s best). The GPU reads 4.2 times faster than before. Llama 3.1 8B token generation goes from 5.8 to 22.7 tokens/s on the GPU, and from 6.6 to 25.1 on the CPU. GPU and CPU text still match. The kernel log has no GPU fault, firmware halt or refused submit.
 
 Limits: the floor is fixed, not load-based, so idle power is higher than in macOS. The test measured one boot only.
