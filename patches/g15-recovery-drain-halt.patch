@@ -1,5 +1,5 @@
 diff --git a/drivers/gpu/drm/asahi-m3/g15/recovery.rs b/drivers/gpu/drm/asahi-m3/g15/recovery.rs
-index 0827385e92c5..2d3e2ed6c575 100644
+index 0827385e92c5..1f3615cb01b7 100644
 --- a/drivers/gpu/drm/asahi-m3/g15/recovery.rs
 +++ b/drivers/gpu/drm/asahi-m3/g15/recovery.rs
 @@ -21,7 +21,8 @@
@@ -12,7 +12,12 @@ index 0827385e92c5..2d3e2ed6c575 100644
  //!   (EIO on fault, ETIMEDOUT on timeout) and latch the VM error; if any had renders, set
  //!   fs_resync and reinit so the next first TA waits on the FS stamp actually reached and an
  //!   exclusive priming prefix rebuilds the render allocators. A firmware error with nothing
-@@ -646,14 +647,17 @@ fn handshake(&mut self) -> Result<bool> {
+@@ -642,19 +643,40 @@ fn handshake(&mut self) -> Result<bool> {
+             dev_err!(self.dev(), "recovery: resume not consumed ({} ms)\n", t);
+             return Ok(false);
+         }
++        dev_info!(self.dev(), "recovery step: halt 1 answered, resume consumed after {} polls\n", t);
+         // The firmware clears resume before finishing: wait for the queues to drain. Work of
          // the failed prefixes that runs after the resume can fail in turn (a compute that
          // waited on the aborted FS hitting a firmware compute timeout): its own halt is
          // answered the same way, a bounded number of times, and the drain continues.
@@ -29,13 +34,31 @@ index 0827385e92c5..2d3e2ed6c575 100644
 -                && halts < logic::FURTHER_HALTS
 -            {
 +            if self.control_r32(control::HALTED)? == 1 {
++                let drained = self.drained();
 +                if self.transport_error().is_some() || halts >= logic::FURTHER_HALTS {
++                    dev_err!(
++                        self.dev(),
++                        "recovery step: further halt not answered (halts {}, limit {}, drained {}, poll {})\n",
++                        halts,
++                        logic::FURTHER_HALTS,
++                        drained,
++                        t
++                    );
 +                    break;
 +                }
                  halts += 1;
++                dev_info!(
++                    self.dev(),
++                    "recovery step: further halt {} seen at poll {} (drained {}, quiet {}); answering\n",
++                    halts,
++                    t,
++                    drained,
++                    quiet
++                );
                  self.recover_snapshot("halted again");
                  if !self.acknowledge_halt()?.0 {
-@@ -664,9 +668,18 @@ fn handshake(&mut self) -> Result<bool> {
+                     dev_err!(
+@@ -664,12 +686,28 @@ fn handshake(&mut self) -> Result<bool> {
                      return Ok(false);
                  }
                  // Restart the drain wait, counting this poll.
@@ -54,6 +77,16 @@ index 0827385e92c5..2d3e2ed6c575 100644
              poll_sleep();
              t += 1;
          }
++        dev_info!(
++            self.dev(),
++            "recovery step: drain loop end at poll {} (further halts {}, quiet {})\n",
++            t,
++            halts,
++            quiet
++        );
+         self.recover_snapshot("resumed");
+         self.report("recovery");
+         if !self.drained()
 diff --git a/drivers/gpu/drm/asahi-m3/g15/recovery/logic.rs b/drivers/gpu/drm/asahi-m3/g15/recovery/logic.rs
 index 6d36d1d6550d..a14fd5a42e24 100644
 --- a/drivers/gpu/drm/asahi-m3/g15/recovery/logic.rs

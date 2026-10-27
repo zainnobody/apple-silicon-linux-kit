@@ -1,0 +1,15 @@
+# User service for tests/gpu-fault-watch.sh. Install (no root, a persistent change: needs the user's go):
+#   install -D -m 0755 tests/gpu-fault-watch.sh ~/.local/bin/gpu-fault-watch.sh
+#   install -D -m 0644 tests/gpu-fault-watch.service ~/.config/systemd/user/gpu-fault-watch.service
+#   systemctl --user daemon-reload && systemctl --user enable --now gpu-fault-watch.service
+# Remove: systemctl --user disable --now gpu-fault-watch.service, then delete the two files.
+[Unit]
+Description=Log GPU faults, recoveries and core dumps to ~/gpu-fault-watch.log
+
+[Service]
+ExecStart=%h/.local/bin/gpu-fault-watch.sh
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
