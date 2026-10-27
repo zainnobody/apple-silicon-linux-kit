@@ -118,6 +118,16 @@ A GPU test boot over SSH:
 sudo -n /usr/local/sbin/agx-boot use-stageE && sudo -n /usr/local/sbin/agx-boot test-once && sudo -n systemctl reboot
 ```
 
+### Boot macOS once from Fedora
+
+`sudo install/setup-macos-switch.sh` installs `asahi-bless` and `/usr/local/sbin/agx-os`, with a sudoers rule for its three subcommands. The default boot volume does not change.
+
+```bash
+sudo -n /usr/local/sbin/agx-os macos-once && sudo -n systemctl reboot
+```
+
+`agx-os status` shows the default and next boot volumes, and `agx-os clear-next` cancels `macos-once`. To return from macOS, restart it normally: Fedora stays the default. Tested on the M3 Pro on 2026-10-26 (set, read back and cleared, no reboot).
+
 ## Undo
 
 - Boot the stock kernel: reboot without `test-once`. The default entry is the stock kernel.

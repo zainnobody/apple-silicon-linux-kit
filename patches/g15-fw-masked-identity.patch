@@ -19,6 +19,15 @@
  /// Where a SoC's GPU regions, firmware segments and performance states come from, and how its
  /// GPU is powered.
  #[derive(Copy, Clone, PartialEq, Eq)]
+@@ -96,7 +105,7 @@
+ /// The T6030 configuration.
+ pub(crate) mod t6030 {
+     use super::super::Config;
+-    use super::{ComputeRegs, FirmwareBuild, HwId, Layout};
++    use super::{ComputeRegs, FirmwareBuild, HwId, Layout, MaskedId};
+ 
+     /// The qualified graph: the canonical VAs and sizes of [`super::va`] and
+     /// [`super::super::fw::initdata`].
 @@ -137,6 +146,7 @@
            FirmwareBuild {
              name: "macOS 14.7-14.8.x stub firmware (iBoot-10151.140.19.700.2)",
