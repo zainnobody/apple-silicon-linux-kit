@@ -142,13 +142,80 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
   <span class="kicker">agx-linux-kit test log. Machine: MacBook Pro 16-inch M3 Pro (Mac15,7, J516s, T6030, chip revision B1)</span>
   <h1>agx-linux-kit Test Log</h1>
   <div class="status-line">
-    <span class="chip pass">GPU renders on the test kernel</span>
-    <span class="chip pass">Desktop composites on the GPU</span>
-    <span class="chip next">Done: idle and load soaks pass</span>
-    <span class="updated">Updated 2026-10-26 13:55</span>
+    <span class="chip pass">GPU, memory floor and soaks pass</span>
+    <span class="chip pass">Snapshot #1 taken</span>
+    <span class="chip next">Now: stage L, then one reboot</span>
+    <span class="updated">Updated 2026-10-26 21:55 (M3 time, PDT)</span>
   </div>
-  <p>Fedora Asahi dual boot with a private SiliconForest GPU stack. The stock Fedora kernel stays the default boot. The GPU test kernel boots only when selected for one boot.</p>
+  <p>Fedora Asahi dual boot with a private SiliconForest GPU stack. Since stage K, the GPU kernel with the memory floor is the default boot, and the stock Fedora kernel is the fallback in the GRUB menu. The M3 has not yet started from the new default.</p>
 </header>
+
+<section aria-labelledby="now">
+  <h2 id="now">Where we are now</h2>
+  <p>One coordinating session runs the steps below in order. Test sessions hold until the health check passes, then resume one at a time.</p>
+  <div class="diagram">
+    <svg viewBox="0 0 780 100" role="img" aria-label="Run order: 1 snapshot, done. 2 password-free sudo window, waiting on you. 3 stage L module install, next. 4 reboot into the default GPU kernel. 5 health check. 6 tests resume one session at a time.">
+      <style>
+        .q rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
+        .q.done rect { stroke: var(--pass); }
+        .q.now rect { stroke: var(--accent); stroke-width: 2.5; }
+        .q text { fill: var(--ink); font-family: var(--f-body); font-size: 12px; }
+        .q text.t { font-weight: 600; font-size: 13px; }
+        .q text.s { fill: var(--muted); font-size: 11px; }
+        .qa { stroke: var(--muted); stroke-width: 1.5; fill: none; }
+        .qt { fill: var(--muted); }
+      </style>
+      <g class="q done"><rect x="3" y="14" width="114" height="70" rx="6"/><text class="t" x="13" y="38">1 Snapshot</text><text class="s" x="13" y="56">snapper #1</text><text class="s" x="13" y="72">done 21:47</text></g>
+      <g class="q now"><rect x="135" y="14" width="114" height="70" rx="6"/><text class="t" x="145" y="38">2 Sudo window</text><text class="s" x="145" y="56">60 minutes</text><text class="s" x="145" y="72">needs you</text></g>
+      <g class="q"><rect x="267" y="14" width="114" height="70" rx="6"/><text class="t" x="277" y="38">3 Stage L</text><text class="s" x="277" y="56">USB4 + Bluetooth</text><text class="s" x="277" y="72">modules</text></g>
+      <g class="q"><rect x="399" y="14" width="114" height="70" rx="6"/><text class="t" x="409" y="38">4 Reboot</text><text class="s" x="409" y="56">first start of</text><text class="s" x="409" y="72">the GPU default</text></g>
+      <g class="q"><rect x="531" y="14" width="114" height="70" rx="6"/><text class="t" x="541" y="38">5 Health check</text><text class="s" x="541" y="56">kernel, GPU,</text><text class="s" x="541" y="72">memory, modules</text></g>
+      <g class="q"><rect x="663" y="14" width="114" height="70" rx="6"/><text class="t" x="673" y="38">6 Tests</text><text class="s" x="673" y="56">one session</text><text class="s" x="673" y="72">at a time</text></g>
+      <path class="qa" d="M117 49 H129"/><path class="qt" d="M129 44 L135 49 L129 54 Z"/>
+      <path class="qa" d="M249 49 H261"/><path class="qt" d="M261 44 L267 49 L261 54 Z"/>
+      <path class="qa" d="M381 49 H393"/><path class="qt" d="M393 44 L399 49 L393 54 Z"/>
+      <path class="qa" d="M513 49 H525"/><path class="qt" d="M525 44 L531 49 L525 54 Z"/>
+      <path class="qa" d="M645 49 H657"/><path class="qt" d="M657 44 L663 49 L657 54 Z"/>
+    </svg>
+  </div>
+  <div class="legend">
+    <span><span class="chip pass">green edge</span> done</span>
+    <span><span class="chip next">amber edge</span> current step</span>
+    <span><span class="chip wait">grey edge</span> not started</span>
+  </div>
+  <p>Rollback points: snapper snapshot #1 (root file system, taken 21:47), the stock kernel 7.1.13 in the GRUB menu, and <code>sudo -n /usr/local/sbin/m3gpu-default stock</code>.</p>
+
+  <h3>Waiting on you</h3>
+  <ol class="todo">
+    <li><span class="chip next">Now</span><div><span>Type the Fedora password in the "M3 sudo window" terminal tab.</span><small>It opens a 60-minute password-free sudo window, then removes itself, also across the reboot.</small></div></li>
+    <li><span class="chip wait">Any time</span><div><span>Name your USB Wi-Fi adapter model.</span><small>For the ports session. If you have none, the MT7612U is the suggested fit.</small></div></li>
+    <li><span class="chip wait">Any time</span><div><span>Turn off Tailscale key expiry for the M3 in the Tailscale admin console.</span><small>From the install session. Only you can sign in there.</small></div></li>
+    <li><span class="chip wait">After reboot</span><div><span>Have ready: a phone or headset in pairing mode, a USB 3 drive, an SD card, headphones.</span><small>For the Bluetooth, USB-C, SD card and headphone jack tests.</small></div></li>
+    <li><span class="chip wait">Later</span><div><span>Choose the macOS and Linux sizes for the partition resize.</span><small>The partition session writes the plan first. Nothing changes on the disk without your go.</small></div></li>
+  </ol>
+
+  <h3>Sessions</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Session</th><th>Job</th><th>State</th><th>Next</th></tr></thead>
+      <tbody>
+        <tr><td>Coordinator (M3 Pro revive)</td><td>Runs the order above, relays questions</td><td><span class="chip next">Running</span></td><td>Sends "go stage L" when the sudo window is on</td></tr>
+        <tr><td>GPU driver + local AI</td><td>Owns the kernel, stages A to L, commits on <code>main</code></td><td><span class="chip next">Ready</span></td><td>Stage L, the reboot, the health check</td></tr>
+        <tr><td>Install + snapshots</td><td>Fedora install, snapper</td><td><span class="chip pass">Done</span></td><td>Snapshot #1 and timers verified</td></tr>
+        <tr><td>Partition resize</td><td>Plan to give Linux 80 to 90% of the disk</td><td><span class="chip next">Running</span></td><td>Read-only. Writes <code>docs/partition-resize.md</code></td></tr>
+        <tr><td>Ports, wireless, storage</td><td>USB-C, SD card, Wi-Fi, Bluetooth scan</td><td><span class="chip wait">Holding</span></td><td>Bluetooth scan, USB 3 drive, SD card after reboot</td></tr>
+        <tr><td>Bluetooth</td><td>hci0 timeouts after resume</td><td><span class="chip wait">Holding</span></td><td>Test the patched driver after stage L</td></tr>
+        <tr><td>USB-C, USB4 gap</td><td>Why USB-C displays fail</td><td><span class="chip wait">Holding</span></td><td>Load <code>thunderbolt_apple</code>, test plan stages 2 to 7</td></tr>
+        <tr><td>Display, HDMI</td><td>Panel, HDMI, refresh rate</td><td><span class="chip wait">Holding</span></td><td>USB-C display test after the USB4 module loads</td></tr>
+        <tr><td>Sleep, lid, battery</td><td>Suspend, lid, battery</td><td><span class="chip wait">Holding</span></td><td>10-minute battery idle run, screen after resume</td></tr>
+        <tr><td>Audio, camera, video</td><td>Speakers, mics, webcam, codecs</td><td><span class="chip wait">Holding</span></td><td>Headphone jack, speaker check, camera comparison</td></tr>
+        <tr><td>Driver audit</td><td>Which drivers are missing</td><td><span class="chip wait">Holding</span></td><td>Read deferred devices after reboot</td></tr>
+        <tr><td>AirDrop</td><td>File sharing to iPhone and Mac</td><td><span class="chip wait">Holding</span></td><td>Research only</td></tr>
+        <tr><td>Firmware hash research</td><td>GPU firmware identity</td><td><span class="chip pass">Done</span></td><td>Watch upstream issue #20</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
 
 <section aria-labelledby="gpu">
   <h2 id="gpu">GPU acceleration</h2>
@@ -240,6 +307,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
         <tr><td class="stage-id">I</td><td>Kernel image that admits the J516S firmware by UUID plus the patchbay-masked digest (no exact hash pin).</td><td><span class="chip pass">Pass, GPU works</span></td></tr>
         <tr><td class="stage-id">J</td><td>Test kernel image with the PMP memory floor patch (20:41). Image, System.map and config only; backup in <code>/root/m3gpu-backup/20261026-204139-pre-memfloor</code>.</td><td><span class="chip pass">Pass, memory 4x faster</span></td></tr>
         <tr><td class="stage-id">K</td><td>GPU kernel with the memory floor is the default boot; boot.bin stageE; GRUB menu always shown; <code>m3gpu-default</code> switch. Backup in <code>/root/m3gpu-backup/20261026-205413-pre-default</code>.</td><td><span class="chip pass">Installed, boot not tested</span></td></tr>
+        <tr><td class="stage-id">L</td><td>Adds two modules to the running kernel: the new <code>thunderbolt_apple.ko</code> (USB4, blacklisted until tested) and a patched <code>hci_bcm4377.ko</code> (Bluetooth resume recovery). The kernel image does not change. Staged in <code>~/m3gpu/out/kernel-7.2.11-m3gpu+-usb4-bt</code>.</td><td><span class="chip next">Next</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -264,24 +332,35 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
 
 <section aria-labelledby="features">
   <h2 id="features">Hardware status</h2>
-  <p>"Asahi" is the official M3 Pro status from September 2026. "This M3" lists only what we tested here.</p>
+  <p>"This M3" lists only what was tested here, on kernel 7.2.11-m3gpu+. "Report" names the file in <code>docs/features/</code> with the evidence. "Fix built" means the fix exists but is not installed yet.</p>
   <div class="table-wrap">
     <table>
-      <thead><tr><th>Feature</th><th>Asahi (Sep 2026)</th><th>This M3</th></tr></thead>
+      <thead><tr><th>Feature</th><th>This M3</th><th>Report</th></tr></thead>
       <tbody>
-        <tr><td>GPU 3D (OpenGL / Vulkan)</td><td>Not usable</td><td><span class="chip pass">Works, test kernel</span></td></tr>
-        <tr><td>Main display (native, not framebuffer)</td><td>Work in progress</td><td><span class="chip pass">Works, test kernel</span></td></tr>
-        <tr><td>Brightness</td><td>Work in progress</td><td><span class="chip pass">Works, test kernel</span></td></tr>
-        <tr><td>Desktop acceleration</td><td>Not usable</td><td><span class="chip pass">Works, test kernel</span></td></tr>
-        <tr><td>Ambient light sensor (AOP)</td><td>Not listed</td><td><span class="chip fail">Crashed once</span></td></tr>
-        <tr><td>Memory bandwidth (CPU / GPU read)</td><td>Not listed</td><td><span class="chip pass">123 / 130 GB/s, test kernel</span></td></tr>
-        <tr><td>Wi-Fi, Bluetooth</td><td>Working</td><td><span class="chip pass">Works</span></td></tr>
-        <tr><td>HDMI, external displays</td><td>Disabled / work in progress</td><td><span class="chip wait">Not tested</span></td></tr>
-        <tr><td>Sleep and suspend</td><td>Does not work</td><td><span class="chip wait">Off on purpose</span></td></tr>
-        <tr><td>ProMotion 120 Hz</td><td>Not supported</td><td><span class="chip wait">Not tested</span></td></tr>
-        <tr><td>Video encode, ProRes, Neural Engine</td><td>TBA</td><td><span class="chip wait">Not tested</span></td></tr>
-        <tr><td>Touch ID</td><td>TBA</td><td><span class="chip wait">Not tested</span></td></tr>
-        <tr><td>Speakers, microphones, webcam</td><td>Working (docs / press)</td><td><span class="chip wait">Not tested</span></td></tr>
+        <tr><td>GPU 3D (OpenGL / Vulkan), desktop</td><td><span class="chip pass">Works</span></td><td>performance.md</td></tr>
+        <tr><td>Memory bandwidth (CPU / GPU read)</td><td><span class="chip pass">123 / 130 GB/s</span></td><td>performance.md</td></tr>
+        <tr><td>Built-in display, brightness</td><td><span class="chip pass">Works, 3456x2160</span></td><td>display-hdmi.md</td></tr>
+        <tr><td>ProMotion</td><td><span class="chip pass">Fixed 120 Hz, not adaptive</span></td><td>display-hdmi.md</td></tr>
+        <tr><td>HDMI port</td><td><span class="chip pass">Works, mirror and extend</span> 4K at 60 Hz not tested</td><td>display-hdmi.md</td></tr>
+        <tr><td>USB-C displays (DisplayPort Alt Mode)</td><td><span class="chip fail">Fails</span> <span class="chip next">Fix built</span></td><td>usbc-usb4-gap.md</td></tr>
+        <tr><td>Thunderbolt / USB4</td><td><span class="chip fail">No driver</span> <span class="chip next">Fix built</span></td><td>usbc-usb4-gap.md</td></tr>
+        <tr><td>USB-C data speed, SD card</td><td><span class="chip wait">Waits for a drive and a card</span></td><td>ports-wireless-storage.md</td></tr>
+        <tr><td>Wi-Fi</td><td><span class="chip pass">Works</span> one log error on each resume</td><td>ports-wireless-storage.md</td></tr>
+        <tr><td>Bluetooth</td><td><span class="chip fail">Scan finds 0 devices, times out after resume</span> <span class="chip next">Fix built</span></td><td>bluetooth.md</td></tr>
+        <tr><td>Internal SSD</td><td><span class="chip pass">Works</span></td><td>ports-wireless-storage.md</td></tr>
+        <tr><td>Sleep (s2idle) and lid</td><td><span class="chip pass">Works in the log, 3 suspends, 0 failures</span></td><td>sleep-lid-battery.md</td></tr>
+        <tr><td>Battery</td><td><span class="chip pass">Works, health Good</span> 10-minute idle run not done</td><td>sleep-lid-battery.md</td></tr>
+        <tr><td>Microphones</td><td><span class="chip pass">Works</span></td><td>audio-camera-video.md</td></tr>
+        <tr><td>Speakers</td><td><span class="chip wait">Partly confirmed</span></td><td>audio-camera-video.md</td></tr>
+        <tr><td>Headphone jack</td><td><span class="chip wait">Not tested</span></td><td>audio-camera-video.md</td></tr>
+        <tr><td>Webcam</td><td><span class="chip pass">Capture works</span> picture quality poor</td><td>audio-camera-video.md</td></tr>
+        <tr><td>Hardware video decode</td><td><span class="chip fail">Blocked: AVD firmware file missing</span></td><td>audio-camera-video.md</td></tr>
+        <tr><td>Video encode, ProRes</td><td><span class="chip wait">No hardware encoder, ProRes in software</span></td><td>audio-camera-video.md</td></tr>
+        <tr><td>Ambient light sensor</td><td><span class="chip pass">Works</span> one crash at stage D, not repeated</td><td>missing-drivers.md</td></tr>
+        <tr><td>Keyboard backlight, trackpad</td><td><span class="chip wait">Devices present, hand check open</span></td><td>ports-wireless-storage.md</td></tr>
+        <tr><td>Touch ID</td><td><span class="chip fail">No Linux driver</span></td><td>missing-drivers.md</td></tr>
+        <tr><td>AirDrop</td><td><span class="chip fail">Not native on Linux</span></td><td>ports-wireless-storage.md</td></tr>
+        <tr><td>Neural Engine</td><td><span class="chip wait">Not tested</span></td><td>ane-linux plan</td></tr>
       </tbody>
     </table>
   </div>
@@ -289,16 +368,15 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
 
 <section aria-labelledby="left">
   <h2 id="left">What is left: the plan</h2>
-  <p>The steps run in this order. Each step starts only when the step before it passes.</p>
+  <p>Done so far: desktop and login screen on native Mesa (stage G), the one-hour soaks, the memory floor (stage J), the GPU kernel as the default boot (stage K), Fedora to macOS switching, and the upstream report (posted as chriskearney/siliconforest-linux#20). The open work, in order:</p>
   <ol class="todo">
-    <li><span class="chip pass">Step 1</span><div><span><b>Desktop on native Mesa.</b> Done in stage G (13:40).</span><small>KWin reports OpenGL compositing on "Apple M3 Pro (G15S B1)". Undo: create <code>/etc/agx-native-mesa.off</code> and reboot.</small></div></li>
-    <li><span class="chip next">Step 2</span><div><span><b>Stress test.</b> Headless part: shader stress and the 1-hour idle soak pass; the 1-hour load soak also passes. Desktop part (full glmark2, <code>vkcube</code>, video, Firefox WebGL, a QtWebEngine app) waits for a desktop login.</span><small>Pass: no GPU fault, no firmware halt, no "submit failed" lines. linux-aurora issue 90 reports one firmware halt from a QtWebEngine render fault on a J516S.</small></div></li>
-    <li><span class="chip pass">Step 3</span><div><span><b>Stock kernel with stageE.</b> Passed 13:43.</span><small>The stock kernel booted with stageE, the login screen started, and the Mesa service kept the system Mesa.</small></div></li>
-    <li><span class="chip pass">Step 4</span><div><span><b>Login screen on native Mesa.</b> Done in stage G.</span><small>The login screen was black with the system Mesa. It draws on the GPU now.</small></div></li>
-    <li><span class="chip pass">Step 5</span><div><span><b>Make the GPU boot the default.</b> Done in stage K (20:54): boot.bin stageE, default entry 7.2.11-m3gpu+ with the memory floor, stock 7.1.13 as the fallback in the GRUB menu.</span><small>Kernel updates keep the default (<code>UPDATEDEFAULT=no</code>). Undo without a password: <code>sudo -n /usr/local/sbin/m3gpu-default stock</code>. Not yet booted as the default.</small></div></li>
-    <li><span class="chip pass">Step 6</span><div><span><b>Fedora to macOS remotely.</b> Done: <code>install/setup-macos-switch.sh</code> adds <code>agx-os macos-once</code>, tested once.</span><small>macOS to Fedora already works: the default startup disk is Fedora.</small></div></li>
-    <li><span class="chip next">Step 7</span><div><span><b>Upstream report.</b> Draft written: see "Upstream report draft" under Reports.</span><small>Nothing is posted without your approval of the exact text.</small></div></li>
-    <li><span class="chip wait">Step 8</span><div><span><b>Clean-up.</b> Remove the no-password sudo rule, turn m1n1 updates back on, restore KDE sleep settings if wanted.</span><small>Each item only with your agreement.</small></div></li>
+    <li><span class="chip next">Now</span><div><span><b>Stage L, one reboot, health check.</b> See "Where we are now".</span><small>The first start from the stage K default is also the test of stage K.</small></div></li>
+    <li><span class="chip wait">After reboot</span><div><span><b>Feature retests.</b> Bluetooth with the patched driver, USB-C displays and USB4, USB 3 and SD card speed, sleep and battery, headphone jack and speakers.</span><small>One test session at a time. Each one updates its report in <code>docs/features/</code>.</small></div></li>
+    <li><span class="chip wait">After reboot</span><div><span><b>Desktop GPU stress test.</b> Full glmark2, <code>vkcube</code>, video, Firefox WebGL, a QtWebEngine app.</span><small>Needs a desktop login. linux-aurora issue 90 reports one firmware halt from a QtWebEngine render fault on a J516S.</small></div></li>
+    <li><span class="chip wait">Later</span><div><span><b>Flash attention Mesa fix.</b> Built in <code>~/m3gpu/build-mesa</code>, not installed in <code>/opt/mesa-m3</code>.</span><small>Needs sudo and a desktop restart.</small></div></li>
+    <li><span class="chip wait">Later</span><div><span><b>Partition resize.</b> Give Linux 80 to 90% of the 1 TB disk.</span><small>Plan first. It needs a macOS boot to shrink the APFS container. Back up first.</small></div></li>
+    <li><span class="chip wait">Later</span><div><span><b>Gaps with no fix yet.</b> Hardware video decode (AVD firmware), Touch ID, AirDrop (try Taildrop, LocalSend or KDE Connect), Neural Engine, camera picture quality.</span><small>Research items. No change to the M3 without your go.</small></div></li>
+    <li><span class="chip wait">Last</span><div><span><b>Clean-up.</b> Check that the timed sudo window has expired, remove old SSH keys, turn m1n1 updates back on, decide on the restore images (41 GB).</span><small>Each item only with your agreement.</small></div></li>
   </ol>
 </section>
 
@@ -315,16 +393,14 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
 
 <section aria-labelledby="docs">
   <h2 id="docs">Reports and files</h2>
-  <p>These files are in the session folder on this Mac, and copies of the GPU notes are in the shared notes folder.</p>
+  <p>All paths are in this repository. The full text of each report is further down this page.</p>
   <div class="docs">
-    <div class="doc"><code>asahi-m3-pro-status-report.md</code><p>What Asahi supports on the M3 Pro, with dates and sources.</p></div>
-    <div class="doc"><code>m3-pro-help-feasibility.md</code><p>How the missing parts could be built, REA, project policies.</p></div>
-    <div class="doc"><code>apple-rea-plan.md</code><p>Plan for a private "REA for Apple" toolkit, GPU first.</p></div>
-    <div class="doc"><code>m3-gpu-stack-review.md</code><p>Review of the SiliconForest kernel, m1n1 and Mesa, and the safe config.</p></div>
-    <div class="doc"><code>m3gpu/INSTALL-PLAN.md</code><p>Install plan, stage results A to E, rollback steps.</p></div>
-    <div class="doc"><code>m3gpu/GPU-FIRMWARE-INVESTIGATION.md</code><p>Why the firmware was refused, chip revision, the pin.</p></div>
-    <div class="doc"><code>m3gpu/g15-j516s-b1-pin.patch</code><p>The one-entry kernel patch.</p></div>
-    <div class="doc"><code>m3gpu/gles-readback.c</code><p>The render test that reads back exact pixels.</p></div>
+    <div class="doc"><code>docs/features/</code><p>Seven feature reports: audio, camera and video; Bluetooth; display and HDMI; missing drivers; ports, wireless and storage; sleep, lid and battery; USB-C and USB4.</p></div>
+    <div class="doc"><code>docs/performance.md</code><p>Benchmarks, soak results, memory bandwidth.</p></div>
+    <div class="doc"><code>docs/install-plan.md</code><p>Boot chain, stages, rollback from macOS.</p></div>
+    <div class="doc"><code>docs/gpu-firmware-investigation.md</code><p>Why the firmware was refused, the chip revision, the masked identity.</p></div>
+    <div class="doc"><code>install/</code><p>Stage scripts A to L. Each stage can be undone.</p></div>
+    <div class="doc"><code>patches/</code><p>Kernel tree patch, memory floor, Bluetooth resume recovery, Mesa fixes.</p></div>
   </div>
 </section>
 

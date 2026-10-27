@@ -26,7 +26,7 @@ REPORTS = [
     ("tasks", "Task list", "../TASKS.md", "Open follow-ups and ideas (working session only)."),
     ("performance", "Performance and stability", "docs/performance.md", "Benchmarks, soak results and the comparison plan."),
     ("firmware", "GPU firmware investigation", "docs/gpu-firmware-investigation.md", "Why the GPU firmware was refused, the B1 chip revision, the pin and the stage F result."),
-    ("upstream-draft", "Upstream report draft (not posted)", "docs/upstream-report-draft.md", "Draft issue text for SiliconForest about the cd05af6a hash."),
+    ("upstream-draft", "Upstream report (posted as issue #20)", "docs/upstream-report-draft.md", "Draft issue text for SiliconForest about the cd05af6a hash."),
     ("install-plan", "Install plan and stage results", "docs/install-plan.md", "Boot chain, stages A to E, rollback from macOS, clean-up list."),
     ("build-status", "Build status", "docs/build-status.md", "Kernel, m1n1 and Mesa builds on the M3."),
     ("stack-review", "GPU stack review", "docs/gpu-stack-review.md", "Review of the SiliconForest kernel, m1n1 and Mesa, and the safe config."),
@@ -34,6 +34,13 @@ REPORTS = [
     ("feasibility", "How to finish the missing parts", "docs/feasibility.md", "REA, project policies, community repos, private-build feasibility."),
     ("rea-plan", "REA for Apple plan", "docs/rea-plan.md", "Plan for a private reverse-engineering toolkit, GPU first."),
     ("install-findings", "Asahi install findings", "docs/asahi-install-findings.md", "Notes from the session that installed Fedora Asahi."),
+    ("f-audio", "Feature: audio, camera and video", "docs/features/audio-camera-video.md", "Speakers, microphones, webcam, hardware video decode and encode."),
+    ("f-bluetooth", "Feature: Bluetooth", "docs/features/bluetooth.md", "hci0 timeouts after resume and the recovery patch."),
+    ("f-display", "Feature: display and HDMI", "docs/features/display-hdmi.md", "Built-in panel, 120 Hz, HDMI, USB-C display."),
+    ("f-drivers", "Feature: missing drivers", "docs/features/missing-drivers.md", "Devices in the device tree with no bound driver."),
+    ("f-ports", "Feature: ports, wireless and storage", "docs/features/ports-wireless-storage.md", "USB-C, SD card, Wi-Fi, Bluetooth scan, SSD, AirDrop."),
+    ("f-sleep", "Feature: sleep, lid and battery", "docs/features/sleep-lid-battery.md", "Suspend, lid events, battery, power."),
+    ("f-usb4", "Feature: USB-C and USB4 gap", "docs/features/usbc-usb4-gap.md", "Why USB-C displays fail and the USB4 module fix."),
 ]
 
 CODE_DIRS = ["config.sh", "config.local.example.sh", "machines", "build", "install", "system", "patches", "tests", "log/build-log.py"]
@@ -312,7 +319,7 @@ pre.code { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 1
 <body>
 <div class="wrap">
 <nav class="topnav" aria-label="Page">
-  <a href="#gpu">GPU</a><a href="#chain">Boot chain</a><a href="#stages">Stages</a><a href="#features">Hardware</a>
+  <a href="#now">Now</a><a href="#gpu">GPU</a><a href="#chain">Boot chain</a><a href="#stages">Stages</a><a href="#features">Hardware</a>
   <a href="#left">What is left</a><a href="#rollback">Rollback</a><a href="#reports">Reports</a><a href="#scripts">Scripts</a>
 </nav>
 %(wrap)s
