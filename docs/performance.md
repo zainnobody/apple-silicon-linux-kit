@@ -42,6 +42,17 @@ No GPU errors during the run. The full run (`tests/stress.sh`) needs a desktop l
 | 2026-10-26 13:57 | Readback test, 20 runs | 20 of 20 pass |
 | 2026-10-26 13:57 | Idle soak, 60 min, login screen on the GPU | Pass: readback 3/3 after the soak, 0 kernel GPU or display problems |
 | 2026-10-26 | Load soak, 60 min (`tests/load-soak.sh`) | Pass: 228.17 G pixel-iterations/s for the full hour (no drop), 0 wrong values in 195,843 checks, 0 kernel GPU or display problems. End temperatures 26.7 / 45.3 / 53.3 C (thermal zones 0-2) |
+| 2026-10-27 23:21 | Vulkan compute stress, 600 s (`tests/vk-stress.c`), desktop in use | Pass: 0 wrong values in 6,587 checks. One GPU fault in a desktop render job during the run (see below) |
+
+### GPU fault and plasmashell crash (2026-10-27 23:22)
+
+During the `vk-stress` run, the desktop was in use (plasmashell, Firefox and other GPU clients). This is the only GPU fault in 8 boots with the GPU stack.
+
+1. 23:22:53: a render job of plasmashell (context 18, TA and FS stages) read an unmapped GPU address (fault status `0x8492a48011`, unit `0x40`). The compute test was not the faulting job.
+2. The kernel recovered the GPU correctly (halt, resume, new render allocators). It marked plasmashell's GPU context as lost (`EIO`).
+3. 23:23:06: plasmashell drew its next frame and crashed (SIGSEGV) in Mesa: `st_Clear`, `agx_clear`, `agx_get_batch`, `agx_batch_init`. The gallium driver does not handle a lost context.
+
+Two open bugs: the render-path fault itself (kernel or Mesa G15 render state; the trigger is probably heavy compute work at the same time as desktop rendering, not proven), and the Mesa crash after a context loss (it should report a reset). The kwin_wayland crash at 18:21 is a different case: the login-screen compositor, with no GPU fault in the kernel log.
 
 ## Vulkan compute and local LLMs (2026-10-26)
 
@@ -153,6 +164,27 @@ The remaining gap to macOS (60.7 GB/s mean) is about 15 %. A possible cause: wit
 | schedutil again | 83.4 / 82.5 GB/s | 18 of 40 at 4.06 GHz |
 
 One P core reaches 83 GB/s, the same as the macOS one-thread best (83.1 GB/s). The memory system and the clock are not the limit. The one-thread gap comes from how one thread issues its reads, and the four-chain build already closes most of it (59.0 GB/s mean in the distro-pack run, 97 % of macOS). The script now sets `OMP_NUM_THREADS=1`; a true one-thread run under `performance` was not done.
+
+### GPU compute against macOS: same shader type (`tests/vk-stress.c`)
+
+`vk-stress` is the `metal-stress` kernel as a Vulkan compute shader (same math, 16x16 groups, wait on every 10th frame).
+
+| Run | Frames/s | G pixel-iter/s | Wrong values |
+|---|---|---|---|
+| Linux, 10 s, desktop idle | 250.0 | 104.9 | 0 of 251 checks |
+| Linux, 600 s, desktop in use | 109.8 (first 30 s: 201) | 46.0 | 0 of 6,587 checks |
+| macOS 15.6.1, Metal, steady 0 to 450 s | about 317 | about 133 | 0 of 14,831 checks |
+
+The 600 s value is not a valid reference: after the first 30 s every 30 s window ran at about 105 frames/s while other programs used the GPU. A clean rerun with no other GPU client is open. On Linux the compute kernel is about 2 times slower than the fragment shader version of the same math (228 G), so the compute path has room to improve.
+
+### 7-Zip benchmark (`7z b`, 7-Zip 26.04, 2026-10-27)
+
+| Threads | Compress (MIPS) | Decompress (MIPS) | Total rating (MIPS) |
+|---|---|---|---|
+| All (12) | 90,284 | 51,495 | 70,889 |
+| 1 | 9,321 | 6,463 | 7,892 |
+
+No macOS value on this Mac.
 
 ## Planned: how far each part of the chip goes
 
