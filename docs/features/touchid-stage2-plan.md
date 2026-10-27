@@ -8,6 +8,7 @@ Date: 2026-10-27. Status: **plan only**. No reboot, no sudo, no write to the ESP
 - **Recommended: Route A.** It writes one new file to the ESP, switches `boot.bin` with the existing script, and has a rollback by one command, and a second rollback from macOS if the boot fails.
 - **The `SEPFW` risk is now low.** The stock stage 1 m1n1 (v1.6.1) chainloads our stage 2 and its `chainload.c` returns an error when `/chosen/memory-map` has no `SEPFW` (read upstream source 2026-10-27). Stage 2 is running, so `SEPFW` was there. I have not proved that stage 1 takes that code path on this Mac, so keep the macOS recovery step ready.
 - **Nothing here enrols a finger.** The dry load runs with `xart_writes=0 provision_keybag=0` and never opens `/dev/sep-bio`.
+- **Shares this window with the camera proposal.** The camera temporal-filter DTB change also needs a new `boot.bin`, so both use the later boot-file reboot: [Proposal only: switch on the temporal filter in the next boot-file window](audio-camera-video.md#proposal-only-switch-on-the-temporal-filter-in-the-next-boot-file-window-not-done) (audio session commit `56a2f73`, in its own copy of this repo until merged, so the link works after the merge). Combine them in one DTB only if both changes pass A1 together (diff shows added lines only), and keep the rollback to `boot.bin.stageE`.
 
 ## What the plan relies on (checked, read-only)
 
