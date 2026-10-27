@@ -114,3 +114,13 @@ The user confirmed the T7 was on the left front port. Linux showed the partner o
 | Write test | Not done. The drive holds user data. |
 
 The M3 had just booted (up 1 minute at the check). I did not cause that reboot. The T7 passes USB 3 on the left front port. The right port and the left rear port are still open.
+
+## T7 on the second port, 2026-10-27 14:23 (my own test, read only)
+
+The user said the T7 was on "the rear one". Linux showed the partner on `port3`. My map calls `port3` the right port and `port1` the left rear port. The side needs one more check.
+
+| Item | Result |
+|---|---|
+| Link | `PSSD T7 Shield`, 10000M (USB 3.2 Gen 2), driver `uas` |
+| Raw read, `dd iflag=direct`, 2 GB, two runs | 699 MB/s and 660 MB/s |
+| Write test | Not done. The drive holds user data. |
