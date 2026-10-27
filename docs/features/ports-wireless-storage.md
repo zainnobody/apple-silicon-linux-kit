@@ -86,17 +86,22 @@ USB 3 speed of the T7 on `port3` (right) and `port1` (left rear) is still not me
 
 ## Next steps
 
-1. Finish the device tests (list below).
-2. Test Bluetooth on the stock kernel `7.1.13` to see whether the controller timeouts come from the test kernel. This needs a reboot, which the GPU session must hear about first.
-3. Thunderbolt, USB4 and USB-C data: the fix is one config line, `CONFIG_USB4_APPLE_SOC=m`, in `build/build-kernel.sh`, then one rebuild (`docs/features/usbc-usb4-gap.md`). This is kernel work and belongs to the GPU session. After that kernel boots, repeat the USB 2, USB 3, SD and Thunderbolt tests in this report.
-4. Bluetooth timeouts: the `m3-bluetooth` session wrote a plan (`docs/features/bluetooth.md`). The GPU session staged a kernel with a changed `hci_bcm4377.ko` and `thunderbolt_apple.ko` at `~/m3gpu/out/kernel-7.2.11-m3gpu+-usb4-bt` (not installed, no reboot yet). Retest Bluetooth and USB-C after it boots.
-5. Optional: compare SSD speed in macOS with the same `fio` command, and run LAN `iperf3` to the Mac host to measure Wi-Fi without the internet line.
+1. USB 3 speed of the T7 on `port3` (right), `port2` (left front) and `port1` (left rear). Waits for the user (see below). Port1 waits for the USB-C session release.
+2. SD card test on the built-in slot (`mmc0`) and on the dongle card reader. Waits for the user to find an SD card.
+3. Thunderbolt device test. Waits for the user to plug in a device. The dock test is a separate task in `TASKS.md`.
+4. USB write speed on a mounted drive. Use `dd oflag=direct`. Buffered exFAT writes are slow on Linux. This is not a hardware fault.
+5. Fix the mount-point detection in `tests/usb-test.sh`. `lsblk` shows `TRAN=usb` only on the disk, not on its partitions.
+6. Optional: run LAN `iperf3` to the Mac host to measure Wi-Fi without the internet line.
+
+Closed since the first version of this report: the USB-C data fix (`thunderbolt_apple` loads at boot), the Bluetooth fix (patched `hci_bcm4377`, owned by the `m3-bluetooth` session), the keyboard backlight shortcut and the trackpad speed.
 
 ## What needs the user's hands
 
-- Optional now: the USB-C data ports probably do not work yet (see next step 3). A quick plug test confirms it. Plug a USB 3 drive in each USB-C port, one by one, and say which port it is. Then a USB 2 device in each port.
+- Plug the T7 into the right-side USB-C port. Then into the left front port. Then into the left rear port. Say when each is in.
 - Say which USB-C port you use every day.
-- Insert an SD card.
-- Put a phone or headset in Bluetooth pairing mode (only after the Bluetooth fix, or on the stock kernel).
-- Press the keyboard backlight keys and say if the light changes. Move the trackpad, click and scroll, and say if it feels right.
-- Plug in a Thunderbolt device if you have one (it should not work yet).
+- Find an SD card and insert it in the MacBook slot. Then in the dongle reader.
+- Plug in a Thunderbolt device if you have one.
+
+## M3 state at the last check, 2026-10-27 02:2x
+
+The M3 did not answer on SSH (port 22 timed out twice). Tailscale showed it offline, last seen 38 minutes earlier. I ran no extra tests. I did not reboot, suspend or reload any module.
