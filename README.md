@@ -25,7 +25,8 @@ Other machines need a profile in `machines/` (see `machines/README.md`). Unteste
 | Shader stress, 10 min | 228 billion pixel-iterations per second, 0 wrong values in 32,621 checks |
 | Native display and brightness | Work (3456x2160, `/sys/class/backlight/apple-panel-bl`) |
 | Stock kernel with the GPU boot.bin | Boots normally and keeps the system Mesa |
-| Not done yet | Desktop stress test, GPU kernel as the default boot, sleep |
+| Default boot | GPU kernel with the memory floor (stage K, 2026-10-26); stock kernel as the GRUB fallback. First boot as default not tested yet |
+| Not done yet | Desktop stress test, sleep |
 
 Details: `docs/performance.md` and the test log `TEST-LOG.html` (build it with `python3 -I log/build-log.py`, then open it in a browser).
 
@@ -50,7 +51,7 @@ Details: `docs/performance.md` and the test log `TEST-LOG.html` (build it with `
 | `config.sh` | Shared settings. Reads `config.local.sh` (yours, not in git) and the machine profile. |
 | `machines/` | One profile per Mac: board, DTB, GPU node, GPU driver, m1n1 options. |
 | `build/` | Fetch the pinned sources, install build tools, build the kernel, m1n1 and Mesa. No install. |
-| `install/` | Stages A to G. Each one runs with `sudo`, checks the machine, and prints what it changed. |
+| `install/` | Stages A to K. Each one runs with `sudo`, checks the machine, and prints what it changed. `install/m3-installed/` holds copies of the root-owned files on the tested M3 (old `m3gpu` names). |
 | `system/` | Templates for the root-owned files. The install stages fill in the machine's values. |
 | `patches/` | Kernel patches, for example the J516S B1 firmware pin. |
 | `tests/` | GPU tests: readback, stress, soak, desktop stress, Vulkan compute, and a Metal version for macOS. |
@@ -90,6 +91,12 @@ Run everything on the target Mac in Fedora, as your normal user, from this folde
 | E | `sudo install/stage-e.sh` | boot.bin with the GPU and display options. | Yes, test kernel once |
 | F | `sudo install/stage-f.sh` | Replace the installed test kernel with a rebuild (for example with a pin). | No |
 | G | `sudo install/stage-g.sh` | Desktop and login screen on the native Mesa, only on GPU boots. Also installs the no-password tool. | No |
+| H | `sudo install/stage-h-diag.sh` | J516S only: test kernel image with firmware digest log lines. | No |
+| I | `sudo install/stage-i-masked.sh` | J516S only: test kernel image that admits the firmware by UUID plus the masked digest. | No |
+| J | `sudo install/stage-j-memfloor.sh` | T6030 only: test kernel image with the PMP memory floor (memory 4 times faster). | No |
+| K | `sudo install/stage-k-default.sh` | J516S only: GPU kernel becomes the default boot, stock kernel stays the GRUB fallback, kernel updates keep the default. | No |
+
+Stages H to K are copied unchanged from the tested M3. They still use its old names: `~/m3gpu`, `/usr/local/sbin/m3gpu-boot`, `/opt/mesa-m3` and `/root/m3gpu-backup`. Read each script before you run it on another machine.
 
 4. Test (as your user):
    ```bash
@@ -137,6 +144,26 @@ sudo -n /usr/local/sbin/agx-os macos-once && sudo -n systemctl reboot
 - Fedora does not boot: the macOS rollback in `docs/install-plan.md` section 3 puts `boot.bin.stock` back.
 - End of testing: `sudo -n /usr/local/sbin/agx-boot cleanup`, and remove `M1N1_UPDATE_DISABLED=1` from `/etc/sysconfig/update-m1n1`.
 
+## Rebuild the tested M3 Pro state
+
+These steps rebuild the state of the tested MacBook Pro 16-inch M3 Pro (J516S) on 2026-10-26, from a fresh Fedora Asahi Remix 44 (KDE) install.
+
+1. Build with the M3's old names (see `config.local.example.sh`): work folder `~/m3gpu`, Mesa prefix `/opt/mesa-m3`, kernel `7.2.11-m3gpu+`.
+2. Kernel: before `build/build-kernel.sh`, apply `patches/m3-kernel-tree-2026-10-26.patch` to the SiliconForest kernel at commit `0e1f46661376`. That one patch equals the stack `g15-j516s-b1-pin.patch`, `g15-fw-digest-diag.patch`, `g15-fw-masked-identity.patch` and `t6030-pmp-memory-floor.patch`. The installed image has sha256 `65798c91...`.
+3. Mesa: SiliconForest commit `7515336`. Optional: apply `patches/mesa-agx3-fmul-narrow-wait.patch` for llama.cpp flash attention. On the M3 this fix is built but not yet installed in `/opt/mesa-m3`.
+4. Run stages A to G, then I, J and K. Stage H is a diagnostic step that stage I replaces. Stage F is only for a rebuilt kernel; stages I and J do the same for their images.
+5. Optional: `sudo install/setup-macos-switch.sh` (boot macOS once without a password).
+6. Test: `tests/mem-shared.sh` (expect about 120 GB/s for the P cores and 130 GB/s for the GPU) and `ane-linux/llm/stage0.sh bench`.
+
+Only on the M3, not in this repository:
+
+- The GPU firmware. Fedora extracts it from macOS during the Asahi install; it is not redistributable.
+- The source trees and build folders in `~/m3gpu` (`src`, `build-linux`, `build-mesa`, `out`). The kernel and Mesa edits are saved here as patches.
+- Backups in `/root/m3gpu-backup` (one folder per stage) and `/root/agx-backup` (stage A).
+- The action log `/var/log/m3gpu/actions.log`.
+- llama.cpp, the models and the results in `~/llm-work`.
+- The full Apple device tree dumps (machine identifiers), kept only in a private folder on the host Mac.
+
 ## Upgrading from the first test install
 
 The first install (2026-10-26) used the names `m3gpu-boot`, `/etc/sudoers.d/m3gpu`, `m3gpu-mesa-select` and `~/m3gpu`. `install/setup-nopasswd.sh` and stage G remove those files and install the `agx-*` ones. Keep the old work folder, kernel suffix and Mesa prefix with the commented values in `config.local.example.sh`.
@@ -147,7 +174,9 @@ The first install (2026-10-26) used the names `m3gpu-boot`, `/etc/sudoers.d/m3gp
 |---|---|
 | `docs/performance.md` | Benchmarks, soak results and the comparison plan |
 | `docs/gpu-firmware-investigation.md` | Why the firmware was refused, and the pin |
-| `docs/upstream-report-draft.md` | Draft report for SiliconForest (not posted) |
+| `docs/upstream-report-draft.md` | Report for SiliconForest, posted as chriskearney/siliconforest-linux#20 (`docs/upstream-issue-title.txt`, `docs/upstream-issue-body.md` hold the exact posted text) |
+| `docs/features/` | Feature test reports on the M3: audio, camera and video; display and HDMI. More reports follow when their tests end |
+| `docs/memory-pmp-findings.md` | Why memory was slow, and the PMP memory floor fix |
 | `docs/install-plan.md` | Install plan, stage results, macOS rollback |
 | `docs/build-status.md` | Build notes and problems |
 | `docs/gpu-stack-review.md` | Review of the SiliconForest kernel, m1n1 and Mesa |

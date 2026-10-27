@@ -1,0 +1,33 @@
+# Plasma login env script: ~/.config/plasma-workspace/env/m3gpu-native-mesa.sh
+# Sourced by plasma-sourceenv.sh before the Plasma session starts.
+# Uses the native Mesa in /opt/mesa-m3 only when the native G15 GPU driver is
+# bound (test kernel with boot.bin.stageE). On any other boot it does nothing,
+# so the stock Fedora kernel keeps the system Mesa.
+# Off switch: create ~/.config/m3gpu-native-mesa.off
+_m3gpu_log="$HOME/m3gpu/logs/session-env.log"
+_m3gpu_p=/opt/mesa-m3
+_m3gpu_why=
+if [ -e "$HOME/.config/m3gpu-native-mesa.off" ]; then
+	_m3gpu_why="off switch present"
+elif [ ! -e /sys/bus/platform/drivers/asahi-g15/292400000.gpu ]; then
+	_m3gpu_why="asahi-g15 not bound ($(uname -r))"
+elif [ ! -e /dev/dri/renderD128 ]; then
+	_m3gpu_why="no render node"
+elif [ ! -r "$_m3gpu_p/lib64/libEGL.so.1" ] || [ ! -r "$_m3gpu_p/lib64/dri/asahi_dri.so" ]; then
+	_m3gpu_why="native Mesa files missing"
+fi
+if [ -z "$_m3gpu_why" ]; then
+	export LD_LIBRARY_PATH="$_m3gpu_p/lib64${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+	export LIBGL_DRIVERS_PATH="$_m3gpu_p/lib64/dri"
+	export GBM_BACKENDS_PATH="$_m3gpu_p/lib64/gbm"
+	export VK_DRIVER_FILES="$_m3gpu_p/share/vulkan/icd.d/asahi_icd.aarch64.json"
+	export VK_ICD_FILENAMES="$VK_DRIVER_FILES"
+	# The system's implicit Vulkan layers belong to the system drivers.
+	export VK_LOADER_LAYERS_DISABLE='~implicit~'
+	export QSG_RHI_BACKEND=opengl
+	export M3GPU_NATIVE_MESA=1
+	_m3gpu_why="active"
+fi
+mkdir -p "${_m3gpu_log%/*}" 2>/dev/null
+echo "$(date '+%F %T') $(uname -r) native-mesa: $_m3gpu_why" >> "$_m3gpu_log" 2>/dev/null
+unset _m3gpu_log _m3gpu_p _m3gpu_why

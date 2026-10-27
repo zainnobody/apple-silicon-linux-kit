@@ -236,11 +236,14 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
         <tr><td class="stage-id">E</td><td>GPU, display and external display options on. Native display at 3456x2160 and brightness work. GPU firmware refused.</td><td><span class="chip fail">GPU refused</span></td></tr>
         <tr><td class="stage-id">F</td><td>Test kernel replaced with the exact-hash pin build. Old kernel backed up to <code>/root/agx-backup/20261026-130500-pre-pin</code>.</td><td><span class="chip pass">Pass, GPU works</span></td></tr>
         <tr><td class="stage-id">G</td><td>Linker-cache service, user environment generator, two new no-password actions (<code>mesa-select</code>, <code>restart-login</code>). Desktop and login screen use the native Mesa only on GPU boots.</td><td><span class="chip pass">Pass</span></td></tr>
+        <tr><td class="stage-id">H</td><td>Diagnostic kernel image: the firmware pin plus <code>fwdiag:</code> digest log lines.</td><td><span class="chip pass">Pass</span></td></tr>
+        <tr><td class="stage-id">I</td><td>Kernel image that admits the J516S firmware by UUID plus the patchbay-masked digest (no exact hash pin).</td><td><span class="chip pass">Pass, GPU works</span></td></tr>
         <tr><td class="stage-id">J</td><td>Test kernel image with the PMP memory floor patch (20:41). Image, System.map and config only; backup in <code>/root/m3gpu-backup/20261026-204139-pre-memfloor</code>.</td><td><span class="chip pass">Pass, memory 4x faster</span></td></tr>
         <tr><td class="stage-id">K</td><td>GPU kernel with the memory floor is the default boot; boot.bin stageE; GRUB menu always shown; <code>m3gpu-default</code> switch. Backup in <code>/root/m3gpu-backup/20261026-205413-pre-default</code>.</td><td><span class="chip pass">Installed, boot not tested</span></td></tr>
       </tbody>
     </table>
   </div>
+  <p>To rebuild this state from a fresh Fedora Asahi install, follow "Rebuild the tested M3 Pro state" in <code>README.md</code>: one kernel patch (<code>patches/m3-kernel-tree-2026-10-26.patch</code>), then stages A to G, I, J and K. The scripts for stages H to K are in <code>install/</code>.</p>
   <p>The current <code>boot.bin</code> is stageE (GPU options on). The default boot is the GPU kernel 7.2.11-m3gpu+; stock 7.1.13 is the fallback entry.</p>
 </section>
 

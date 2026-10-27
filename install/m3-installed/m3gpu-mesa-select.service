@@ -1,0 +1,12 @@
+[Unit]
+Description=Select native M3 Mesa when the native G15 GPU driver is bound
+After=systemd-udev-settle.service local-fs.target
+Before=display-manager.service plasmalogin.service systemd-user-sessions.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/m3gpu-mesa-select
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

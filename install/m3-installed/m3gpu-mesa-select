@@ -1,0 +1,30 @@
+#!/bin/sh
+# m3gpu-mesa-select: /usr/local/sbin/m3gpu-mesa-select, run at boot by
+# m3gpu-mesa-select.service before the login screen starts.
+# Puts /opt/mesa-m3/lib64 in the dynamic linker cache only when the native G15
+# GPU driver is bound. On every other boot it removes it. KWin has file
+# capabilities, so it ignores LD_LIBRARY_PATH; the linker cache still applies.
+# Off switch: create /etc/m3gpu-native-mesa.off
+CONF=/etc/ld.so.conf.d/00-m3gpu-native-mesa.conf
+LIB=/opt/mesa-m3/lib64
+NODE=/sys/bus/platform/drivers/asahi-g15/292400000.gpu
+
+want=no
+if [ ! -e /etc/m3gpu-native-mesa.off ] && [ -r "$LIB/libEGL.so.1" ]; then
+	case "$(uname -r)" in
+	*m3gpu*)
+		# The built-in driver can bind a little after early boot.
+		i=0
+		while [ ! -e "$NODE" ] && [ "$i" -lt 20 ]; do sleep 1; i=$((i + 1)); done
+		[ -e "$NODE" ] && want=yes
+		;;
+	esac
+fi
+
+if [ "$want" = yes ]; then
+	echo "$LIB" > "$CONF"
+else
+	rm -f "$CONF"
+fi
+ldconfig
+echo "m3gpu-mesa-select: kernel $(uname -r), native Mesa $want"
