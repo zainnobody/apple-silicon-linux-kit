@@ -77,6 +77,8 @@ Installed in `/opt/mesa-m3` (stage M, 2026-10-27 01:36). Rerun 2026-10-27 07:40,
 
 0 GPU faults. Text check (40 tokens, greedy, 2 models x 2 prompts): the installed Mesa and the old Mesa build give the same text in 4 of 4 cases, and the GPU gives the same text as the CPU in 3 of 4. In the 4th case (8B, "The capital of France is") the GPU picks a different first word than the CPU with the old Mesa too, so it is GPU and CPU rounding, not the patch. Results on the M3: `~/llm-work/results/fa-20261027-0734`.
 
+**G2 (2026-10-27).** Llama 3.1 8B Q4_0 (requantized): pp512 169.8, tg128 26.65 tokens/s; Q4_K_M: 150.2 / 22.75. Token generation reads 124 GB/s of weights (macOS on Llama 2 7B: 109 GB/s), so it is at parity per byte. Prompt processing is about 59 % of macOS: the matrix multiplies run at about 2.2 TFLOPS without cooperative matrix (macOS uses `simdgroup_matrix`, about 4.6 TFLOPS). Batch size, flash attention and tile choice change it by less than 2 %. Details and the work estimate: `ane-linux/docs/llm-baseline.md`, section G2.
+
 **Select the native Vulkan driver outside the desktop.** The desktop session gets the native Mesa variables from the user environment generator. An SSH shell does not, so the Vulkan loader picks the distribution's Mesa. That driver writes an older compute format, and the kernel refuses every job (`G15: rejecting CDM record ... 00001212`, `submit failed ... EINVAL`). Benchmarks then report impossible speeds. Set this first:
 
 ```bash
