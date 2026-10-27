@@ -1,0 +1,18 @@
+[Unit]
+Description=Fan curve for the MacBook Pro M3 Pro (fans back to SMC auto on stop)
+# Needs macsmc_hwmon with the Ftst patch in /lib/modules/<kernel>/updates (see m3-fancurve-install.sh).
+After=multi-user.target
+
+[Service]
+Type=simple
+# The initramfs loads the stock module without fan control, so reload it from updates/ once.
+# The initramfs and /etc/modprobe.d stay unchanged.
+ExecStartPre=/bin/sh -c '[ "$(cat /sys/module/macsmc_hwmon/parameters/fan_control 2>/dev/null)" = Y ] || { modprobe -r macsmc_hwmon; modprobe macsmc_hwmon fan_control=1; sleep 2; }'
+ExecStart=/usr/local/sbin/m3-fancurve.sh
+# Fail-safe: whatever ends the script (crash, kill -9, stop), the fans go back to auto.
+ExecStopPost=/bin/sh -c 'for f in /sys/class/hwmon/hwmon*/fan*_target; do echo 0 > "$f"; done 2>/dev/null; true'
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
