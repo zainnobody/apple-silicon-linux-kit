@@ -173,6 +173,7 @@ The first install (2026-10-26) used the names `m3gpu-boot`, `/etc/sudoers.d/m3gp
 
 | File | Topic |
 |---|---|
+| `docs/whats-in-the-repo.md` | Every kernel and Mesa change, and where its patch is |
 | `docs/performance.md` | Benchmarks, soak results and the comparison plan |
 | `docs/gpu-firmware-investigation.md` | Why the firmware was refused, and the pin |
 | `docs/upstream-report-draft.md` | Report for SiliconForest, posted as chriskearney/siliconforest-linux#20 (`docs/upstream-issue-title.txt`, `docs/upstream-issue-body.md` hold the exact posted text) |
