@@ -35,7 +35,15 @@ HEAT=${HEAT:-$(dirname "$(readlink -f "$0")")/heat-sample.sh}
 [ -x "$HEAT" ] || HEAT=$HOME/m3gpu/heat-sample.sh
 HEAT_PID=
 heat_start() { [ -x "$HEAT" ] && { "$HEAT" "$1" > "${1%.csv}.txt" & HEAT_PID=$!; }; }
-heat_stop() { [ -n "$HEAT_PID" ] || return 0; kill "$HEAT_PID" 2>/dev/null; wait "$HEAT_PID" 2>/dev/null; HEAT_PID=; cat "${1%.csv}.txt" 2>/dev/null; }
+# heat_stop polls until the sampler is gone: wait alone does not work when heat_stop runs in a pipeline.
+heat_stop() {
+	[ -n "$HEAT_PID" ] || return 0
+	kill "$HEAT_PID" 2>/dev/null
+	while kill -0 "$HEAT_PID" 2>/dev/null; do sleep 0.1; done
+	wait "$HEAT_PID" 2>/dev/null
+	HEAT_PID=
+	cat "${1%.csv}.txt" 2>/dev/null
+}
 
 say() { echo "$*" | tee -a "$OUT/summary.txt"; }
 FAIL=0
