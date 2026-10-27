@@ -155,3 +155,19 @@ The user moved the lock switch and said the T7 is on the right port. The card re
 The SD slot reads and writes. The write speed of 7.9 MB/s fits an old card (made 08/2016). It is not a slot fault. A fast UHS-I card would show the slot limit.
 The one slow T7 run (38.7 MB/s) did not repeat in three more runs. Watch for it. The typec `port2` partner name appeared for both the left front and the right port, so the typec port number does not tell the side. Use the USB host controller instead.
 
+## Thunderbolt host to host, Mac to M3, 2026-10-27 14:40 (my own test)
+
+The user connected a cable from the M3 left rear port (`port3`) to a port on the Mac host. I loaded no module. The `thunderbolt0` interface was already up.
+
+| Item | Result |
+|---|---|
+| Link seen by Linux | `0-1` Apple Mac17,2 host found, 2 lanes, 10 Gb/s per lane |
+| Link seen by macOS | Thunderbolt/USB4 bus 3, connected, 20 Gb/s |
+| Network | Link-local addresses on both sides (`thunderbolt0` on the M3, `bridge0` on the Mac), no setup |
+| Ping, 10 packets | 0% loss, 0.19 to 0.44 ms (average 0.29 ms) |
+| Throughput M3 to Mac, 4 GB, `dd` into `nc` | 1018 MB/s (about 8 Gb/s) |
+| Throughput Mac to M3, 4 GB, Python sender, `nc` into `wc` | 450 MB/s |
+| `iperf3` | Not used. It is not installed on the Mac. |
+
+Thunderbolt and USB4 host to host work on the M3. The link trains at 20 Gb/s, not 40 Gb/s. The cable or the M3 port may set this limit (see `usbc-usb4-gap.md` section 9). The throughput numbers come from a simple single stream and use the CPU, so they are lower bounds. The Mac to M3 number is lower. The `nc | wc` receiver on the M3 likely sets it.
+
