@@ -193,6 +193,18 @@ The clean 600 s rerun shows the same drop after 30 s with no other GPU client, s
 - The CPU side changes the result too. On an E core the check takes 27 ms (62 G). The energy-aware scheduler can put the test there, because the process mostly waits for the GPU. On a P core: 20 ms (113 G). gcc and clang builds check equally fast (25.4 ms both). `performance` governor, `uclampset -m 1024` and `sched_energy_aware=0` gave 86, 84 and 91 G: a faster check, but lower GPU states. All settings were set back after the test.
 - The same setup varies from 85 to 115 G between 30 s runs, because the DVFS state changes.
 
+**Idle test boot (stage M, 2026-10-27 01:43).** Hypothesis: the GPU powers off 2.5 ms after its last job, so the DVFS starts low after each CPU check. One boot with `asahi.g15_idle_standby_us=100000` (GPU stays powered 100 ms) disproved it:
+
+| Test (60 s) | Default (00:12) | Standby 100 ms (01:44) |
+|---|---|---|
+| Wait every 10th frame | 64.8 G | 64.9 G (P core, 30 s: 84.2 G) |
+| Wait every 100th frame | 192.9 G | 189.2 G |
+| No wait | 255.5 G | 263.4 G |
+| `gles-stress` | 226.1 G | 247.0 G |
+| GPU read | 133.6 GB/s | 133.8 GB/s |
+
+The GPU still ran at state 1 (338 MHz) for most of the wait test. So the firmware DVFS chooses the low clock from the low utilization (the GPU is busy about half the time), not from power-off. The argument was removed again (no gain, more idle power). The higher no-wait and fragment values came with the new Mesa build (flash attention patch) on a fresh boot; one run each, not proven.
+
 So the macOS figure of 133 G is a mixed CPU and GPU DVFS result, not a GPU limit. Linux reaches 255 G when the GPU is kept busy, which is 1.9 times the macOS figure for the check pattern. A fair GPU comparison needs the no-wait run in macOS too (`metal-stress` with no checks). That needs a macOS boot.
 
 ### GPU suite (2026-10-27 00:12, `tests/gpu-perf-suite.sh 60`, desktop idle)
