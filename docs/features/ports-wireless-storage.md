@@ -117,7 +117,7 @@ The M3 had just booted (up 1 minute at the check). I did not cause that reboot. 
 
 ## T7 on the second port, 2026-10-27 14:23 (my own test, read only)
 
-The user said the T7 was on "the rear one". Linux showed the partner on `port3`. My map calls `port3` the right port and `port1` the left rear port. The side needs one more check.
+The user said the T7 was on the left rear port, the one closest to MagSafe. Linux showed the partner on `port3`. This boot, `port2` is left front and `port3` is left rear. The earlier map (`port3` = right) fails. The right port needs one more test to find its number.
 
 | Item | Result |
 |---|---|
