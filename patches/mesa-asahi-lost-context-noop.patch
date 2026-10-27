@@ -1,0 +1,325 @@
+Mesa (SiliconForest 7515336), asahi gallium: a lost context does no GPU work instead of crashing.
+After a GPU fault, the G15 kernel gives the VM a sticky error: VM_BIND, GEM_CREATE and SUBMIT fail
+with EIO. agx_encoder_allocate() and the batch pools then used NULL buffers, and plasmashell crashed in
+agx_batch_init (2026-10-26 23:23, docs/gpu-fault-2026-10-26.md). With this patch:
+- agx_device.c sets dev->lost when one of those three ioctls fails with EIO.
+- agx_context_lost() (agx_state.h) marks the context lost and reports PIPE_GUILTY_CONTEXT_RESET once.
+  draw_vbo, launch_grid, clear, clear_buffer, blit and resource_copy_region return at once on a lost
+  context (GL robustness: commands are no-ops after a reset).
+- When the loss first shows inside a new batch, the encoder and the pools use CPU scratch memory
+  instead of a NULL BO; agx_batch_submit never submits a batch of a lost context.
+The process still needs a new device to draw again (the VM error is per DRM file). Shaders, healthy
+contexts and Vulkan are unchanged. Private SiliconForest Mesa: do not redistribute.
+NOT TESTED YET. Test plan (on the M3, Mesa built into a separate prefix, not /opt/mesa-m3):
+ 1. Build check: ninja -C build-mesa with the patch; no new warnings in the changed files.
+ 2. Fault injection: tests/lost-context-inject.c (LD_PRELOAD) makes the three ioctls fail with EIO
+    after LOST_AFTER_S seconds. Run es2gears_wayland, glmark2-wayland and a Qt Quick app
+    (e.g. a plasmoid viewer) with LOST_AFTER_S=5 for 30 s each: before the patch they crash with
+    SIGSEGV (check coredumpctl); with the patch they keep running with a frozen picture, print
+    "BO creation failed" lines and exit normally when closed.
+ 3. Robust client: a small EGL test with EGL_EXT_create_context_robustness and
+    GL_LOSE_CONTEXT_ON_RESET returns GL_GUILTY_CONTEXT_RESET from glGetGraphicsResetStatus after
+    the injection.
+ 4. No change when healthy: tests/gpu-perf-suite.sh 60 and gles-stress, same values as without the
+    patch (within run-to-run spread), 0 wrong values; llama.cpp -fa 1 text the same as the CPU.
+ 5. Desktop: install only after steps 1 to 4 pass, with a backup of /opt/mesa-m3.
+Apply with: git -C <mesa> apply <this patch>
+
+diff --git a/src/asahi/lib/agx_device.c b/src/asahi/lib/agx_device.c
+index 3a6d551..ad84c0f 100644
+--- a/src/asahi/lib/agx_device.c
++++ b/src/asahi/lib/agx_device.c
+@@ -199,6 +199,8 @@ agx_drm_bo_bind(struct agx_device *dev, struct drm_asahi_gem_bind_op *ops,
+    int ret = drmIoctl(dev->fd, DRM_IOCTL_ASAHI_VM_BIND, &vm_bind);
+    if (ret) {
+       const int saved_errno = errno;
++      if (saved_errno == EIO)
++         p_atomic_set(&dev->lost, true);
+       fprintf(stderr, "DRM_IOCTL_ASAHI_VM_BIND failed: %s (vm=%u, ops=%u)",
+               strerror(saved_errno), vm_bind.vm_id, vm_bind.num_binds);
+       for (uint32_t i = 0; i < count; ++i) {
+@@ -384,6 +386,8 @@ agx_bo_alloc(struct agx_device *dev, size_t size, size_t align,
+ 
+    int ret = drmIoctl(dev->fd, DRM_IOCTL_ASAHI_GEM_CREATE, &gem_create);
+    if (ret) {
++      if (errno == EIO)
++         p_atomic_set(&dev->lost, true);
+       fprintf(stderr, "DRM_IOCTL_ASAHI_GEM_CREATE failed: %m\n");
+       return NULL;
+    }
+@@ -716,7 +720,10 @@ static int
+ agx_submit(struct agx_device *dev, struct drm_asahi_submit *submit,
+            struct agx_submit_virt *virt)
+ {
+-   return drmIoctl(dev->fd, DRM_IOCTL_ASAHI_SUBMIT, submit);
++   int ret = drmIoctl(dev->fd, DRM_IOCTL_ASAHI_SUBMIT, submit);
++   if (ret && errno == EIO)
++      p_atomic_set(&dev->lost, true);
++   return ret;
+ }
+ 
+ const agx_device_ops_t agx_device_drm_ops = {
+diff --git a/src/asahi/lib/agx_device.h b/src/asahi/lib/agx_device.h
+index 3f473b0..de17789 100644
+--- a/src/asahi/lib/agx_device.h
++++ b/src/asahi/lib/agx_device.h
+@@ -148,6 +148,12 @@ struct agx_device {
+    struct agx_bo *(*code_alloc)(struct agx_device *dev, size_t size,
+                                 uint32_t *offset);
+ 
++   /* Set once the kernel refuses this file's VM with EIO (a faulted job
++    * leaves the VM with a sticky error). Nothing can be bound or submitted
++    * after that, so the gallium driver turns GPU work into no-ops and
++    * reports a context reset instead of using NULL buffers. */
++   bool lost;
++
+    uint32_t debug;
+ 
+    /* Precompiled libagx binary table */
+diff --git a/src/asahi/lib/pool.c b/src/asahi/lib/pool.c
+index 15654ca..8b3f0ef 100644
+--- a/src/asahi/lib/pool.c
++++ b/src/asahi/lib/pool.c
+@@ -50,6 +50,7 @@ agx_pool_cleanup(struct agx_pool *pool)
+    }
+ 
+    util_dynarray_fini(&pool->bos);
++   free(pool->lost_scratch);
+ }
+ 
+ struct agx_ptr
+@@ -69,6 +70,22 @@ agx_pool_alloc_aligned_with_bo(struct agx_pool *pool, size_t sz,
+       offset = 0;
+    }
+ 
++   if (unlikely(bo == NULL)) {
++      /* No GPU memory (the device is lost). Give the caller CPU memory so the
++       * command it is building is discarded instead of dereferencing NULL. */
++      if (pool->lost_scratch_size < sz) {
++         free(pool->lost_scratch);
++         pool->lost_scratch_size = MAX2(sz, POOL_SLAB_SIZE);
++         pool->lost_scratch = calloc(1, pool->lost_scratch_size);
++         if (!pool->lost_scratch)
++            pool->lost_scratch_size = 0;
++      }
++      pool->transient_offset = 0;
++      if (out_bo)
++         *out_bo = NULL;
++      return (struct agx_ptr){.cpu = pool->lost_scratch, .gpu = 0};
++   }
++
+    pool->transient_offset = offset + sz;
+ 
+    struct agx_ptr ret = {
+diff --git a/src/asahi/lib/pool.h b/src/asahi/lib/pool.h
+index eab4c0d..f4b2205 100644
+--- a/src/asahi/lib/pool.h
++++ b/src/asahi/lib/pool.h
+@@ -32,6 +32,11 @@ struct agx_pool {
+    /* BO flags to use in the pool */
+    unsigned create_flags;
+ 
++   /* CPU memory handed out when no BO can be created (device lost). Its
++    * contents are never submitted. */
++   void *lost_scratch;
++   size_t lost_scratch_size;
++
+    /* Label for pool allocations */
+    const char *label;
+ };
+diff --git a/src/gallium/drivers/asahi/agx_batch.c b/src/gallium/drivers/asahi/agx_batch.c
+index f5b4fec..8fa9e7d 100644
+--- a/src/gallium/drivers/asahi/agx_batch.c
++++ b/src/gallium/drivers/asahi/agx_batch.c
+@@ -86,6 +86,15 @@ struct agx_encoder
+ agx_encoder_allocate(struct agx_batch *batch, struct agx_device *dev)
+ {
+    struct agx_bo *bo = agx_bo_create(dev, 0x80000, 0, 0, "Encoder");
++   if (unlikely(bo == NULL)) {
++      /* No GPU memory: the device is lost. Build into CPU memory; the batch
++       * is discarded at submit (agx_batch_submit). */
++      agx_context_mark_lost(batch->ctx);
++      uint8_t *cpu = calloc(1, 0x80000);
++      return (struct agx_encoder){
++         .lost_cpu = cpu, .current = cpu, .end = cpu ? cpu + 0x80000 : NULL};
++   }
++
+    uint8_t *map = agx_bo_map(bo);
+    return (struct agx_encoder){.bo = bo, .current = map, .end = map + bo->size};
+ }
+@@ -130,7 +139,7 @@ agx_batch_get_g17p_vdm_alias(struct agx_batch *batch, struct agx_bo *bo,
+ static void
+ agx_encoder_bind_vdm_alias(struct agx_device *dev, struct agx_encoder *encoder)
+ {
+-   if (!agx_native_graphics(dev))
++   if (!agx_native_graphics(dev) || encoder->bo == NULL)
+       return;
+ 
+    encoder->g17p_vdm_alias = agx_bo_get_g17p_vdm_alias(dev, encoder->bo);
+@@ -141,6 +150,8 @@ static void
+ agx_encoder_cleanup(struct agx_device *dev, struct agx_encoder *encoder)
+ {
+    agx_bo_unreference(dev, encoder->bo);
++   free(encoder->lost_cpu);
++   encoder->lost_cpu = NULL;
+ }
+ 
+ static void
+@@ -905,6 +916,14 @@ agx_batch_submit(struct agx_context *ctx, struct agx_batch *batch,
+       return;
+    }
+ 
++   /* A lost context's batch may point at CPU scratch instead of GPU memory.
++    * Never submit it. */
++   if (agx_context_lost(ctx)) {
++      agx_retire_failed_submit(ctx, batch, syncs, shared_bos, 0, NULL,
++                               &cmdbuf, EIO);
++      return;
++   }
++
+    uint64_t wait_seqid = p_atomic_read(&screen->flush_wait_seqid);
+ 
+    struct agx_submit_virt virt = {.ring_idx = ctx->virt_ring_idx};
+diff --git a/src/gallium/drivers/asahi/agx_blit.c b/src/gallium/drivers/asahi/agx_blit.c
+index 8a432f4..bced072 100644
+--- a/src/gallium/drivers/asahi/agx_blit.c
++++ b/src/gallium/drivers/asahi/agx_blit.c
+@@ -696,6 +696,8 @@ void
+ agx_blit(struct pipe_context *pipe, const struct pipe_blit_info *info)
+ {
+    struct agx_context *ctx = agx_context(pipe);
++   if (agx_context_lost(ctx))
++      return;
+ 
+    /* G17P does not have a grounded fragment ABI for exporting stencil. That
+     * is not a hardware-resource limitation: standalone stencil is native S8,
+@@ -875,6 +877,9 @@ agx_resource_copy_region(struct pipe_context *pctx, struct pipe_resource *dst,
+                          unsigned dstz, struct pipe_resource *src,
+                          unsigned src_level, const struct pipe_box *src_box)
+ {
++   if (agx_context_lost(agx_context(pctx)))
++      return;
++
+    if (dst->target == PIPE_BUFFER && src->target == PIPE_BUFFER) {
+       struct agx_batch *batch = agx_get_compute_batch(agx_context(pctx));
+       agx_batch_init_state(batch);
+diff --git a/src/gallium/drivers/asahi/agx_pipe.c b/src/gallium/drivers/asahi/agx_pipe.c
+index 1332d83..7b07537 100644
+--- a/src/gallium/drivers/asahi/agx_pipe.c
++++ b/src/gallium/drivers/asahi/agx_pipe.c
+@@ -1133,6 +1133,9 @@ agx_clear(struct pipe_context *pctx, unsigned buffers,
+           const union pipe_color_union *color, double depth, unsigned stencil)
+ {
+    struct agx_context *ctx = agx_context(pctx);
++   if (agx_context_lost(ctx))
++      return;
++
+    struct agx_batch *batch = agx_get_batch(ctx);
+ 
+    if (unlikely(!agx_render_condition_check(ctx)))
+@@ -1836,6 +1839,9 @@ asahi_clear_buffer(struct pipe_context *pipe, struct pipe_resource *resource,
+                    unsigned offset, unsigned size, const void *clear_value,
+                    int clear_value_size)
+ {
++   if (agx_context_lost(agx_context(pipe)))
++      return;
++
+    assert(clear_value_size > 0);
+    if (clear_value_size <= 16 && util_is_power_of_two_nonzero(clear_value_size)) {
+       union pipe_color_union color;
+diff --git a/src/gallium/drivers/asahi/agx_state.c b/src/gallium/drivers/asahi/agx_state.c
+index 51f3dcc..10abee3 100644
+--- a/src/gallium/drivers/asahi/agx_state.c
++++ b/src/gallium/drivers/asahi/agx_state.c
+@@ -6943,6 +6943,14 @@ agx_ensure_cmdbuf_has_space(struct agx_batch *batch, struct agx_encoder *enc,
+    bool vdm = enc == &batch->vdm;
+    assert(vdm || (enc == &batch->cdm));
+ 
++   /* A lost encoder writes into CPU memory that is never submitted. Reuse it
++    * from the start rather than link to more memory. */
++   if (unlikely(enc->bo == NULL && enc->lost_cpu)) {
++      if ((size_t)(enc->end - enc->current) < space + 0x1000)
++         enc->current = enc->lost_cpu;
++      return;
++   }
++
+    size_t link_length =
+       vdm ? AGX_VDM_STREAM_LINK_LENGTH : AGX_CDM_STREAM_LINK_LENGTH;
+ 
+@@ -8066,6 +8074,9 @@ agx_draw_vbo(struct pipe_context *pctx, const struct pipe_draw_info *info,
+ {
+    struct agx_context *ctx = agx_context(pctx);
+ 
++   if (agx_context_lost(ctx))
++      return;
++
+    if (unlikely(!agx_render_condition_check(ctx)))
+       return;
+ 
+@@ -8735,6 +8746,9 @@ static void
+ agx_launch_grid(struct pipe_context *pipe, const struct pipe_grid_info *info)
+ {
+    struct agx_context *ctx = agx_context(pipe);
++   if (agx_context_lost(ctx))
++      return;
++
+    if (unlikely(!ctx->compute_blitter.active &&
+                 !agx_render_condition_check(ctx)))
+       return;
+diff --git a/src/gallium/drivers/asahi/agx_state.h b/src/gallium/drivers/asahi/agx_state.h
+index 049e608..a39638f 100644
+--- a/src/gallium/drivers/asahi/agx_state.h
++++ b/src/gallium/drivers/asahi/agx_state.h
+@@ -427,6 +427,10 @@ struct agx_encoder {
+    uint64_t g17p_vdm_alias;
+    uint8_t *current;
+    uint8_t *end;
++
++   /* CPU memory used instead of a BO when the device is lost; never
++    * submitted. */
++   uint8_t *lost_cpu;
+ };
+ 
+ struct agx_batch {
+@@ -1141,6 +1145,10 @@ agx_batch_uses_bo(struct agx_batch *batch, struct agx_bo *bo)
+ static inline void
+ agx_batch_add_bo_internal(struct agx_batch *batch, struct agx_bo *bo)
+ {
++   /* A lost device hands out no BOs (see agx_pool_alloc_aligned_with_bo). */
++   if (unlikely(bo == NULL))
++      return;
++
+    /* Double the size of the BO list if we run out, this is amortized O(1) */
+    if (unlikely(bo->handle >= batch->bo_list.bit_count)) {
+       const unsigned bits_per_word = sizeof(BITSET_WORD) * 8;
+@@ -1169,7 +1177,29 @@ static inline void
+ agx_batch_add_bo(struct agx_batch *batch, struct agx_bo *bo)
+ {
+    agx_batch_add_bo_internal(batch, bo);
+-   assert(agx_batch_uses_bo(batch, bo));
++   assert(bo == NULL || agx_batch_uses_bo(batch, bo));
++}
++
++/* Marks the context lost and reports the reset once. */
++static inline void
++agx_context_mark_lost(struct agx_context *ctx)
++{
++   const bool first_fault = !ctx->any_faults;
++   ctx->any_faults = true;
++   if (first_fault && ctx->reset.reset)
++      ctx->reset.reset(ctx->reset.data, PIPE_GUILTY_CONTEXT_RESET);
++}
++
++/* True when GPU work of this context can no longer run: an earlier job
++ * faulted, or the kernel refuses the device's VM. Entry points that build GPU
++ * work return early, as GL robustness requires after a reset. */
++static inline bool
++agx_context_lost(struct agx_context *ctx)
++{
++   if (unlikely(p_atomic_read(&agx_device(ctx->base.screen)->lost)))
++      agx_context_mark_lost(ctx);
++
++   return unlikely(ctx->any_faults);
+ }
+ 
+ #define AGX_BATCH_FOREACH_BO_HANDLE(batch, handle)                             \

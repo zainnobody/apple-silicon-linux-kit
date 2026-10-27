@@ -24,8 +24,8 @@ Rules kept: no reboot, no kernel or boot change, nothing posted, one temporary f
 | Bluetooth: scan | `bluetoothctl scan on`, 3 runs of 20 to 25 s | FAIL: 0 devices found | Kernel log: `hci0: command 0x0c01 tx timeout`, `Opcode 0x202d failed: -110`, `Unable to disable Address Resolution: -110`. A power off and on did not fix it. Early in boot: `Failed to read codec capabilities (-22)` (10 times). | Working |
 | Bluetooth: pairing | Needs a device in pairing mode | NOT TESTED (scan fails first) | | Working |
 | Internal SSD | `fio` on one 1 GB file in `~`, then deleted | PASS | Apple SSD AP1024Z, btrfs with `compress=zstd:1`. Direct I/O: sequential read 6135 MiB/s, sequential write 2008 MiB/s with 1 job, 3.7 to 3.9 GiB/s with 4 jobs. Random 4k: read 219k IOPS (855 MiB/s), write 48.8k IOPS (191 MiB/s). Buffered write 3.0 GiB/s (1 job). No macOS number measured on this machine. | Not listed |
-| Keyboard and keyboard backlight | `/proc/bus/input/devices`, `/sys/class/leds` | Devices present. Backlight check PENDING (needs the user). | `Apple MTP keyboard`, LED `white:kbd_backlight` (0 to 255, now 0). | Keyboard backlight: linux-asahi, kernel 7.3 |
-| Trackpad | `/proc/bus/input/devices` | Device present. Feel check PENDING (needs the user). | `Apple MTP multi-touch`. `libinput list-devices` returned no output over SSH (the test user is not in the `input` group). | linux-asahi |
+| Keyboard and keyboard backlight | `/proc/bus/input/devices`, `/sys/class/leds` | PASS for the keyboard and the backlight. The MacBook Pro keyboard has no backlight keys (F5 is dictation, F6 is Do Not Disturb), so the default KDE shortcuts never fire. Set from software: the light turned on and off through KDE PowerDevice (`setKeyboardBrightness`, 0 to 255). The user set the shortcuts `Ctrl+Alt+Up` and `Ctrl+Alt+Down` in `kglobalshortcutsrc` (group `org_kde_powerdevil`); both work. | `Apple MTP keyboard`, LED `white:kbd_backlight` (0 to 255, now 0). | Keyboard backlight: linux-asahi, kernel 7.3 |
+| Trackpad | `/proc/bus/input/devices` | Device present. Pointer speed felt slow with the KDE default (acceleration 0, adaptive profile). Pointer speed set to 0.6 through KWin and saved in `kcminputrc`. The user says it feels much better and close to the Mac. | `Apple MTP multi-touch`. `libinput list-devices` returned no output over SSH (the test user is not in the `input` group). | linux-asahi |
 | AirDrop and file sharing | Web research and read-only checks by the `m3-airdrop` session (nothing installed or tested on the M3) | NOT TESTED. Probably possible with the built-in chip. | The `m3-airdrop` session found AWDL code already in the running kernel's `brcmfmac`, so no kernel change may be needed (an earlier note in this report said a MediaTek adapter is required; that was too strong). Details and plan: `side-session-notes/local_beeadd4b-7455-462f-bd22-fa7a051ccef2/airdrop-m3.md`. Intel Unison is Windows only. Tailscale Taildrop and KDE Connect work, but the user does not want Taildrop. | Not listed |
 
 ## Update 2026-10-26 22:15 (not my own test; from the coordinator and `usbc-usb4-gap.md` section 6b)
@@ -65,6 +65,19 @@ Dongle: VIA Labs USB-C hub with a Realtek gigabit Ethernet port and two storage 
 
 The built-in MacBook SD slot (`mmc0`) is a different device and is still untested. Speed tests and the left rear port (`port1`) are still open.
 
+## USB 2 speed on the right port, 2026-10-27 01:55 (my own test, after the combined reboot, `thunderbolt_apple` loaded at boot)
+
+Same hub dongle on `port3` (right side). The 1.9 GB NTFS flash drive is a USB 2 device (480M).
+
+| Item | Result | Evidence |
+|---|---|---|
+| USB 2 read speed | PASS | Raw read with `dd iflag=direct` (read only, drive not mounted, no data written): 29.6 MB/s over 256 MiB, 29.5 MB/s over a second 128 MiB. This is the normal limit of USB 2 (about 30 to 40 MB/s). |
+| USB 2 write speed | NOT TESTED | The drive was not mounted (a user mount over SSH was refused by polkit), and I chose not to write to the user's flash drive. |
+| Ethernet port of the dongle | Link DOWN | `r8152` interface present, no carrier because no cable is plugged in. Not a fault. |
+| Dongle after reboot | PASS | The same devices and speeds as before the reboot. |
+
+USB 3 speed of the T7 on `port3` (right) and `port1` (left rear) is still not measured. The T7 is not plugged in right now.
+
 ## Notes
 
 - `lsusb -t` is empty because no USB device was plugged in during the tests. The root hubs appear only when a device attaches.
@@ -73,17 +86,22 @@ The built-in MacBook SD slot (`mmc0`) is a different device and is still unteste
 
 ## Next steps
 
-1. Finish the device tests (list below).
-2. Test Bluetooth on the stock kernel `7.1.13` to see whether the controller timeouts come from the test kernel. This needs a reboot, which the GPU session must hear about first.
-3. Thunderbolt, USB4 and USB-C data: the fix is one config line, `CONFIG_USB4_APPLE_SOC=m`, in `build/build-kernel.sh`, then one rebuild (`docs/features/usbc-usb4-gap.md`). This is kernel work and belongs to the GPU session. After that kernel boots, repeat the USB 2, USB 3, SD and Thunderbolt tests in this report.
-4. Bluetooth timeouts: the `m3-bluetooth` session wrote a plan (`docs/features/bluetooth.md`). The GPU session staged a kernel with a changed `hci_bcm4377.ko` and `thunderbolt_apple.ko` at `~/m3gpu/out/kernel-7.2.11-m3gpu+-usb4-bt` (not installed, no reboot yet). Retest Bluetooth and USB-C after it boots.
-5. Optional: compare SSD speed in macOS with the same `fio` command, and run LAN `iperf3` to the Mac host to measure Wi-Fi without the internet line.
+1. USB 3 speed of the T7 on `port3` (right), `port2` (left front) and `port1` (left rear). Waits for the user (see below). Port1 waits for the USB-C session release.
+2. SD card test on the built-in slot (`mmc0`) and on the dongle card reader. Waits for the user to find an SD card.
+3. Thunderbolt device test. Waits for the user to plug in a device. The dock test is a separate task in `TASKS.md`.
+4. USB write speed on a mounted drive. Use `dd oflag=direct`. Buffered exFAT writes are slow on Linux. This is not a hardware fault.
+5. Fix the mount-point detection in `tests/usb-test.sh`. `lsblk` shows `TRAN=usb` only on the disk, not on its partitions.
+6. Optional: run LAN `iperf3` to the Mac host to measure Wi-Fi without the internet line.
+
+Closed since the first version of this report: the USB-C data fix (`thunderbolt_apple` loads at boot), the Bluetooth fix (patched `hci_bcm4377`, owned by the `m3-bluetooth` session), the keyboard backlight shortcut and the trackpad speed.
 
 ## What needs the user's hands
 
-- Optional now: the USB-C data ports probably do not work yet (see next step 3). A quick plug test confirms it. Plug a USB 3 drive in each USB-C port, one by one, and say which port it is. Then a USB 2 device in each port.
+- Plug the T7 into the right-side USB-C port. Then into the left front port. Then into the left rear port. Say when each is in.
 - Say which USB-C port you use every day.
-- Insert an SD card.
-- Put a phone or headset in Bluetooth pairing mode (only after the Bluetooth fix, or on the stock kernel).
-- Press the keyboard backlight keys and say if the light changes. Move the trackpad, click and scroll, and say if it feels right.
-- Plug in a Thunderbolt device if you have one (it should not work yet).
+- Find an SD card and insert it in the MacBook slot. Then in the dongle reader.
+- Plug in a Thunderbolt device if you have one.
+
+## M3 state at the last check, 2026-10-27 02:2x
+
+The M3 did not answer on SSH (port 22 timed out twice). Tailscale showed it offline, last seen 38 minutes earlier. I ran no extra tests. I did not reboot, suspend or reload any module.
