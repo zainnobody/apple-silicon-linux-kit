@@ -86,7 +86,7 @@ USB 3 speed of the T7 on `port3` (right) and `port1` (left rear) is still not me
 
 ## Next steps
 
-1. USB 3 speed of the T7 on `port3` (right), `port2` (left front) and `port1` (left rear). Waits for the user (see below). Port1 waits for the USB-C session release.
+1. USB 3 speed of the T7 on the two other ports (done once on `port2`: 722 MB/s read). Port1 waits for the USB-C session release.
 2. SD card test on the built-in slot (`mmc0`) and on the dongle card reader. Waits for the user to find an SD card.
 3. Thunderbolt device test. Waits for the user to plug in a device. The dock test is a separate task in `TASKS.md`.
 4. USB write speed on a mounted drive. Use `dd oflag=direct`. Buffered exFAT writes are slow on Linux. This is not a hardware fault.
