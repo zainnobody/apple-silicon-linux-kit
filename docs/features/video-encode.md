@@ -276,3 +276,15 @@ Still blocked on the user:
 - **TEXT identity windows:** three 16 KiB windows at TEXT + 0, + 0x80000 and + 0x124000 (the last 16 KiB). Digests are in the local draft.
 - **Draft row** is updated with these values. It is not compiled. Still open in the row: DPE enum for the Janus tables, `data_literal`, the CpAd, WrAd and IOBA tag addresses, and whether the DATA is iBoot-owned.
 - **Left for the user:** Stage 0b (live device tree read) and the version pair. Nothing was compiled or loaded.
+
+### 11.9 Stage 0b result: live device tree (2026-10-27, read only)
+
+The coordinator took a read-only dump of the live tree on the M3 (kernel `7.2.11-m3gpu+`, Touch ID test boot, so it also holds SEP nodes). I read the dump on this Mac. Nothing was run on the M3 by this session.
+
+- **No encoder node.** There is no `ave`, `apr` or `dart-ave` node, as expected.
+- **Power domains exist.** All six VENC domains are in the pmgr tree: system, DMA, pipe 4, pipe 5, ME 0, ME 1. System, DMA and ME 0 have phandles. Pipe 4, pipe 5 and ME 1 have none (the same shape as the M2 case in upstream docs/90, so the overlay loader must find them by label or path). Pipes and ME 0 sit under DMA, DMA under system, ME 1 under ME 0. The four ADT vote domains have no Linux node. This closes the power-domain gap (section 5, row 1) for the base case.
+- **Interrupt format.** The controller is `apple,t6030-aic3` with 3 interrupt cells. The M1 overlays use 4. ADT interrupt numbers map straight into the Linux tree (checked on the AVD node and its DART). So AVE is 810, 804, 803, 806, 805 and its DART 807.
+- **DART compatible.** All 29 DARTs are `apple,t6030-dart` with fallback `apple,t8110-dart`.
+- **No PMP entry for VENC.** The PMP report has entries 7 to 10 only (display and storage). The optional speed vote cannot be used until one is added. Base encode does not need it.
+- **Still unknown.** Whether the boot ADT still carries `pre-loaded` and `segment-ranges` for `ave`: Linux drops them. It needs an m1n1 console or proxy read at boot, or a physical memory check. This stays the key risk for the reserved-memory gap (section 5, row 6).
+- **Draft overlay updated** with these facts (still not compiled or loaded).
