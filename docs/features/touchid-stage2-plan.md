@@ -118,6 +118,27 @@ Result by the coordinator: overall PASS. Parts 1, 1b (mailbox bound to `apple-ma
 
 **Recommendation:** do stage 3a next, but only after (1) the calibration file check and the J516S sensor block are prepared offline, and (2) the user agrees to one more test boot. Do not start stage 3b until 3a works and the user has a raw copy of the container. Stage 3b also needs a decision about macOS: it shares the gigalocker.
 
+## Stage 3a: sensor-only open, prepared offline (2026-10-27, not yet booted)
+
+**Goal.** One open of `/dev/sep-bio` with xART writes off and no keybag creation. The driver then brings up the SPI bus, takes the sensor power line, registers the biometric buffers with the enclave, and stops with "no persisted identity keybag" (ENOENT). That ENOENT is the expected end state. No capture is possible (EROFS), and the driver refuses a second open until the next reboot.
+
+**What 3a does not prove.** The sensor identifier read (the proof that SPI mode, pins and power are right) sits in the driver's bring-up, and bring-up runs only after a keybag was recovered. So 3a shows that the sensor node binds, the power line is taken and the enclave accepts the SBIO setup. It does not show that the sensor answers on the bus. That proof needs stage 3b, or a small diagnostic option in the driver that reads only the sensor status (not built; it would be a module rebuild, no kernel change).
+
+**What was prepared.** Scripts live in the private window folder, copies in `~/window` on the M3 (previous versions kept as `*.pre-3a`).
+
+| Piece | What it does |
+|---|---|
+| `make-window-dtb.py --sensor` | Adds four lines to the sensor node: power line (a GPIO on the always-on "nub" controller, taken from the ADT entry `function-mesa_pwr`), the two chip-select timing values, and the calibration file name. The SPI controller and the node stay disabled. The driver enables them at the open. |
+| `touchid-boot.sh --sensor` | Same checks as before, plus: the four lines exist, the power line points at the nub controller and a pin inside its range, SPI controller and node still disabled, nothing removed from the base DTB. `--dry` run on the M3 passed (58 lines added, 0 removed; every other DTB equal to base). |
+| `touchid-calib.sh` | Read-only carve of the per-Mac calibration out of the iBoot system container into the user's `touchid/` folder (mode 0600). It prints PASS with size and type (FSCl or FSC2), never the hash. `--install` copies it to the firmware folder. Not needed for 3a, needed from 3b. |
+| `touchid-check.sh` part 6 | Runs when the boot was armed with `--sensor`. Loads the module with `sensor_trace=1`, opens `/dev/sep-bio` once, reads the kernel log. |
+
+**Part 6 verdicts.** PASS: open fails with ENOENT, log has the "no persisted identity keybag" line, SBIO accepted, sensor bound, power line taken, no oops. PARTIAL: ENOENT and SBIO fine but the sensor did not bind or has no power line (fix the sensor DT block, test again). FAIL: any other errno, SBIO refused, a host-state error, or an oops.
+
+**Unverified in the sensor block.** SPI mode (the M3 Air value, `spi-cpha`, is used; M1 Pro and M2 Pro use `spi-cpol`; the module has a `sensor_spi_mode` override for a later test), SPI pin mux (the M3 Air DT has none, so none here), power line polarity (active high, as on every other board), no data-ready interrupt (the driver polls).
+
+**Tested offline.** DTB build with and without `--sensor` (exact 4-line difference). DTB check logic against a good case and a case with the node enabled (caught). Calibration script against a synthetic container in a Linux container (PASS, and FAIL for a container with no calibration). Part 6 verdict logic against stubbed kernel logs (PASS, PARTIAL, FAIL). Dry run on the M3.
+
 ## Gates before step A2 (all must be true)
 
 1. The user says go in the session that owns reboots. The coordinator pauses the other M3 sessions first.
