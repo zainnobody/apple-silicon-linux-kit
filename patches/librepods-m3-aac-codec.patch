@@ -1,0 +1,26 @@
+From 87d4ccba746ac703ccaf92f1492c37f54068d226 Mon Sep 17 00:00:00 2001
+From: m3-local <m3@localhost>
+Date: Mon, 26 Oct 2026 23:21:08 -0700
+Subject: [PATCH] linux: prefer the codec-negotiating a2dp-sink profile (AAC)
+ over SBC-XQ
+
+---
+ linux/media/mediacontroller.cpp | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/linux/media/mediacontroller.cpp b/linux/media/mediacontroller.cpp
+index 078129c..f3513ad 100644
+--- a/linux/media/mediacontroller.cpp
++++ b/linux/media/mediacontroller.cpp
+@@ -169,7 +169,7 @@ QString MediaController::getPreferredA2dpProfile() {
+     return m_cachedA2dpProfile;
+   }
+ 
+-  QStringList profiles = {"a2dp-sink-sbc_xq", "a2dp-sink-sbc", "a2dp-sink"};
++  QStringList profiles = {"a2dp-sink", "a2dp-sink-sbc_xq", "a2dp-sink-sbc"};
+ 
+   for (const QString &profile : profiles) {
+     if (m_pulseAudio->isProfileAvailable(m_deviceOutputName, profile)) {
+-- 
+2.56.0
+

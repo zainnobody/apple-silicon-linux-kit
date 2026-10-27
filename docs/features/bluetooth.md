@@ -69,3 +69,42 @@ Step 5: test on the stock 7.1.13 kernel with one suspend. This tells if Asahi up
 - No pairing test (no device was in pairing mode).
 - No `btmon` trace (needs root for the user channel).
 - No Bluetooth scan on a fresh boot.
+
+## Update: tests with the patched driver (same day, later boot)
+
+Kernel 7.2.11-m3gpu+ with the patched `hci_bcm4377.ko` (patch `patches/hci-bcm4377-j516s-resume-recovery.patch`). Booted at 21:59 and again at 22:44.
+
+| Item | Test run | Result | Evidence |
+|---|---|---|---|
+| Fresh-boot scan | `bluetoothctl --timeout 25 scan on`, 3 runs | PASS | 13 or more devices in run 1, 4 in run 2, 4 in run 3. No `tx timeout` and no `-110` in the kernel log. Before the patch, the same scan found 0 devices (after resume). |
+| Pairing and connect | Headset in pairing mode, paired and connected from the desktop | PASS | `Paired: yes`, `Bonded: yes`, `Trusted: yes`, `Connected: yes`. No `hci0` error in the kernel log. Profiles: A2DP sink, HFP, AVRCP. |
+| Audio route | `pactl list cards`, `pactl list short sinks` | PASS (routing only) | The headset is the default sink. The microphone source exists. Profiles A2DP (SBC, SBC-XQ, AAC) and HFP (CVSD, mSBC) are available. Sound quality and a call were not tested by this session. |
+| Resume with the patch | One suspend and resume, then a scan | NOT DONE | Suspend is scheduled by the coordinator session. Expected log: `recovering transport once after resume command timeout`, then `performing hardware reset recovery`, then `hardware reset recovery completed successfully`. |
+
+## AirPods Max features with LibrePods
+
+The kernel driver does not give Apple features (ear detection, noise control, battery). The app LibrePods does. It talks to the headphones over a private Apple channel. Build steps: `build/build-librepods.sh` (pinned source commit 89356c0, GPL v3). Two local patches: `patches/librepods-m3-aac-codec.patch` and `patches/librepods-m3-resume-playback.patch`.
+
+Safety review: SkillSpector scan of `linux/` found 19 findings (17 MEDIUM, 2 LOW, 0 HIGH). They are `sudo` lines in the README and text in a bundled QR library. The Linux C++ code has no network code. It calls `bluetoothctl connect` and `disconnect`, and `systemctl --user restart wireplumber`. It can write an autostart entry only when the user asks. Verdict: CAUTION (young project; only the flagged parts were read in detail).
+
+| Item | Test run | Result | Evidence |
+|---|---|---|---|
+| Control channel | App log (`journalctl --user -t librepods`) | PASS | The app finds the connected headset, opens the control channel and requests notifications. |
+| Battery | App log | PASS | `Headset: 100%`. |
+| Noise control, M3 to headset | `librepods-ctl noise:transparency`, then `noise:anc` | PASS (log) | The app writes the packet and the headset answers with the same mode. The sound change was not confirmed by ear. |
+| Noise control, headset to M3 | Button on the headset | PASS | Each press arrives in the log as Off, ANC or Transparency. |
+| Ear detection | Take the headset off and put it on | PASS | The log shows `NotInEar` and `InEar` events. |
+| Pause on take-off | Music in Firefox, take the headset off | PASS | `Paused playback for org.mpris.MediaPlayer2.firefox...`. The user confirmed the pause. |
+| Resume on put-on | Put the headset on again | FAIL (found) | No resume attempt in the log. Cause: the default rule resumes only when both ears report in ear, and the check for the active sink ran before the sink came back. Fix: `librepods-m3-resume-playback.patch` (resume when one ear is back, after 1 s). Written, not yet built or tested. |
+| Codec | `pactl list cards` | FIXED | LibrePods forced SBC-XQ on every put-on and tried AAC last. `librepods-m3-aac-codec.patch` prefers the codec-negotiating profile `a2dp-sink` (AAC). Built and confirmed: the active profile is `a2dp-sink`. Sound was not compared by ear. |
+| Popup windows | User report | OPEN | The window opens only at start (without `--hide`), on a tray click or on a `reopen` command. A user report of popups during idle is not explained. The app was restarted three times without `--hide` during tests, which may explain part of it. |
+| Autostart | n/a | NOT DONE | The app runs only when started by hand. A user service with `--hide` is still to do. |
+
+Note on a desktop crash seen at 23:23: `plasmashell` crashed (SIGSEGV) during the GPU stress test. The stack ends in `agx_batch_init` in the Mesa AGX driver. It is a GPU driver fault, not a Bluetooth or LibrePods fault. It was sent to the GPU session.
+
+## Left
+
+- Suspend and resume test with the patched driver (the original fault).
+- Build and test `librepods-m3-resume-playback.patch`.
+- Popup windows, call and microphone test, autostart as a user service.
+- Optional: one resume test on the stock 7.1.13 kernel.

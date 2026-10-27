@@ -1,0 +1,41 @@
+From d27071375737167be9928edb618c6b320f311d37 Mon Sep 17 00:00:00 2001
+From: m3-local <m3@localhost>
+Date: Mon, 26 Oct 2026 23:24:33 -0700
+Subject: [PATCH] linux: resume playback when one ear is back, after the sink
+ returns
+
+---
+ linux/media/mediacontroller.cpp | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/linux/media/mediacontroller.cpp b/linux/media/mediacontroller.cpp
+index f3513ad..0a87b27 100644
+--- a/linux/media/mediacontroller.cpp
++++ b/linux/media/mediacontroller.cpp
+@@ -6,6 +6,7 @@
+ 
+ #include <QDebug>
+ #include <QProcess>
++#include <QTimer>
+ #include <QThread>
+ #include <QRegularExpression>
+ #include <QDBusConnection>
+@@ -65,9 +66,14 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
+     activateA2dpProfile();
+ 
+     // Resume if conditions are met and we previously paused
+-    if (shouldResume && !pausedByAppServices.isEmpty() && isActiveOutputDeviceAirPods())
++    // AirPods Max report the ears in separate steps, and the sink returns a moment
++    // after the profile switch. Resume when one side is in ear, after a short delay.
++    if ((shouldResume || primaryInEar || secondaryInEar) && !pausedByAppServices.isEmpty())
+     {
+-      play();
++      QTimer::singleShot(1000, this, [this]() {
++        if (isActiveOutputDeviceAirPods())
++          play();
++      });
+     }
+   }
+   else
+-- 
+2.56.0
