@@ -28,4 +28,7 @@ cmake -B build -DCMAKE_BUILD_TYPE=Release
 nice make -C build -j4
 echo "BUILD_DONE. Run it inside the desktop session:"
 echo "  QT_QPA_PLATFORM=wayland $SRC/linux/build/librepods --hide"
-echo "Logs go to the user journal: journalctl --user -t librepods"
+echo "Start at login (user service, no sudo):"
+echo "  mkdir -p ~/.config/systemd/user && cp $KIT/install/librepods.service ~/.config/systemd/user/"
+echo "  systemctl --user daemon-reload && systemctl --user enable --now librepods.service"
+echo "Logs go to the user journal: journalctl --user -t librepods (they hold the headset keys: do not share them)"

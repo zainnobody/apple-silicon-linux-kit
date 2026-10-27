@@ -98,12 +98,13 @@ Safety review: SkillSpector scan of `linux/` found 19 findings (17 MEDIUM, 2 LOW
 | Resume on put-on | Put the headset on again (with `librepods-m3-resume-playback.patch` built) | PASS | Log: `Paused playback for ...firefox...`, then `Resumed playback for ...firefox...` about 1 s after put-on at 23:46:36. The user confirmed. Before the patch there was no resume attempt: the default rule needs both ears in ear, and the check for the active sink ran before the sink came back. The patch resumes when one ear is back, after 1 s. A short pause, resume, pause chain can happen while the headset reports its ears in steps (23:46:31 to 23:46:32). |
 | Codec | `pactl list cards` | FIXED | LibrePods forced SBC-XQ on every put-on and tried AAC last. `librepods-m3-aac-codec.patch` prefers the codec-negotiating profile `a2dp-sink` (AAC). Built and confirmed: the active profile is `a2dp-sink`. Sound was not compared by ear. |
 | Popup windows | User report | OPEN | The window opens only at start (without `--hide`), on a tray click or on a `reopen` command. A user report of popups during idle is not explained. The app was restarted three times without `--hide` during tests, which may explain part of it. |
-| Autostart | n/a | NOT DONE | The app runs only when started by hand. A user service with `--hide` is still to do. |
+| Autostart | `install/librepods.service` as a systemd user unit, `enable --now` | PASS | `is-active` and `is-enabled` both report yes. The app starts in the tray with `--hide` and connects to the headset (battery read). Not tested across a login. |
 
 Note on a desktop crash seen at 23:23: `plasmashell` crashed (SIGSEGV) during the GPU stress test. The stack ends in `agx_batch_init` in the Mesa AGX driver. It is a GPU driver fault, not a Bluetooth or LibrePods fault. It was sent to the GPU session.
 
 ## Left
 
 - Suspend and resume test with the patched driver (the original fault).
-- Popup windows, call and microphone test, autostart as a user service.
+- Popup windows, and a call and microphone test.
+- Privacy: the app writes the headset encryption keys into the user journal. Do not share its logs.
 - Optional: one resume test on the stock 7.1.13 kernel.

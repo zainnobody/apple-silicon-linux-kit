@@ -1,0 +1,14 @@
+[Unit]
+Description=LibrePods (AirPods features), tray only
+PartOf=graphical-session.target
+After=graphical-session.target
+
+[Service]
+Type=simple
+Environment=QT_QPA_PLATFORM=wayland
+ExecStart=%h/librepods-build/linux/build/librepods --hide
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical-session.target
