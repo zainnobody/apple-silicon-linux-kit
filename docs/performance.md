@@ -71,6 +71,18 @@ LLM token generation reads all weights once per token, so it depends on memory r
 | CPU read, `tests/cpu-bw.c`, 1 / 6 / 12 threads | 29.3 / 32.6 / 32.4 GB/s |
 | Published M3 Pro memory bandwidth | 150 GB/s |
 
+Shared-limit test (`tests/mem-shared.sh`, 2026-10-26 18:22, no root, no register access). Mean values; when two readers run at the same time, the mean covers the overlap.
+
+| Readers | Result |
+|---|---|
+| P cores alone (6 threads, up to 4.06 GHz) | 32.4 GB/s |
+| E cores alone (6 threads, up to 2.75 GHz) | 29.8 GB/s |
+| GPU alone | 31.1 GB/s |
+| P cores and GPU at the same time | 19.0 + 17.8 = 36.8 GB/s in total |
+| P cores and E cores at the same time | 21.2 + 16.2 = 37.4 GB/s in total |
+
+Every reader alone reaches about 30 to 32 GB/s, and two readers together share about 37 GB/s. The slower E cores almost reach the same value as the P cores. So the limit is shared below the CPU clusters and the GPU (memory controller or fabric), and it does not depend on the CPU clock. This supports the low memory performance state cause. It does not prove it.
+
 The CPU and the GPU both stop near 32 GB/s, so the limit is in the memory system, not in the GPU driver or the shaders. Probable cause: under Linux the memory controller or fabric stays in a low performance state. On this kernel the CPU clock driver binds the M3 clusters as `apple,t8112-cluster-cpufreq`, which sends no memory vote (`has_ps2 = false`). This is not proven yet.
 
 Next: run `tests/cpu-bw.c` on the same machine in macOS (offline) for the reference number. Research notes: `docs/memory-bandwidth-research.md` (no Linux driver casts a memory or fabric performance vote on T6030; the fork has one only for T8140).
