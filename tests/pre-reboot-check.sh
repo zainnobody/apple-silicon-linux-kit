@@ -2,7 +2,7 @@
 # Read-only check before a reboot into the stage K default (J516S, 7.2.11-m3gpu+). Changes nothing.
 # Uses sudo -n where root is needed; a line says SKIP when sudo needs a password.
 # Prints PRE_REBOOT_OK only when every check passes.
-set -uo pipefail
+set -u   # no pipefail: grep -q ends pipes early on purpose
 KREL=7.2.11-m3gpu+
 IMG_SHA=65798c912f6b14c382cef3a818d66584d644604224694ee298182a39d962c113
 STAGEE_SHA=f3197272d588f4b0a037c5f81f0cfb2c36dfc6c7398a4205910ed8b9cbaa0725

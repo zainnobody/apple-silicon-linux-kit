@@ -2,14 +2,16 @@
 # Read-only health check after a boot into the stage K default (J516S, 7.2.11-m3gpu+). Changes nothing.
 # Short GPU and memory tests (about 1 minute). Uses sudo -n only to read devices_deferred.
 # Test programs: tests/build-tests.sh output, found in $AGX_TESTS (default ~/vktest).
-set -uo pipefail
+set -u   # no pipefail: grep -q ends pipes early on purpose
 KREL=7.2.11-m3gpu+
 T="${AGX_TESTS:-$HOME/vktest}"
 export VK_DRIVER_FILES=/opt/mesa-m3/share/vulkan/icd.d/asahi_icd.aarch64.json
 fail=0
 ok()  { echo "ok:   $*"; }
 bad() { echo "FAIL: $*"; fail=1; }
-klog() { journalctl -k -b --no-pager 2>/dev/null; }
+# Read the kernel log once: grep -q on a live journalctl pipe fails under pipefail.
+KLOG="$(journalctl -k -b --no-pager 2>/dev/null)"
+klog() { printf '%s\n' "$KLOG"; }
 
 echo "== Boot"
 [ "$(uname -r)" = "$KREL" ] && ok "kernel $KREL" || bad "kernel is $(uname -r)"
@@ -46,7 +48,9 @@ lsmod | grep -q '^thunderbolt_apple ' && bad "thunderbolt_apple is loaded (shoul
 modinfo -n thunderbolt_apple >/dev/null 2>&1 && ok "thunderbolt_apple module available" || bad "thunderbolt_apple module not found"
 lsmod | grep -q '^hci_bcm4377 ' && ok "hci_bcm4377 loaded" || bad "hci_bcm4377 not loaded"
 [ "$(strings "$(modinfo -n hci_bcm4377)" | grep -c j516s)" -ge 1 ] && ok "patched hci_bcm4377 in use" || bad "unpatched hci_bcm4377"
-bluetoothctl show 2>/dev/null | grep -q "Powered: yes" && ok "Bluetooth powered" || bad "Bluetooth not powered"
+# bluetoothd powers the controller some seconds after boot.
+for i in 1 2 3 4 5 6; do bluetoothctl show 2>/dev/null | grep -q "Powered: yes" && break; sleep 5; done
+bluetoothctl show 2>/dev/null | grep -q "Powered: yes" && ok "Bluetooth powered" || bad "Bluetooth not powered after 30 s"
 t="$(klog | grep -c 'hci0: command .* tx timeout')"
 [ "$t" = 0 ] && ok "no hci0 command timeouts" || bad "$t hci0 command timeouts"
 
