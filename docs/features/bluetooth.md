@@ -95,7 +95,7 @@ Safety review: SkillSpector scan of `linux/` found 19 findings (17 MEDIUM, 2 LOW
 | Noise control, headset to M3 | Button on the headset | PASS | Each press arrives in the log as Off, ANC or Transparency. |
 | Ear detection | Take the headset off and put it on | PASS | The log shows `NotInEar` and `InEar` events. |
 | Pause on take-off | Music in Firefox, take the headset off | PASS | `Paused playback for org.mpris.MediaPlayer2.firefox...`. The user confirmed the pause. |
-| Resume on put-on | Put the headset on again | FAIL (found) | No resume attempt in the log. Cause: the default rule resumes only when both ears report in ear, and the check for the active sink ran before the sink came back. Fix: `librepods-m3-resume-playback.patch` (resume when one ear is back, after 1 s). Written, not yet built or tested. |
+| Resume on put-on | Put the headset on again (with `librepods-m3-resume-playback.patch` built) | PASS | Log: `Paused playback for ...firefox...`, then `Resumed playback for ...firefox...` about 1 s after put-on at 23:46:36. The user confirmed. Before the patch there was no resume attempt: the default rule needs both ears in ear, and the check for the active sink ran before the sink came back. The patch resumes when one ear is back, after 1 s. A short pause, resume, pause chain can happen while the headset reports its ears in steps (23:46:31 to 23:46:32). |
 | Codec | `pactl list cards` | FIXED | LibrePods forced SBC-XQ on every put-on and tried AAC last. `librepods-m3-aac-codec.patch` prefers the codec-negotiating profile `a2dp-sink` (AAC). Built and confirmed: the active profile is `a2dp-sink`. Sound was not compared by ear. |
 | Popup windows | User report | OPEN | The window opens only at start (without `--hide`), on a tray click or on a `reopen` command. A user report of popups during idle is not explained. The app was restarted three times without `--hide` during tests, which may explain part of it. |
 | Autostart | n/a | NOT DONE | The app runs only when started by hand. A user service with `--hide` is still to do. |
@@ -105,6 +105,5 @@ Note on a desktop crash seen at 23:23: `plasmashell` crashed (SIGSEGV) during th
 ## Left
 
 - Suspend and resume test with the patched driver (the original fault).
-- Build and test `librepods-m3-resume-playback.patch`.
 - Popup windows, call and microphone test, autostart as a user service.
 - Optional: one resume test on the stock 7.1.13 kernel.
