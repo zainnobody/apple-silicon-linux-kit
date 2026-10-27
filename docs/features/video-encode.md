@@ -89,16 +89,16 @@ Source: macOS hardware tree dump and restore firmware folder, read only. Only st
 | `pre-loaded` | present, value 1 | present |
 | `segment-ranges` | present, 2 entries. TEXT about 1.16 MB at IOVA 0, DATA about 1.17 MB right after it (sizes read from the property) | 2 entries |
 | `reg` banks | 5 (about 4.4 MB, 8 MB, 16 KB, 31 KB, 16 MB) | not stated in what I read |
-| Interrupts | **5** | 1 (README) |
-| Power gates and clock gates | **10 ids** in each list | Max has a fabric domain (`afnc4_ioa`) that M1 Pro lacks. The count was not stated |
+| Interrupts | 5 | 5 (ADT facts in upstream `data/derived/adt-ave-nodes.txt`). The README says the driver uses only the first |
+| Power gates and clock gates | 10 ids in each list | 11 ids |
 | `iommu-parent` | the AVE DART | same |
 
-The M3 block is larger and has more wiring than the M1 family. The 5 interrupts and 10 gates suggest more sub-units than the single-interrupt M1 design. This is an inference. The driver code must be checked against it.
+The M3 node has the same shape as the M1 Pro node: 5 `reg` banks, 5 interrupts, similar gates. The DPE, ASC and AXI2AF banks have equal sizes. The M3 block is structurally close to the M1 Pro block. (An earlier version of this section said the M3 had more wiring than M1. That was wrong. It came from a README line that only says the driver uses interrupt 0.)
 
 ### 4.2 AVE DART
 
 - Node `dart-ave@BD030000`, compatible `dart,t8110`, page size 0x4000 (16 KB), 16 stream ids, `sid` list of 3, `bypass-12` and `bypass-15` properties, `real-time`, `remap`, two DART tunable sets (`dart-tunables-instance-0` and `-1`), `smmu-clock-gating`.
-- `dart,t8110` is the same DART family the driver already handles for the M2 row (`dart_t8110` flag in `ave_soc.c`, per docs/79). So the IOMMU part should be the easy part. Linux `apple-dart` on this M3 already handles many `t8110`-style DARTs (23 users on this boot, per `lsmod`).
+- `dart,t8110` is the same DART family the driver already handles for the M2 row (`dart_t8110` flag in `ave_soc.c`, per docs/79). So the IOMMU part should be the easy part. Linux `apple-dart` on this M3 already serves other DARTs (23 users on this boot, per `lsmod`). New for this driver: streams 0, 12 and 15 (M1 Pro uses 0 and 1), and the `bypass-12` and `bypass-15` properties.
 
 ### 4.3 Firmware
 
@@ -253,3 +253,18 @@ So gap 4 (register tables) and the device capability row can be built offline fr
 6. Run the firmware emulator on H15S with the host Mac only, if the snapshot tools allow a start from the file image (the author starts from a live snapshot, so this may not be possible).
 
 Then stop and ask for the first go that touches the M3 (Stage 0b).
+
+### 11.7 Stage 0 results (2026-10-27, offline)
+
+Upstream is cloned to `ave-m3/upstream` (9ab14e4, GPL-2.0). Our scripts and drafts are in `ave-m3/work` (local git, not part of this repository). Their outputs stay in `private-dumps/`. Rules from the upstream `AGENTS.md` apply: never load a module from `driver/` or `test/`, never apply an overlay, never write to PMGR, `/dev/mem` or debugfs. Only the operator runs hardware tests.
+
+- **DPE tables built.** The upstream extractor does not work on a macOS 26 kernelcache (symbol prefix `gsc_s`, no `lzfse` tool). A small adapter does. Control: the M2 set `Atlas_8112` gives 1, 124 and 123 entries, as upstream docs/90 states. The M3 Pro set `Janus_6030` gives 2, 124 and 123 entries.
+- **The M3 tables differ a lot.** Only 41 to 42 of 124 CAC entries equal the M1 or M2 sets. The offsets reach 0x468 where M1 and M2 stop at 0x1ec, so the CAC register window changed. The base addresses of the two windows are the same as before, so the driver's apply code works. The driver's diagnostic reads at fixed DPE offsets (0xdc4a4, 0xdc5b0) may hit other registers on M3. They are reads only.
+- **DevCap.** The kext entry `CEntry_6030` has the same word layout as the M1 Pro, M1 and M2 entries. No new top-level field. The three `AVE_DevInfo` numbers (DevID, DevType, ChipType) are not read yet.
+- **Power gates named.** The 10 ADT ids are VENC system, SoC nominal vote, memory fast, pipe 4, pipe 5, ME 0, ME 1, DMA, SoC max vote and fabric max vote. The pipe, ME and DMA names match the domain names in the M1 overlays. The four vote domains are for the optional speed vote.
+- **Draft files.** An overlay node and a SoC row skeleton exist as drafts. They are not compiled against the M3 kernel tree and not loaded. Open fields in the row: the three DevInfo numbers, the STKG offset, the TEXT identity hashes, the DPE enum, the data literal and the tag addresses.
+- **Source-reader risk stays.** The upstream M2 port lost days to the changed source-reader function. H15S changed it more.
+
+Still blocked on the user:
+1. Stage 0b read-only look at the live Linux tree on the M3 (power-domain labels, interrupt cell format, whether the boot tree still carries `pre-loaded` and `segment-ranges`). You said not to touch the M3, so I did not.
+2. The macOS version pair (section 11.4).
