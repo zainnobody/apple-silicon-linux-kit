@@ -2,10 +2,12 @@
 # Safety guard for load tests: every 2 s reads all macsmc_hwmon, macsmc_soc_die, apple_pmp and
 # apple_pmp_hotspot temperatures and both fans. Stops the load (vk-stress, 7z, heat-soak.sh,
 # llama-bench) when any sensor reaches 100 C, or when the hottest sensor stays above 95 C for
-# 60 s while both fans read 0 rpm. Ends by itself when heat-soak.sh is no longer running.
-# Usage: heat-guard.sh [log]
+# 60 s while both fans read 0 rpm. Ends by itself when heat-soak.sh (or the process WATCH) is no
+# longer running. Usage: heat-guard.sh [log] [pid to watch]
 set -u
 LOG=${1:-$HOME/gpu-perf/heat-guard.log}
+WATCH=${2:-}
+running() { if [ -n "$WATCH" ]; then kill -0 "$WATCH" 2>/dev/null; else pgrep -f "heat-soa[k].sh" > /dev/null; fi; }
 SENS=(); FANS=()
 for h in /sys/class/hwmon/hwmon*; do
 	case $(cat "$h/name") in macsmc_hwmon | macsmc_soc_die | apple_pmp | apple_pmp_hotspot) ;; *) continue ;; esac
@@ -15,7 +17,7 @@ done
 hot=0
 stop() { echo "$(date +%T) STOP: $*" | tee -a "$LOG"; pkill -f "heat-soa[k].sh"; pkill -x vk-stress; pkill -x 7z; pkill -x llama-bench; exit 3; }
 echo "$(date +%T) guard start, ${#SENS[@]} sensors, ${#FANS[@]} fans" >> "$LOG"
-while pgrep -f "heat-soa[k].sh" > /dev/null; do
+while running; do
 	max=0; who=
 	for f in "${SENS[@]}"; do v=$(cat "$f" 2>/dev/null) || continue; [ "$v" -gt "$max" ] && { max=$v; who=$f; }; done
 	fans=0; for f in "${FANS[@]}"; do v=$(cat "$f" 2>/dev/null); fans=$((fans + ${v%.*})); done
