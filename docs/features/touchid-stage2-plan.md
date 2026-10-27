@@ -170,6 +170,14 @@ Result by the coordinator: overall PASS. Parts 1, 1b (mailbox bound to `apple-ma
 
 **If it is silent in all modes.** The likely causes are the SPI pin mux (none in the DT, as on the M3 Air) and the power pin polarity. Each is one DT edit and one test boot; the probe log shows the reads, so the next step is chosen from evidence.
 
+## Stage 3a+ result (test boot 13:44, check 13:45, 2026-10-27): the sensor answers
+
+**OVERALL PASS.** Parts 1, 1b, 2, 4 and 5 PASS. Part 6 PASS (open ends in ENOENT, keybag missing, no SBIO failure). Part 6b PASS. The probe lines, in order: start (power via the node's own GPIO property, chip-select timing in hardware, device-tree SPI mode 1); mode 1, 0 ms after power-on: answered, state 0, patch acknowledgment 0x60; RESULT: answered in SPI mode 1 (device tree says 1), revision code 0x3352, known. No oops. The M3 went back to the normal boot, apple_sep not loaded.
+
+**What this proves.** The sensor block in the device tree is right for this Mac: power pin and polarity, SPI mode 1 (`spi-cpha`, the M3 Air value), no pin mux needed (the firmware left the pins muxed), 8 MHz, chip-select timing in hardware. The sensor answered at once, with a revision code from the driver's known list. The 0x60 patch acknowledgment means the sensor does not hold its firmware patch after power-on; the real bring-up (stage 3b) loads it, as on the other Macs.
+
+**What is still not proven.** Anything that needs the enclave to accept this Mac's sensor: registration, the calibration challenge, enrol, match. Those run only with a keybag, so they need xART writes (stage 3b). Profile fields inherited from the M2 profile (key-store variant, keybag creation, shared-memory capacity for system firmware 15.6) are untested.
+
 ## Gates before step A2 (all must be true)
 
 1. The user says go in the session that owns reboots. The coordinator pauses the other M3 sessions first.
