@@ -1,6 +1,6 @@
 # Audio, camera and video codecs on the M3 Pro (J516S)
 
-Tested 2026-10-26 over SSH (`user@<m3-tailscale-ip>`) on Fedora Asahi Remix 44.
+Tested 2026-10-26 over SSH on Fedora Asahi Remix 44.
 **Kernel tested: `7.2.11-m3gpu+`** (the one-boot test kernel, not the stock 7.1.13).
 No kernel, boot entry, firmware or m1n1 change was made. No recording or image was kept.
 Asahi status column: from `docs/asahi-m3-pro-status.md`.
@@ -23,10 +23,19 @@ Asahi status column: from `docs/asahi-m3-pro-status.md`.
 ## Notes
 
 - An earlier note in the shared folder said the speaker sink was missing. After the desktop login the sink exists. The earlier reading came from a session without seat access.
-- The host Mac's AirPlay sink ("MacBook host") also shows up in `wpctl`. Test tones went to the speaker node by name, not to it.
+- The host Mac's AirPlay sink also shows up in `wpctl`. Test tones went to the speaker node by name, not to it.
 - ProRes encode and decode in hardware are not part of the hardware decode driver in this kernel.
 
 - One SSH timeout at 21:15 was probably the user closing the lid (suspend). The M3 had no reboot (up 33 min, same kernel). Keep the lid open for tests.
+
+## Camera quality: same-light comparison (2026-10-26 22:50)
+
+- Same room, same two lights, same seat. macOS Photo Booth (1440x960) against Linux ffmpeg capture (1920x1080, `apple-isp`, kernel 7.2.11-m3gpu+).
+- Mean luma at 1280 px width: macOS 150, Linux 128. Saturation equal (14.6 and 14.5).
+- Linux in this light: natural warm colour, no purple cast, face visible, fine grain visible in the flat wall. macOS: cleaner, brighter, less grain, face lit more evenly.
+- The earlier poor frame came mostly from the dark room (one weak lamp), not from a broken camera. Linux is usable in decent light and still behind macOS in noise and brightness. Photo Booth may add its own processing.
+- Calibration files are installed: `/lib/firmware/vendor/apple/isp_{1820,1822,1921,1922,8720,8723}_*.dat` (6 files, dated install time). The driver has a table of about 40 names. A start of the camera printed no "setfile not loaded, streaming without calibration" warning, so a setfile was probably loaded. Which file matched was not logged. The hypothesis that calibration is missing is not supported. The remaining gap may be missing exposure and tone control in Linux (the driver exposes no exposure or gain control), or ISP behaviour that macOS tunes further.
+- Next test: bright daylight, and 5 min of video to see whether auto exposure settles.
 
 ## Next steps
 
