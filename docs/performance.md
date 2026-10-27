@@ -173,9 +173,10 @@ One P core reaches 83 GB/s, the same as the macOS one-thread best (83.1 GB/s). T
 |---|---|---|---|
 | Linux, 10 s, desktop idle | 250.0 | 104.9 | 0 of 251 checks |
 | Linux, 600 s, desktop in use | 109.8 (first 30 s: 201) | 46.0 | 0 of 6,587 checks |
+| Linux, 600 s, desktop idle, no other GPU client (2026-10-27 00:35) | 113.2 (first 30 s: 233, then about 105) | 47.5 | 0 of 6,790 checks |
 | macOS 15.6.1, Metal, steady 0 to 450 s | about 317 | about 133 | 0 of 14,831 checks |
 
-The 600 s value is not a valid reference: after the first 30 s every 30 s window ran at about 105 frames/s while other programs used the GPU.
+The clean 600 s rerun shows the same drop after 30 s with no other GPU client, so the drop does not come from the desktop. A failed suspend try (suspend key at 00:38:59) during the rerun did not change the rate. Log on the M3: `~/vktest/vk-stress-600-clean.log` (30 s lines: 6990, 10160, 13320, 16530, 19690, 22850, 26250, 29420, 32710, 36330, 39520, 42680, 45840, 49000, 52160, 55320, 58490, 61650, 64810 frames; CPU check 27.96 ms per check).
 
 **What limits this test (2026-10-27, `tests/gpu-perf-suite.sh`).** The GPU is not slower than in macOS. The test pattern is the limit:
 
