@@ -93,6 +93,27 @@ Order, cheapest first. Every step is measured with `tests/camera-test.sh` (frame
 
 Dead ends: temporal filter in the device tree (FAILED above); libcamera claiming the node (no gain for grain); `v4l2loopback` (needs a kernel module build; the PipeWire route does the same without one).
 
+## Camera fixes: test results (2026-10-27 12:50 to 13:00, kernel 7.2.11-m3gpu+, scene: a wall and bedding, user away, so only the numbers are comparable; scene lighting not controlled)
+
+Method: `tests/camera-test.sh` (same noise method as the Touch ID baseline: lower is better). Baseline on this scene: noise 4.99, cast 11.9, 150 frames in 5 s (30 fps). The Touch ID baseline of 3.914 was a different scene.
+
+| Test | Result |
+|---|---|
+| ISP control "Exposure, Dynamic Framerate" 0 against 1 (3 runs each, readback confirmed) | **No effect in this light**: noise 4.97 to 5.01 both ways, still 30 fps. It may act only in dim light; not tested dark |
+| Resolution presets 1920x1080, 1920x1440, 1280x960, 1280x720, 640x480 | noise 5.01, 4.90, 4.79, 4.96, 4.41; all 30 fps. Only 640x480 is lower (about 12%), probably from downscaling. **No useful preset** |
+| ffmpeg `hqdn3d` (default) | noise 3.33 (-34%), 30 fps kept |
+| `hqdn3d=4:3:8:6` | noise 3.10 (-38%); about 1.6 CPU cores with grayworld |
+| `nlmeans=s=3:p=3:r=7` | noise 3.05 (-39%); about 2.6 CPU cores |
+| `atadenoise` | noise 3.96 (-21%) |
+| `hqdn3d=4:3:8:6,grayworld` | noise 2.80, cast 3.21 (from 11.9); R/G 1.00, B/G 1.05 |
+| `colorchannelmixer=rr=0.95:bb=1.12` (fixed gains) | cast 2.16 |
+| **PipeWire virtual camera** (`ffmpeg` filters, pipe, `gst-launch-1.0 fdsrc ! videoparse ! pipewiresink mode=provide`), read back through `pipewiresrc` by node name | **Works.** Node `m3-clean-camera` ("M3-Clean-Camera", class Video/Source, role Camera) appears in PipeWire. 150 frames in 5 s. Same path for both: real camera noise 4.41, cast 10.5; virtual camera (hqdn3d + grayworld) noise 2.02 (-54%), cast 3.1 |
+| Picture check (side by side) | Right side smoother and neutral. `grayworld` over-corrects a scene that is mostly one colour (a lavender tint on warm walls). The new script defaults to fixed gains instead |
+
+Caveats: the noise number is a temporal difference, so a temporal denoiser lowers it by design and can ghost moving subjects; judge with a person moving. `pipewire-gstreamer` is already installed. Firefox and Chromium were not tested against the virtual source. The camera LED was not observed (user away). The default `fixed` white balance in `tools/camera-clean.sh` and the final `camera-test.sh --pw` guard were not re-run: the last `--pw` run printed PASS with the real camera's numbers (noise 4.19, cast 10.3) because the virtual source was not running and PipeWire fell back to the default source. The script now fails when the node is missing; that guard is untested.
+
+Scripts: `tests/camera-test.sh` (PASS or FAIL per check, `--save-baseline`, `--compare`, `--dyn-fps`, `--size`, `--vf`, `--pw`), `tools/camera-clean.sh` (the virtual camera, foreground, no root, no module).
+
 ## Next steps
 
 1. Reload `apple_avd` (needs the user's go), check the kernel log and `/dev/video*`, then run the H.264 and HEVC decode tests with CPU use.
