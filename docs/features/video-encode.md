@@ -119,7 +119,7 @@ The M3 block is larger and has more wiring than the M1 family. The 5 interrupts 
 | 1 | **Device-tree node** for `ave` (5 banks, 5 interrupts, power domains, `iommus`) and a `dart-ave` node in `t6030` files | Small to medium | The driver's overlay approach (a loadable module that adds the node) avoids a kernel rebuild. A static node needs a kernel and device-tree build, which the GPU session owns. The power domains depend on the PMGR domain map for ids `0x1a2 0x180 0x181 0xaf 0xb0 0xb1 0xb2 0xae 0x182 0x19f`. I did not map these to the Linux `t6030-pmgr` nodes. The ADT device table is needed for that. A quick id to offset guess collided with ATC domains, so it is not valid |
 | 2 | **IOMMU (DART)** | Small | `dart,t8110`, 16 KB pages. Same as the M2 row. Add the node, `apple-dart` binds |
 | 3 | **Firmware variant** `H15S` | **Large, main risk** | The port checklist says a new variant needs the assert line numbers, MCPU image layouts, firmware VAs and `iboot.*` sizes re-checked. New host fields can hide in changed functions. The M1 to M2 step (H13 to H14) needed work (docs/90). H13/H14 to H15 is a bigger jump, with more interrupts, so the command ABI may have changed |
-| 4 | **Register tables** `ave-13.5-dpe-<set>.bin` | Medium | The driver builds these from the user's macOS 13.5 kernelcache. M3 needs macOS 14 or later. The H15 kext is in the macOS on the M3. The driver mentions `dev[26.6]` rows, so a newer kext path exists |
+| 4 | **Register tables** `ave-13.5-dpe-<set>.bin` | Medium. **Source found (section 11)** | The driver builds these from a macOS kernelcache. The kernelcache of this Mac (macOS 26.7.1) already holds the t6030 tables, so no M3 reboot is needed to get them. Open point: the kext version must match the firmware version (section 11.4) |
 | 5 | **DAPF and m1n1** | Medium, **boot risk** | Unknown if stock m1n1 is enough on t6030 (as on t6000) or if a patch is needed (as on t6001). Needs a test on the M3. Any m1n1 change can stop the boot |
 | 6 | **Reserved memory** | Small, but **a data-loss risk** | The firmware sits in DRAM, placed by iBoot. The Linux device tree on the M3 has `asc-firmware@...` reserved regions for other coprocessors, but none for the AVE TEXT and DATA ranges. m1n1's `dt_reserve_asc_firmware()` is not called for `ave0` (docs/09). Without a reserved region, Linux may reuse that memory. A stage must reserve both ranges. Confirm on a Linux boot whether iBoot still loads AVE and what addresses it uses (they can change per boot) |
 | 7 | **PMP performance vote** | Optional | Without it the block runs at the boot clock (about 3 times slower on M1 Pro, per the numbers in PR 2). Asahi's `apple-pmp-report` matches t6000, t6020 and t8112 only. t6030 is not listed |
@@ -189,3 +189,67 @@ Meanwhile:
 - https://github.com/peetzweg/opendisplay/issues/360
 - https://media.ccc.de/v/39c3-asahi-linux-porting-linux-to-apple-silicon (listed in a search, not watched)
 - Local, read only: macOS hardware tree dump and restore firmware folder (kept in `private-dumps/`, not copied here), and SSH checks of the Linux device tree, kernel config and modules on the M3.
+
+## 11. Follow-up research (2026-10-27, later the same day)
+
+The user asked for more research before a build decision. All work below was offline on the Mac. The M3 was not touched. Extracted files stayed in a scratch folder outside the repository.
+
+### 11.1 New sources read (2026-10-27)
+
+- [docs/90-t8112-m2.md](https://raw.githubusercontent.com/aquarat/apple-m-series-ave-driver/main/docs/90-t8112-m2.md): the M1 to M2 port. Firmware change H13 to H14G needed new host fields, a new DART layout path and a symbol diff of the firmware. One bug (all-black output) came from a changed source-reader path.
+- [docs/87-t6000-m1-pro.md](https://raw.githubusercontent.com/aquarat/apple-m-series-ave-driver/main/docs/87-t6000-m1-pro.md): the M1 Pro port took about two days of lab work (2026-09-29 to 2026-09-30). No hang or SError was reported. One unclean unload leaked DART mappings and needed a reboot.
+- [driver/ave_soc.h](https://raw.githubusercontent.com/aquarat/apple-m-series-ave-driver/main/driver/ave_soc.c) (the file is named `ave_soc.h` in the fetch result): the per-SoC rows. Fields that depend on the firmware variant are `fw_name`, pristine DATA blob, `data_stkg_off`, `text_win`, the `iboot` block and the `dev` rows. A new row also needs the DART and DAPF addresses from the ADT.
+- [docs/93-firmware-emulation.md](https://raw.githubusercontent.com/aquarat/apple-m-series-ave-driver/main/docs/93-firmware-emulation.md): the author runs the AVE firmware under the Unicorn emulator from a memory snapshot. This answers "what would the firmware program" questions on the host Mac, without hardware risk.
+- GitHub API, 2026-10-27: upstream has 4 issues and pull requests, the last commit is 2026-10-18, and one fork exists (henriSchulz). No M3 issue, pull request or branch. A code search for `AppleAVE2FW_H15` found only [blacktop/ipsw-diffs](https://github.com/blacktop/ipsw-diffs), which lists firmware diffs for the H15 variants (H15C, H15D, H15G, H15M, H15S) between macOS builds. It is a diff log, not a driver. No other M3 encoder effort found.
+- Web search 2026-10-27: nothing new. [Phoronix](https://www.phoronix.com/news/Asahi-Linux-AVD-Firmware-M3) covers decode only.
+
+### 11.2 H15S firmware: what it shows
+
+Analysis of the firmware image from the macOS restore folder. The Mach-O is stored uncompressed and unencrypted inside the IM4P wrapper.
+
+- **Layout matches the device tree.** TEXT is 0x128000 bytes at IOVA 0. DATA starts at 0x128000 and is 0x12c000 bytes. These match the two `segment-ranges` entries of the live macOS tree exactly. So H15S is the image iBoot preloads on this M3 (confirmed), and the DART mapping rule of the driver (TEXT then DATA from IOVA 0) fits. For comparison, the M1 Pro (H13S) TEXT is 0xd0000 and DATA 0x128000. The M3 TEXT is about 40 percent larger.
+- **Same code base.** The source paths in the image show the same `Legacy` controllers that the M1/M2 driver already drives: `CAVCController`, `CHEVCController`, `CDMAController`, `COFController`, `CMCTFController`, `CLRMEFSController`. Even file names with `_H13C` remain. The M1/M2 driver ABI is therefore a good starting model.
+- **New or extra parts.** There are also `Firmware/` modules (HW engine scheduler, MCPU controller, reference manager, rate control, device capability table). The image has 1252 text symbols, so the symbol-diff method of docs/90 works.
+- **Source-reader path grew.** `CDMAController::ConfigPipeRdDMA` is 0x670 bytes on H15S. The M2 doc gives 0x3e0 (H13S) and 0x4d4 (H14G). This is the function that caused the all-black bug on M2. Expect work here.
+- **Device capability check.** The firmware refuses to start when its device capability lookup fails. The lookup uses DevID, DevType, ChipType, DevRevision, Arch, SVE number and group size. The driver's `dev` row must carry the right values for the M3. The kext holds the t6030 table (section 11.3).
+- **RTKit.** The image reports RTKit 2784.140.9, older than the RTKit 3255.160.4 that the fork's README names for M1 Max. The RTKit protocol version may differ. Not yet checked against `apple-rtkit`.
+- **No ProRes, AV1 or VP9 strings** in the AVE image. ProRes is the separate `apr` block.
+
+### 11.3 The kext tables for t6030 exist and are readable here
+
+This Mac runs macOS 26.7.1 (kext `AppleAVE2` 905.41.1). Its kernelcache is world-readable and holds the AVE2 kext. A scan of the decompressed kernelcache found symbol names for these table sets:
+
+| Chip family | DPE configuration set | Other tables |
+|---|---|---|
+| M1 | `Acis_8101`, `Acis_8103` | CAC 8 bit, 10 bit, default |
+| M2 | `Atlas_8110`, `Atlas_8112` | CAC and CAT, 8 bit, 10 bit, default |
+| M1 Pro, Max, Ultra | `Castor_6000`, `Castor_6001`, `Castor_6002` | plus AXI2AF configuration |
+| **M3 Pro (t6030)** | **`Janus_6030`** | CAC and CAT 8 bit, 10 bit, default; AXI2AF configuration and default; **device capability `CEntry_6030`** |
+| M3 Max | `Janus_6031`, `Janus_6034` | AXI2AF configuration |
+
+So gap 4 (register tables) and the device capability row can be built offline from a file on this Mac. The upstream tool `ave_fwgen.py` reads a macOS 13.5 kernelcache. It must be adapted to the macOS 26 layout. The driver already has a `dev[26.6]` row type, so a 26.x path exists.
+
+### 11.4 Open point: version match
+
+- The M3's own macOS is 15.6.1 (build 24G90). The H15S image comes from that restore folder.
+- The kext in this Mac is from macOS 26.7.1. The ABI between kext and firmware changes with the macOS version (the driver has separate ABI modes for 13.5 and 26.6).
+- Two safe ways: (a) take the kernelcache from the M3's own macOS 15.6.1 (needs a boot into macOS on the M3), or (b) take the H15S firmware from a macOS 26.x restore image and pair it with this Mac's kext (needs a download of one file from a restore image; the file is about 1.7 MB, the image is several GB, so a partial fetch tool is needed).
+- Stage 0 must say which pair the driver supports. Mixing versions is the main way to get a wrong ABI.
+
+### 11.5 Updated assessment
+
+- **Risk:** lower than first thought for the offline part. The firmware code base is the same family, the table source is on hand, the DART family is known, and the layout matches the live tree.
+- **Still unknown:** whether stock m1n1 is enough (DAPF), whether the live Linux boot tree still carries `pre-loaded` and `segment-ranges` for `ave`, the 10 power domains, the version match, and the changed source-reader path.
+- **Effort estimate (judgement):** the M1 Pro port took two days and the M2 port a few days after it. The M3 firmware differs more. My estimate is 1 to 4 weeks with AI help for H.264 encode at first-frame quality, plus extra time for HEVC, speed votes and desktop apps. This replaces the 2 to 6 weeks in section 6.
+- **No blocker found.** Nothing found so far rules out a port.
+
+### 11.6 Updated Stage 0 (offline, no M3 access)
+
+1. Clone upstream into its own folder under the project (GPL-2.0 source, public, small). Read `driver/ave_soc.c`, `docs/79`, `docs/90`, `docs/99`.
+2. Adapt the table extractor to the macOS 26 kernelcache. Build the `Janus_6030` tables and the `CEntry_6030` row into local files in `private-dumps/` only.
+3. Diff the H15S symbols against an H14G image (upstream docs give sizes and function names; a second image needs a restore image download, ask first).
+4. Resolve the 10 power-gate ids through the ADT device table. Write the draft overlay for `ave` and `dart-ave`.
+5. Draft the `t6030` row in a patch file. Do not load anything.
+6. Run the firmware emulator on H15S with the host Mac only, if the snapshot tools allow a start from the file image (the author starts from a live snapshot, so this may not be possible).
+
+Then stop and ask for the first go that touches the M3 (Stage 0b).
