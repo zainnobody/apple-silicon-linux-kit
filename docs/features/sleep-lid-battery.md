@@ -105,9 +105,20 @@ Read on the M3 on 2026-10-27 after the reboot (current kernel `7.2.11-m3gpu+`, s
 
 **Status:** cause **not found**. Open: what raised `0x20` at 08:51:52 with no plug event, and why the state lasted 30 minutes.
 
-## Install plan for the Wi-Fi recovery hook (needs the user's go)
+## Wi-Fi recovery hook: installed 2026-10-27 12:32, logic test passed, real test open
 
-The hook (`tools/sleep-wifi-hook.sh`) writes one file under `/usr/lib/systemd/system-sleep/`. That is a lasting system change, so it is **not installed** and needs the user's own go in the session that owns this report. Steps:
+**Status (2026-10-27 12:43):**
+
+- Installed by the coordinator session, which acted for the user. Command: `sudo ~/sleep-wifi-hook.sh install` (a copy of `tools/sleep-wifi-hook.sh` from commit `5eadf75`). File: `/usr/lib/systemd/system-sleep/90-agx-wifi-recover`, root, mode 0755, SELinux type `bin_t`, 738 bytes. I did not run the install.
+- I checked the file on the M3 (read-only): its SHA-256 starts with `22404245d7f53c57`, the same as the output of `tools/sleep-wifi-hook.sh print` in the repo. It survived the 12:42 reboot (up since 12:43:11, kernel `7.2.11-m3gpu+`).
+- Logic test at 12:33, relayed by the coordinator and confirmed by the journal line `agx-wifi-recover: suspend failed (fail count 0 -> 1); restarting the Wi-Fi radio` at 12:33:19: with a fake stats folder, `pre` and `post` with no failure did nothing. With the fail count going 0 to 1 the hook restarted the radio, and Wi-Fi was enabled and `wld0` connected 25 seconds later. **Pass.**
+- Side finding (coordinator): the radio restart makes the driver log `add iface p2p-dev-wld0 ... err=-52` again. It is the same harmless error as after every resume.
+- **Not done:** the real test with a USB-C display attached and the suspend key (it needs the user, and the coordinator's sleep inhibitor released). Until it runs, it is not proven that the radio toggle fixes the drop after a real refused suspend.
+- **Undo:** `sudo ~/sleep-wifi-hook.sh undo` (or `sudo tools/sleep-wifi-hook.sh undo` from the repo). It removes the one file.
+
+The original plan follows. Steps 2 and 3 are done.
+
+The hook (`tools/sleep-wifi-hook.sh`) writes one file under `/usr/lib/systemd/system-sleep/`. That is a lasting system change. Steps:
 
 1. **Show it.** On the M3, in the repo copy: `tools/sleep-wifi-hook.sh print`. Nothing is written.
 2. **Install (user types the password in the own Terminal tab):** `sudo tools/sleep-wifi-hook.sh install`. It runs a syntax check first, then writes `/usr/lib/systemd/system-sleep/90-agx-wifi-recover` (mode 0755, root). Check: `tools/sleep-wifi-hook.sh status` prints `installed`.
