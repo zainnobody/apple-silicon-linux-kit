@@ -148,6 +148,21 @@ Why `awdl0` is the likely contributor. Upstream `brcmf_setup_ifmodes()`: with P2
 
 Consequence that does not depend on the answer: a suspend key press with a USB-C display attached repeats the NetworkManager sleep and wake with no real sleep. That belongs to the sleep and display work, not to AirDrop.
 
+### New evidence 2026-10-27 12:33 (reported by the coordinator, log not read by me)
+
+A Wi-Fi radio restart during the sleep-hook test, with no `awdl0` on the machine (AirDrop off, driver reloaded at 01:04), gave the same family of errors: `brcmf_cfg80211_add_iface: add iface p2p-dev-wld0 type 10 failed: err=-52` and `brcmf_p2p_create_p2pdev: set p2p_disc error`. The error code differs (`-52` from the firmware, not `-16` from the host limit check) and `awdl0` was absent. So the P2P device re-creation can fail on a radio restart without any AWDL interface. This lowers the weight of the AWDL explanation: `awdl0` is not needed for the P2P add to fail. Whether `awdl0` made the 00:39 outcome worse (a wedged firmware, not only a failed add) stays open. Status of the AWDL link: possible contributor, not shown to be necessary.
+
+### Switching the P2P device off (researched, nothing verified on the M3)
+
+| Option | Source | Status |
+|---|---|---|
+| brcmfmac `p2pon=0` | module parameter list | already 0 on the M3 and does not stop the failure |
+| `p2p_disabled=1` in `/etc/wpa_supplicant/wpa_supplicant.conf` | hostap list advice (2015): prevents the P2P Device interface on the main interface | a 2025 hostap post says it does not apply to interfaces NetworkManager creates later, so NetworkManager re-creating `wld0` may bring P2P back; unverified here |
+| hostap patch series of October 2025 that adds and removes the P2P Device when `p2p_disabled` changes | hostap mailing list | not confirmed merged or present in the Fedora build |
+| NetworkManager setting to hide P2P | searched | none found. `nmcli device set p2p-dev-wld0 managed no` would stop NetworkManager using the device but not `wpa_supplicant` creating it (untested idea) |
+
+Read-only checks for the M3, after release: `rpm -q wpa_supplicant NetworkManager`; `grep -rn p2p /etc/wpa_supplicant /etc/NetworkManager`; `iw phy phy0 info` (interface combinations and MCHAN); `journalctl -b -u wpa_supplicant -g p2p`. A first try is `p2p_disabled=1` in the wpa_supplicant config file, with a rollback copy of the file, on the console only, followed by a radio restart and a look at `nmcli device` for `p2p-dev-wld0`.
+
 ### Design: a stable mode
 
 Principle: AirDrop must not be able to take Wi-Fi down. Every step below is chosen to keep the infrastructure link first.
@@ -156,7 +171,7 @@ Principle: AirDrop must not be able to take Wi-Fi down. Every step below is chos
 2. **The receiver runs only during a window.** The AirDrop on button starts `airdrop-receiver.service`, the off button stops it. The unit is not enabled at login. It has `Restart=on-failure`, `RestartSec=10`, and a start limit of 5 in 300 s, so it cannot loop. (The unit already deployed on the M3 is `Restart=always` with 5 s and is enabled. It must be changed with `airdrop-persist.sh user` and `systemctl --user disable --now airdrop-receiver` after the Wi-Fi is back.)
 3. **Pin AWDL to the station channel.** Upstream OWL runs in shared mode only when the access point is on channel 6, 44 or 149, so AWDL never leaves the infrastructure channel. The M3's router is on channel 40. Moving the router to 44 or 149 and setting `peer-chan` to match (`/etc/omdrop/peer-chan`, `chan-shape=dense44`) removes channel hopping during a window. This is the main lever for Wi-Fi throughput and association stability. It changes the router, so it needs the user's go.
 4. **No second interface while `awdl0` exists.** After H2 or H1 is confirmed, apply its fix. Until then, with `awdl0` absent by default (point 1), the `-16` cannot occur outside a window.
-5. **Sleep guard.** `awdl0` cannot be removed safely after a window (see below), so "no `awdl0` outside windows" holds only until the first window of a boot. The log chain shows the real risk is a sleep or wake request while `awdl0` exists. Two measures, both needed until one is proven: (a) hold a `systemd-inhibit --what=sleep:handle-suspend-key` while `awdl0` exists (an inhibitor service tied to the AirDrop on button, released at the next boot), and (b) set the brcmfmac module parameter `p2pon=0` so `wpa_supplicant` has no P2P device to re-create (the parameter exists in `modinfo brcmfmac`; it needs a modprobe.d file and a driver reload or reboot, so it needs the user's go). Measure (b) is the one that removes the `-16`; (a) removes the trigger. Do not rely on (a) alone: it makes sleep unavailable after any AirDrop use.
+5. **Sleep guard.** `awdl0` cannot be removed safely after a window (see below), so "no `awdl0` outside windows" holds only until the first window of a boot. The log chain shows the real risk is a sleep or wake request while `awdl0` exists. Two measures, both needed until one is proven: (a) hold a `systemd-inhibit --what=sleep:handle-suspend-key` while `awdl0` exists (an inhibitor service tied to the AirDrop on button, released at the next boot), and (b) stop `wpa_supplicant` from creating the P2P device (no proven switch yet, see "Switching the P2P device off"). The earlier idea of `p2pon=0` is void: the coordinator measured `/sys/module/brcmfmac/parameters/p2pon` = 0 already (driver default), and the P2P device still fails, so `p2pon` controls the legacy P2P path, not the dedicated `p2p-dev-wld0` that `wpa_supplicant` asks cfg80211 for. Measure (a) removes the trigger only while `awdl0` exists; it makes sleep unavailable after any AirDrop use, so it is a stopgap.
 6. **Recovery without a reboot.** The documented recovery is `awdl-up --reload` (reloads brcmfmac, 15 s to 7 min of Wi-Fi). Use it only on the console, never over SSH or Tailscale, because the link goes down with it.
 
 Not chosen: leaving `awdl0` always present (upstream default for an always-on machine) because it keeps a station slot taken; ending windows with `awdl=0` because of the documented firmware hang.
@@ -173,7 +188,7 @@ Pass rules: after each step, wld0 is `UP` and associated, the router still pings
 | T3 | 5 transfers: iPhone to M3 (2), Mac to M3 (2), M3 to iPhone (1), with the notification shown for each | file correct after each; wld0 up after each; router ping still answers |
 | T4 | press AirDrop off | receiver stopped; window closed; wld0 up; no firmware error for 10 minutes |
 | T5 | start a second Wi-Fi action while `awdl0` exists (toggle Wi-Fi from the tray) | the Wi-Fi off and on destroys the AWDL vif per upstream notes; run last, only on the console with the user present, and expect to need a driver reload afterwards |
-| T6a | on the console, before any AirDrop use in the boot (no `awdl0`): press the suspend key with the USB-C display attached (the refused-suspend case) | wld0 reconnects within 30 s; `p2p-dev-wld0` is created without `-16`; this is the baseline for the log chain |
+| T6a | on the console, before any AirDrop use in the boot (no `awdl0`): press the suspend key with the USB-C display attached (the refused-suspend case) | wld0 reconnects within 30 s; `p2p-dev-wld0` is created without `-16`; this is the baseline for the log chain; the coordinator's 12:33 radio restart already shows the P2P add can fail without `awdl0` |
 | T6b | only after T6a passes and the measures (a) and (b) are deployed: create `awdl0` (T2), then press the suspend key again | with (a): the key press is blocked and Wi-Fi is untouched; with (b) and no inhibitor: no `-16` and wld0 reconnects |
 
 Stop at the first failure, save `journalctl -k -b` to the notes folder, and do not continue.
