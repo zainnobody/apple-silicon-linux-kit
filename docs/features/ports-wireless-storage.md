@@ -1,6 +1,6 @@
 # Ports, wireless and storage: test report
 
-Machine: MacBook Pro 16-inch M3 Pro (J516S, Mac15,7), Fedora Asahi Remix 44, SSH as `user@<m3-tailscale-ip>`.
+Machine: MacBook Pro 16-inch M3 Pro (J516S, Mac15,7), Fedora Asahi Remix 44, tested over SSH.
 Kernel tested: `7.2.11-m3gpu+` (test kernel, one boot, booted 2026-10-26 20:42). Stock `7.1.13` was not tested.
 Date: 2026-10-26. Status column source: `docs/asahi-m3-pro-status.md` (Asahi project status, Sep 2026).
 Rules kept: no reboot, no kernel or boot change, nothing posted, one temporary file (deleted).
@@ -25,7 +25,7 @@ Rules kept: no reboot, no kernel or boot change, nothing posted, one temporary f
 | Bluetooth: pairing | Needs a device in pairing mode | NOT TESTED (scan fails first) | | Working |
 | Internal SSD | `fio` on one 1 GB file in `~`, then deleted | PASS | Apple SSD AP1024Z, btrfs with `compress=zstd:1`. Direct I/O: sequential read 6135 MiB/s, sequential write 2008 MiB/s with 1 job, 3.7 to 3.9 GiB/s with 4 jobs. Random 4k: read 219k IOPS (855 MiB/s), write 48.8k IOPS (191 MiB/s). Buffered write 3.0 GiB/s (1 job). No macOS number measured on this machine. | Not listed |
 | Keyboard and keyboard backlight | `/proc/bus/input/devices`, `/sys/class/leds` | Devices present. Backlight check PENDING (needs the user). | `Apple MTP keyboard`, LED `white:kbd_backlight` (0 to 255, now 0). | Keyboard backlight: linux-asahi, kernel 7.3 |
-| Trackpad | `/proc/bus/input/devices` | Device present. Feel check PENDING (needs the user). | `Apple MTP multi-touch`. `libinput list-devices` returned no output over SSH (the user `user` is not in the `input` group). | linux-asahi |
+| Trackpad | `/proc/bus/input/devices` | Device present. Feel check PENDING (needs the user). | `Apple MTP multi-touch`. `libinput list-devices` returned no output over SSH (the test user is not in the `input` group). | linux-asahi |
 | AirDrop and file sharing | Web research and read-only checks by the `m3-airdrop` session (nothing installed or tested on the M3) | NOT TESTED. Probably possible with the built-in chip. | The `m3-airdrop` session found AWDL code already in the running kernel's `brcmfmac`, so no kernel change may be needed (an earlier note in this report said a MediaTek adapter is required; that was too strong). Details and plan: `side-session-notes/local_beeadd4b-7455-462f-bd22-fa7a051ccef2/airdrop-m3.md`. Intel Unison is Windows only. Tailscale Taildrop and KDE Connect work, but the user does not want Taildrop. | Not listed |
 
 ## Update 2026-10-26 22:15 (not my own test; from the coordinator and `usbc-usb4-gap.md` section 6b)
@@ -36,7 +36,7 @@ Rules kept: no reboot, no kernel or boot change, nothing posted, one temporary f
 
 ## USB 3 test, 2026-10-26 22:56 to 23:00 (my own test, `thunderbolt_apple` loaded by the USB-C session)
 
-Drive: Samsung PSSD T7 Shield, 3.6 TB, exFAT ("Old Cousin", 53% full). Port: `port2` (PD `1-0a`, left front; `typec` shows host mode). Driver `uas`.
+Drive: Samsung PSSD T7 Shield, 3.6 TB, exFAT (53% full). Port: `port2` (PD `1-0a`, left front; `typec` shows host mode). Driver `uas`.
 
 | Item | Result | Evidence |
 |---|---|---|
@@ -50,6 +50,20 @@ Drive: Samsung PSSD T7 Shield, 3.6 TB, exFAT ("Old Cousin", 53% full). Port: `po
 | SD card | NOT TESTED | |
 
 Notes: the kernel log says `exFAT-fs (sda2): Volume was not properly unmounted`. The drive was already marked so when it was plugged in. Temporary files (`.fio-usb-test.bin`, `.dd-usb-test.bin`) were deleted, and the drive has none left. The user's data on the drive was not changed.
+
+## USB hub dongle on the right port, 2026-10-27 00:14 (my own test; detection only, no speed test because the GPU benchmark runs)
+
+Dongle: VIA Labs USB-C hub with a Realtek gigabit Ethernet port and two storage slots. Port: `port3` (PD `2-08`, right side). `typec` shows host mode.
+
+| Item | Result | Evidence |
+|---|---|---|
+| Hub, USB 3 side | PASS | `lsusb -t`: Bus 002, USB 3.1 hub at 10000M. |
+| Hub, USB 2 side | PASS | `lsusb -t`: Bus 001, USB 2.0 hub at 480M. |
+| USB 2 flash drive | PASS (detection) | 1.9 GB NTFS flash drive, `usb-storage`, 480M. Appears as `sda`. Not mounted by me. No speed test yet. |
+| Ethernet adapter | PASS (detection) | Realtek `r8152`, SuperSpeed link 5000M. No network test yet. |
+| Card reader slot in the dongle | EMPTY | `sdb` shows 0B, "Media removed". No card inserted, so no result. |
+
+The built-in MacBook SD slot (`mmc0`) is a different device and is still untested. Speed tests and the left rear port (`port1`) are still open.
 
 ## Notes
 
