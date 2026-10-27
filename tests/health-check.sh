@@ -44,8 +44,15 @@ if [ -x "$T/vk-bandwidth" ]; then
 else bad "no $T/vk-bandwidth"; fi
 
 echo "== USB4 and Bluetooth modules"
-lsmod | grep -q '^thunderbolt_apple ' && bad "thunderbolt_apple is loaded (should stay blocked until the manual test)" || ok "thunderbolt_apple not loaded (blocked as planned)"
+# The USB4 (ACIO) module loads at boot by itself since the autoload block was removed.
+lsmod | grep -q '^thunderbolt_apple ' && ok "thunderbolt_apple loaded at boot" || bad "thunderbolt_apple not loaded (USB-C PD controllers stay deferred)"
 modinfo -n thunderbolt_apple >/dev/null 2>&1 && ok "thunderbolt_apple module available" || bad "thunderbolt_apple module not found"
+for d in 1-0a 1-0c 2-08; do
+	[ -e /sys/bus/spmi/devices/$d/driver ] && ok "USB-PD controller $d bound" || bad "USB-PD controller $d not bound (deferred probe)"
+done
+for c in 701ac0000 b01ac0000 f01ac0000; do
+	[ -e /sys/bus/platform/devices/$c.cio/driver ] && ok "ACIO $c.cio bound" || bad "ACIO $c.cio not bound"
+done
 lsmod | grep -q '^hci_bcm4377 ' && ok "hci_bcm4377 loaded" || bad "hci_bcm4377 not loaded"
 [ "$(strings "$(modinfo -n hci_bcm4377)" | grep -c j516s)" -ge 1 ] && ok "patched hci_bcm4377 in use" || bad "unpatched hci_bcm4377"
 # bluetoothd powers the controller some seconds after boot.

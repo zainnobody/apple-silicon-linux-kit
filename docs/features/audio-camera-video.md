@@ -42,6 +42,9 @@ Asahi status column: from `docs/asahi-m3-pro-status.md`.
 
 ## AVD firmware: built, installed and tested (2026-10-26 23:31 to 23:37)
 
+Boot check (2026-10-27 01:43, kernel 7.2.11-m3gpu+, no manual reload): PASS. `avd 30b080000.avd: booting hw version: 40000`, no `-2` error, `/dev/video0` is `avd`, `/dev/video1` is `apple-isp` (the numbers swap between boots), `/lib/firmware/apple/avd-fw-v4-t0.bin` present, no UBSAN lines at boot.
+
+
 - No Fedora, Asahi or Fedora Asahi Remix package exists. Searched: `dnf repoquery` on the M3 (only `asahi-fwupdate` 20250713 and `python3-asahi_firmware` 0.9.1), the Asahi progress reports 7.1 and 7.2, the `AsahiLinux/avd-fw` releases (none). NixOS and Asahi ALARM package `avd-fw`, but those do not apply to Fedora.
 - Built from `AsahiLinux/avd-fw` commit `220b1e70c9d7dcccbf66d5194e372300aa3c5a32` (version 0.1, MIT) with `clang`, `lld`, `llvm-objcopy`, `meson` 1.11.2 and `ninja`, all already installed. No extra package was installed. Script: `build/build-avd-fw.sh` (builds only). I ran the same steps by hand on the M3; I did not run the script end to end.
 - The kernel module asks for `apple/avd-fw-v4-t0.bin` for `apple,t6030-avd` (`avd-drv.c` line 739). The repository builds that exact name: 73728 bytes, SHA-256 `692b44ab15e79fe09dd61b5a6a61545954a4eb175688d3fac1928e6db5a331c4`.
@@ -50,18 +53,29 @@ Asahi status column: from `docs/asahi-m3-pro-status.md`.
 
 ## Camera grain: ranked fixes (research 2026-10-27, nothing changed on the M3)
 
-What is known: the ISP firmware does the image processing. The driver only exposes one V4L2 control (dynamic framerate) and NV12 frames. The camera node is a single-node capture device ([Asahi issue 616](https://github.com/AsahiLinux/linux/issues/616) discusses making libcamera use it; that issue lists no image controls). The device tree node `isp@2c8000000` on this M3 has a property `apple,temporal-filter` (read in the node listing on 2026-10-26; the value was not read). The Asahi binding says it controls "whether temporal filter should be enabled in firmware"; the maintainer said it is board-specific because not every board supports it. In the February 2025 device tree series, only one board (M2 MacBook Air 13-inch, J413) set it to 1; all M1 and M1 Pro/Max boards set it to 0 ([patch 5/5](https://lkml.rescloud.iu.edu/2502.2/04789.html), [binding thread](https://lkml.iu.edu/hypermail/linux/kernel/2502.2/05193.html)). A temporal filter is noise reduction across frames, so it is the most direct lead for the grain. Whether the M3 Pro ISP firmware supports it is not known. A related open report: on the M3 MacBook Air the ISP firmware fails at the handshake and the camera never appears ([Asahi issue 630](https://github.com/AsahiLinux/linux/issues/630)), so a wrong setting can break the camera.
+What is known: the ISP firmware does the image processing. The driver only exposes one V4L2 control (dynamic framerate) and NV12 frames. The camera node is a single-node capture device ([Asahi issue 616](https://github.com/AsahiLinux/linux/issues/616) discusses making libcamera use it; that issue lists no image controls). The device tree node `isp@2c8000000` on this M3 has a property `apple,temporal-filter` (value read on 2026-10-27 after the 01:42 reboot: `0`, so the filter is off). The Asahi binding says it controls "whether temporal filter should be enabled in firmware"; the maintainer said it is board-specific because not every board supports it. In the February 2025 device tree series, only one board (M2 MacBook Air 13-inch, J413) set it to 1; all M1 and M1 Pro/Max boards set it to 0 ([patch 5/5](https://lkml.rescloud.iu.edu/2502.2/04789.html), [binding thread](https://lkml.iu.edu/hypermail/linux/kernel/2502.2/05193.html)). A temporal filter is noise reduction across frames, so it is the most direct lead for the grain. Whether the M3 Pro ISP firmware supports it is not known. A related open report: on the M3 MacBook Air the ISP firmware fails at the handshake and the camera never appears ([Asahi issue 630](https://github.com/AsahiLinux/linux/issues/630)), so a wrong setting can break the camera.
 
 | Rank | Fix | Effort | Risk | Reboot | Expected gain |
 |---|---|---|---|---|---|
 | 1 | Better light. Proven: a second light turned a purple, grainy frame into a usable one | None | None | No | Large |
-| 2 | Read the value of `apple,temporal-filter` on this M3 (`od -An -tx1 /proc/device-tree/soc/isp@2c8000000/apple,temporal-filter`). Read-only | Minutes | None | No | Tells whether the filter is off |
-| 3 | If the value is 0: set it to 1 in the device tree that m1n1 passes to the kernel (the board DTB or an overlay), boot once, and compare frames in the same light | Medium | Medium: the firmware may reject it and the camera may vanish. Undo: put back the old DTB. Needs the GPU session, which owns boot files | Yes | Possibly large. Unknown |
+| 2 | Read the value of `apple,temporal-filter` on this M3. **Done: it is 0 (off).** ISP platform ID is 0x10 | Done | None | No | The filter is off, so rank 3 is worth a try |
+| 3 | The value is 0: set it to 1 in the device tree that m1n1 passes to the kernel (the board DTB or an overlay), boot once, and compare frames in the same light | Medium | Medium: the firmware may reject it and the camera may vanish. Undo: put back the old DTB. Needs the GPU session, which owns boot files | Yes | Possibly large. Unknown |
 | 4 | User-space denoise as a virtual camera: GStreamer or ffmpeg (`hqdn3d` or `nlmeans`) in front of `/dev/video0`, published as a PipeWire video source (no kernel module). Untested | Medium | Low | No | Medium. Costs CPU and adds delay. Apps must pick the virtual camera |
 | 5 | `v4l2loopback` plus ffmpeg denoise. Same idea, but needs a kernel module built for this custom kernel | Medium to high | Medium | Maybe | Same as 4 |
 | 6 | Add exposure, gain and white balance controls to `apple-isp`. Needs ISP firmware commands that are not documented in this research | High | Medium | Yes | Unknown |
 | 7 | Make libcamera claim the node (Asahi issue 616). Gives libcamera apps access; libcamera cannot denoise firmware-processed NV12 | Low to medium | Low | Yes (kernel patch) | None for grain |
 | 8 | Check which `isp_*.dat` setfile the driver loads. No "not loaded" warning was logged on 2026-10-26, so low value | Low | None | No | Small |
+
+### Proposal only: switch on the temporal filter in the next boot-file window (not done)
+
+Status: proposal for the GPU session, which owns the boot files. Nothing was changed. The user has not given a go. It would ride in the Touch ID boot-file window (its own later reboot), see `touchid-stage2-plan.md`.
+
+1. Copy the device tree the kernel passes to m1n1 (`/boot/dtb-<release>/apple/t6030-j516s.dtb`, see `AGX_DTB_NAME` in `machines/j516s.sh`) to a work folder. Never edit the file in `/boot`.
+2. Set the property on the copy: `fdtput -t u <copy>.dtb /soc/isp@2c8000000 apple,temporal-filter 1` (needs `dtc`; alternatively change the `.dts` source and run `make dtbs`). Check with `fdtget`.
+3. Pack it into a new `boot.bin` with `install/make-bootbin.sh <stage> <m1n1.bin> <dtb-dir>` (the script takes a DTB folder and packs the `t6*.dtb` and `t81*.dtb` files). Keep the current `boot.bin` as the undo copy and record both SHA-256 values.
+4. One reboot with the user's go. Then: `journalctl -k -b | grep -iE "isp|apple-isp"`, `ls /dev/video*`, one 10 s capture, and a same-light frame compared with `linux-fedora-same-light-2026-10-26.jpg` (kept in the private folder).
+5. Pass: the camera appears and the grain is lower. Fail: no `apple-isp` node or a firmware handshake error (as in [Asahi issue 630](https://github.com/AsahiLinux/linux/issues/630)). Undo: put the old `boot.bin` back from macOS or by the usual rollback in `docs/install-plan.md` section 3.
+6. Risk: the camera may vanish if the firmware does not support the filter on this board. Nothing else in the boot path changes.
 
 Plan: do ranks 2 and 3 first, because they use the firmware's own denoise. If rank 3 fails, use rank 4 as a fallback.
 

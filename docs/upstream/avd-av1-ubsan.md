@@ -1,6 +1,6 @@
 # Draft: UBSAN array-index-out-of-bounds in the Apple AVD AV1 decoder
 
-Status: draft for the user's review. Nothing is posted. Fill the two marked gaps before sending.
+Status: draft for the user's review. Nothing is posted. The log and source gaps are filled (2026-10-27).
 
 ## Summary
 
@@ -33,8 +33,32 @@ avd_av1_run+0x18c/0x300 [apple_avd]
 avd_device_run+0x94/0x2e0 [apple_avd]
 ```
 
-GAP 1: paste the full UBSAN lines (index value and array size, "index N is out of range for type ...") from `journalctl -k -b`. The index and type were not captured in the notes.
-GAP 2: paste lines 440 to 456 and 574 to 584 of `avd-av1.c` so the reviewer sees the expression.
+Full lines (kernel log, 2026-10-26 23:36:17), each followed by `index -1 is out of range for type '__u64 [8]'`:
+
+- `avd-av1.c:452:4`
+- `avd-av1.c:481:36`
+- `avd-av1.c:581:33`
+- `avd-av1.c:582:33`
+
+The type `__u64 [8]` is `reference_frame_ts` in `struct v4l2_ctrl_av1_frame`. The index `-1` is a value of `ref_frame_idx[]`.
+
+Source (the lines the reports point at):
+
+```c
+/* is_valid_ref_frame(), from line 445 */
+struct avd_decoded_buffer *ref = avd_get_ref_buf(
+	ctx, &dst->base.vb,
+	frame->reference_frame_ts
+		[frame->ref_frame_idx[ref_frame - V4L2_AV1_REF_LAST_FRAME]]);
+
+/* around line 574 to 584 */
+for (i = 0; i < 6; i++) {
+	for (j = i + 1; j < 7; j++) {
+		if (frame->reference_frame_ts[frame->ref_frame_idx[i]] ==
+		    frame->reference_frame_ts[frame->ref_frame_idx[j]]) {
+```
+
+Reading: the code indexes `reference_frame_ts[]` with `ref_frame_idx[...]` without checking that the value is in 0..7. For frames that do not use references (key frames and intra-only frames) the userspace control carries -1 in unused `ref_frame_idx[]` entries, so the lookup reads `reference_frame_ts[-1]`, one element before the array. This is a reading of the code and the log, not a tested fix.
 
 ## How to reproduce
 
