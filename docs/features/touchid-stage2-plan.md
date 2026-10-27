@@ -133,11 +133,30 @@ Result by the coordinator: overall PASS. Parts 1, 1b (mailbox bound to `apple-ma
 | `touchid-calib.sh` | Read-only carve of the per-Mac calibration out of the iBoot system container into the user's `touchid/` folder (mode 0600). It prints PASS with size and type (FSCl or FSC2), never the hash. `--install` copies it to the firmware folder. Not needed for 3a, needed from 3b. |
 | `touchid-check.sh` part 6 | Runs when the boot was armed with `--sensor`. Loads the module with `sensor_trace=1`, opens `/dev/sep-bio` once, reads the kernel log. |
 
-**Part 6 verdicts.** PASS: open fails with ENOENT, log has the "no persisted identity keybag" line, SBIO accepted, sensor bound, power line taken, no oops. PARTIAL: ENOENT and SBIO fine but the sensor did not bind or has no power line (fix the sensor DT block, test again). FAIL: any other errno, SBIO refused, a host-state error, or an oops.
+**Part 6 verdicts.** PASS: open fails with ENOENT, log has the "no persisted identity keybag" line (this step runs after the SBIO setup, so it proves the setup), no SBIO failure line, sensor bound, power line taken, no oops. SBIO setup is silent on success on this profile (see the result below). PARTIAL: ENOENT and SBIO fine but the sensor did not bind or has no power line (fix the sensor DT block, test again). FAIL: any other errno, SBIO refused, a host-state error, or an oops.
 
 **Unverified in the sensor block.** SPI mode (the M3 Air value, `spi-cpha`, is used; M1 Pro and M2 Pro use `spi-cpol`; the module has a `sensor_spi_mode` override for a later test), SPI pin mux (the M3 Air DT has none, so none here), power line polarity (active high, as on every other board), no data-ready interrupt (the driver polls).
 
 **Tested offline.** DTB build with and without `--sensor` (exact 4-line difference). DTB check logic against a good case and a case with the node enabled (caught). Calibration script against a synthetic container in a Linux container (PASS, and FAIL for a container with no calibration). Part 6 verdict logic against stubbed kernel logs (PASS, PARTIAL, FAIL). Dry run on the M3.
+
+## Stage 3a result (test boot 13:33, check 13:34, 2026-10-27)
+
+**Calibration check: PASS.** The per-Mac calibration is in the iBoot system container: type FSCl, 64959 bytes. It was carved into the user's private folder and not installed (3a does not load it).
+
+**Test boot: the sensor side works as far as 3a can show.** Parts 1, 1b, 2, 4 and 5 PASS as before. The one open of `/dev/sep-bio` ended with ENOENT after these kernel lines, in this order: sensor node found and enabled with its SPI bus; chip-select timing programmed in hardware; power line taken from the device node and driven low; sensor bound (8 MHz, mode 1, CPOL=0 CPHA=1); power via the node's own GPIO property; then "no persisted identity keybag exists". The debug GPIO list shows the power pin as the driver's "enable" line, output low. Diag after the open: `sensor=bound`, `keybag=missing`, `touchid=failed` (the driver refuses a second open this boot, by design). No oops. The sensor bound as an SPI device under the apple-mesa driver. The pmgr line about the always-on nub_spi0 domain concerns the SPI NOR flash on bus 0, not the sensor.
+
+**The script said FAIL for the wrong reason.** Part 6 looked for an "sbio: communication initialization accepted" line. That line exists only for profiles that send the INIT request (nonce-session or 13.5 key store). The T6030 profile uses neither, so the driver sends no INIT request and logs nothing on success. The SBIO buffer registration itself (four control requests to the enclave, errors returned) runs before the keybag check, and the keybag line proves it returned OK. Part 6 now requires: keybag line seen, and none of the three SBIO failure lines. The verdict logic was re-tested against the real log lines (PASS) and against two failure variants (FAIL). Verdict of the run: PASS, with the corrected expectation.
+
+**What the run still does not show.** The sensor was powered down the whole time. No SPI transfer took place. SPI mode and pin mux are therefore still unverified, and the sensor ID has not been read.
+
+**What 3b needs from the user** (all of it is a decision; nothing here has been done):
+1. A raw copy of the one iBootSystemContainer partition, with a checksum, stored off the partition (the /data volume has room). It is the full undo for the xART store.
+2. Agreement that Linux writes to the xART store that macOS shares. The enclave rewrites session records on use. With `xart_guard` off (the default in this tree) it may rewrite any OS's record. A guarded boot (`xart_guard=1`) fits a Mac that has not used Linux Touch ID yet; it is untested on this chip.
+3. The calibration file installed in the firmware folder (`touchid-calib.sh --install`, root).
+4. A load with `xart_writes=1` and `provision_keybag=1`, then enrol through the patched libfprint and `fprintd` (userspace not built or tested; offline build first).
+5. Acceptance of the known risk: a refused xART save has left the enclave unresponsive until the next reboot.
+
+**Recommended step before 3b ("3a+").** Add a diagnostic module option that, after the sensor binds, powers the sensor and reads only its status, logging the identifier and nothing else. It needs no keybag and no xART write. A good answer (a known identifier) proves SPI mode, pins and power. A wrong answer is fixed with a DT edit or the existing `sensor_spi_mode` option, one test boot each, before any write is allowed. This is a driver change built as a module on the M3 (no kernel change) and needs the user's go.
 
 ## Gates before step A2 (all must be true)
 
