@@ -77,7 +77,7 @@ send)
 	python3 "$SRC/omdrop-awdl/userspace/airdrop-send.py" --direct "$2" --ask-timeout 45 --op-timeout 10 "$3"
 	;;
 notify)
-	export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
+	DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus; export DBUS_SESSION_BUS_ADDRESS
 	tail -n0 -F "$SRC/receiver.log" | while read -r line; do
 		case "$line" in
 		*'POST /Upload HTTP/1.1" 200'*)
