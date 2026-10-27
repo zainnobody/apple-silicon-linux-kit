@@ -3,6 +3,7 @@
 secs=${1:-600}
 H=/usr/lib/omdrop/omdrop-discoverable
 if pkexec "$H" start "$secs"; then
+	systemctl --user start airdrop-receiver.service
 	notify-send -a AirDrop -i emblem-shared "AirDrop is on" "Visible for $((secs / 60)) minutes. Set the iPhone or Mac to Everyone."
 else
 	rc=$?

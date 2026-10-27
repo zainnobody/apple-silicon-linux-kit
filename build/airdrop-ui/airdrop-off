@@ -1,3 +1,4 @@
 #!/usr/bin/env bash
 # Close the AirDrop visibility window.
+systemctl --user stop airdrop-receiver.service
 pkexec /usr/lib/omdrop/omdrop-discoverable stop && notify-send -a AirDrop -i emblem-shared "AirDrop is off" "No longer visible."

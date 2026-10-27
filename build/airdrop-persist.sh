@@ -33,10 +33,10 @@ root)
 	# reload drops runtime-only bindings: bind awdl0 again if it exists
 	ip link show awdl0 >/dev/null 2>&1 && firewall-cmd --zone=work --change-interface=awdl0
 	systemctl daemon-reload
-	systemctl enable awdl0.service
-	# idempotent when awdl0 exists; proves the unit works with the root-owned copy
-	systemctl start awdl0.service && ok "awdl0.service ran" || bad "awdl0.service failed: journalctl -u awdl0.service"
-	ok "root part installed; awdl0 and the firewall binding return at boot"
+	# awdl0 is NOT created at boot (see docs/features/airdrop.md, Wi-Fi coexistence): while awdl0 exists it holds a station slot
+	# in cfg80211 and any other interface add fails with -16. Set AIRDROP_BOOT_AWDL=1 to enable the boot unit anyway.
+	if [ "${AIRDROP_BOOT_AWDL:-0}" = 1 ]; then systemctl enable awdl0.service; else systemctl disable awdl0.service 2>/dev/null || true; fi
+	ok "root part installed; awdl0 is created on demand by the AirDrop on button"
 	;;
 user)
 	d=$HOME/.config/systemd/user
@@ -49,13 +49,13 @@ Description=AirDrop receiver on awdl0 (exits until awdl0 has a link-local addres
 [Service]
 WorkingDirectory=$SRC/omdrop-plugin/bin
 ExecStart=/usr/bin/python3 airdrop-serve.py --outdir $OUT --name "M3 Pro"
-Restart=always
-RestartSec=5
+Restart=on-failure
+RestartSec=10
+StartLimitIntervalSec=300
+StartLimitBurst=5
 StandardOutput=append:$SRC/receiver.log
 StandardError=append:$SRC/receiver.log
 
-[Install]
-WantedBy=default.target
 EOF
 	cat > "$d/airdrop-notify.service" <<EOF
 [Unit]
@@ -69,8 +69,10 @@ Restart=always
 WantedBy=default.target
 EOF
 	systemctl --user daemon-reload
-	systemctl --user enable --now airdrop-receiver.service airdrop-notify.service
-	ok "user services enabled"
+	# The receiver runs only while a window is open: the AirDrop on button starts it and the off button stops it.
+	systemctl --user disable --now airdrop-receiver.service 2>/dev/null || true
+	systemctl --user enable --now airdrop-notify.service
+	ok "notify service enabled; receiver is started by the AirDrop on button"
 	;;
 ui)
 	b=$(dirname "$(readlink -f "$0")")/airdrop-ui
