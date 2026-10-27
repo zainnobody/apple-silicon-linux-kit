@@ -22,6 +22,16 @@ Date: 2026-10-27. Status: **plan only**. No reboot, no sudo, no write to the ESP
 | The driver opens the host state file under `/var/lib` and creates it if absent, even with writes off. | `store.rs`, read 2026-10-27 |
 | `boot-args` in the macOS ADT is empty. The stage 1 proxy backdoor needs `-v` plus a lowered policy. | ADT dump, Asahi m1n1 guide read 2026-10-27 |
 
+## Result of steps A0 to A1b (done 2026-10-27, no root, nothing installed)
+
+- A0: `boot.bin` equals `boot.bin.stageE`, `boot.bin.stock` is present, the installed J516S dtb hash is unchanged, the m1n1 file hash matches the one pinned in `m3gpu-boot`.
+- A1: the test dtb folder holds 46 dtbs. Only the J516S one differs from the installed folder. That one adds 55 lines and removes none.
+- A1b: `apple_sep.ko` builds in a scratch folder in 2 seconds with two jobs, against the existing build folder, without touching it (the dry run wrote nothing outside the scratch folder). Findings:
+  - The module needs `fv_shim.o`. In the kernel tree it is built into the kernel only when `APPLE_SEP` is on, and it is off in the running kernel. The scratch build adds `fv_shim.o` to the module, so no kernel rebuild is needed.
+  - `vermagic` equals the running kernel. All 261 undefined symbols exist in the running kernel's symbol table. The module depends on `macsmc`, which exists as a module.
+  - The module contains the new `T6030/J516s` profile. It has not been loaded.
+- A kernel rebuild is not needed for any step of route A.
+
 ## Gates before step A2 (all must be true)
 
 1. The user says go in the session that owns reboots. The coordinator pauses the other M3 sessions first.
@@ -87,7 +97,7 @@ Why not first choice: it needs the policy change and a cable, takes the M3 off t
 
 ## Not verified
 
-- The out-of-tree module build (A1b). It may need a kernel rebuild instead.
+- That the module loads and runs. It builds and its symbols resolve, but it was never loaded.
 - That stage 1 uses the `SEPFW` check on this Mac (see "Decision").
 - The SPI mode, `spi2` pin mux, key store settings (see touchid.md, Stage 1 status). None of them can hurt the dry load. They only decide whether a later sensor read works.
 - The recovery steps in F5 and Route B come from general macOS and Asahi knowledge and the guide above. They have not been run on this Mac.
