@@ -79,6 +79,15 @@ Status: proposal for the GPU session, which owns the boot files. Nothing was cha
 
 Plan: do ranks 2 and 3 first, because they use the firmware's own denoise. If rank 3 fails, use rank 4 as a fallback.
 
+## VA-API layer for the AVD: built, not yet tested (2026-10-27 07:43)
+
+- Source: `sofus13/libva-v4l2_request` commit `f54d8d2c36433b38ba9b8633ac10eec444ac9cf1` (master, meson version 1.2, GPL-3.0). It is megi's driver with Sofus's AVD work. The tag `1.3` also exists; the Omarchy package notes say tag 1.3 shows green frames in Chromium and a community fork (`iconidentify/libva-v4l2_request`, 1.3.r11) fixes it. I did not use that fork.
+- Built on the M3 with `meson` and `ninja` (`nice -n 19`, `-j4`), all dependencies already installed (libva 2.23.0, libdrm, kernel headers with the AV1 and VP9 stateless controls). All six codec checks passed at configure time: H.264, HEVC, MPEG-2, VP8, VP9, AV1.
+- Installed one file: `~/.local/lib64/dri/v4l2_request_drv_video.so` (904672 bytes). No system file changed, no root. Undo: `rm ~/.local/lib64/dri/v4l2_request_drv_video.so`. Script: `build/build-libva-v4l2-request.sh`.
+- Use: `export LIBVA_DRIVERS_PATH=$HOME/.local/lib64/dri LIBVA_DRIVER_NAME=v4l2_request`. Optional: `LIBVA_V4L2_REQUEST_MEDIA_PATH=/dev/media0` to pick the AVD media node.
+- **Not tested.** The auto mode classifier denied the first command that loaded the new library (a `vaInitialize` probe). Running the built code needs the user's own go. `vainfo` (libva-utils) is not installed. Plan: probe with `vaInitialize` and a profile list, then one H.264 decode with GStreamer `vah264dec` and one VP9 decode with `ffmpeg -hwaccel vaapi`, with frame counts and picture checks. Fedora's `ffmpeg-free` has no H.264 or HEVC decoder, so H.264 and HEVC go through GStreamer.
+- Known limits from upstream notes: Firefox's video sandbox blocks it; H.264 streams with `pic_order_cnt_type == 1` are not fully supported.
+
 ## Next steps
 
 1. Reload `apple_avd` (needs the user's go), check the kernel log and `/dev/video*`, then run the H.264 and HEVC decode tests with CPU use.
