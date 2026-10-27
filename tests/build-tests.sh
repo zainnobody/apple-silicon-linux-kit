@@ -16,5 +16,8 @@ LIBGL_ALWAYS_SOFTWARE=1 "$OUT/gles-stress" 2 | tail -1
 if command -v glslc >/dev/null; then
 	glslc "$T/vk-compute.comp" -o "$OUT/vk-compute.spv"
 	gcc -O2 -Wall "$T/vk-compute.c" -lvulkan -o "$OUT/vk-compute"
-	echo "built $OUT/vk-compute (run it from $OUT, or set VK_COMPUTE_SPV)"
+	glslc "$T/vk-bandwidth.comp" -o "$OUT/vk-bandwidth.spv"
+	gcc -O2 -Wall "$T/vk-bandwidth.c" -lvulkan -o "$OUT/vk-bandwidth"
+	echo "built $OUT/vk-compute and $OUT/vk-bandwidth (run them from $OUT)"
 fi
+gcc -O3 -march=native -fopenmp "$T/cpu-bw.c" -o "$OUT/cpu-bw" && echo "built $OUT/cpu-bw"

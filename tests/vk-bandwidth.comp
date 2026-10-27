@@ -1,0 +1,20 @@
+#version 450
+// Shader for vk-bandwidth: each invocation reads `per_thread` uvec4 values with a grid stride
+// and writes one sum, so the run time is dominated by memory reads.
+layout(local_size_x = 256) in;
+layout(std430, set = 0, binding = 0) readonly buffer In { uvec4 v[]; } src;
+layout(std430, set = 0, binding = 1) writeonly buffer Out { uint v[]; } dst;
+layout(push_constant) uniform Push { uint total; uint per_thread; } pc;
+
+void main()
+{
+	uint id = gl_GlobalInvocationID.x;
+	uint stride = gl_NumWorkGroups.x * 256u;
+	uvec4 acc = uvec4(0);
+	for (uint i = 0u; i < pc.per_thread; i++) {
+		uint idx = id + i * stride;
+		if (idx < pc.total)
+			acc += src.v[idx];
+	}
+	dst.v[id] = acc.x + acc.y + acc.z + acc.w;
+}
