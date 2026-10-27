@@ -1,5 +1,7 @@
 # Touch ID stage 3b plan: enrol and verify (written 2026-10-27, nothing in this plan has been run)
 
+**Update 2026-10-27 (evening):** sections 1 to 8 are the original plan. Two loads have run since (sections 9 and 10). The current module, guard level and steps are in section 11: `apple-sep-3c.ko`, `xart_guard=3`, a fresh backup first, and an automatic alarm check after each step.
+
 Stages 3a and 3a+ proved the read-only half: the SEP attaches, the sensor node binds, the sensor answers on the bus (SPI mode 1, known revision code), and the enclave accepts the SBIO setup. Stage 3b is the first stage that **writes**. This page is the exact plan, with the risks stated first, so the user can decide.
 
 ## 1. What 3b changes, and what cannot be undone
@@ -174,3 +176,47 @@ So the shared root was rewritten (allowed at guard level 1; level 2 would have r
 2. Retry with `xart_guard=0`, after a fresh backup and with the diff check afterwards. This is the documented path for this case on the M1 family, but it is untested on an M3 Pro.
 3. Build a stricter guard first: allow rewrites only of the records the enclave loaded at attach in this boot (a driver change; offline; not built). It keeps the other session records protected while letting the create finish.
 Optionally, one macOS boot to confirm macOS starts, whichever option is chosen.
+
+## 11. Stricter guard (level 3, "loaded only"): the third 3b attempt (2026-10-27, built, not loaded)
+
+**Decision.** The user chose option 3 of section 10: a stricter guard, no restore. The module is `apple-sep-3c.ko`. It is a new file. The 3a, 3a+ and 3b modules are unchanged. The driver change is private (it sits next to the other Mac-specific patches); the design is below.
+
+**What guard level 3 does.** It follows the rules of level 1: the shared roots may be written, records that Linux created may be written, and records that did not exist when the store opened are adopted as Linux's. The one difference: an existing session record that Linux did not create may be rewritten, but only if the enclave read that record (session read, op 0x05) after the store opened and before its first write. The driver builds this "loaded" list while the enclave attaches. The first write request, of any kind, closes the list. A delete does not close it, because the enclave deletes a record between its reads. Reads after the first write do not count. Every other existing session record stays protected. Deletes of existing records Linux did not create stay refused, even for a loaded record.
+
+**What the log shows.**
+- `xART guard level 3: ... the other N are protected, except the ones the enclave loads at attach (rewrites only, decided as it asks)` at open.
+- `xART guard (loaded only): allowed a rewrite of the kind-N record UID, which the enclave loaded at attach this boot` for each allowed rewrite (UID is the first four bytes of the record identity, in hex; at most 8 lines).
+- `xART guard (loaded only): refused to rewrite|delete the kind-N record UID: Linux did not create it and the enclave did not load it at attach this boot` for each refusal. A refusal is a stop condition.
+
+**Why by identity and not by length.** A length can match two records. The guard knows the identity of each record the enclave read, so it allows exactly those records.
+
+**The alarm rule (runs automatically).** `touchid-3b.sh` now runs `touchid-xart.sh diff` after `load`, `open`, `enrol` and `verify`. The diff compares the partition with the newest backup and prints the identity prefix of each session record. The check is OK only when every changed slot is one of these:
+- a root record (kind 1 or 2);
+- a new record (empty before);
+- an existing session record whose identity is in the guard's "allowed a rewrite" lines of this boot, or in Linux's own list of records it created.
+
+The check raises an ALARM, and the script stops, for any of these:
+- another existing session record changed or was removed;
+- a block changed outside the xART file;
+- a record has a bad CRC or an unknown kind;
+- the diff could not run.
+
+After an ALARM nothing else runs. Do not restore a backup without the user: the backup is older than what the enclave committed (section 10). The diff is read-only and works while the module is loaded.
+
+**Steps (replace steps 3 and 4 above).**
+1. Install the module: `sudo install -D -m 0644 ~/window/touchid/apple-sep-3c.ko /lib/modules/7.2.11-m3gpu+/touchid-test/apple-sep-3c.ko && sudo restorecon -F /lib/modules/7.2.11-m3gpu+/touchid-test/apple-sep-3c.ko`.
+2. Fresh backup of the current store: `~/window/touchid-xart.sh backup`, then `verify`. The old backup is stale after the second load, and `pre` refuses to run unless the newest backup equals the partition. Copy the new backup to the Mac too.
+3. `touchid-boot.sh --sensor`, then reboot into the test boot. Do not run `touchid-check.sh` in that boot.
+4. `touchid-3b.sh load`, `open`, `enrol`, `verify`. The user touches the sensor for enrol and verify.
+5. Persistence test: take a fresh backup in a normal boot, arm a second test boot, then `load`, `open`, `status`, `verify` without enrolling again. This is the test the M2 reference platform failed.
+
+**Expected PASS lines.** `using the 13.5 key store`, `xART guard level 3`, zero or more `xART guard (loaded only): allowed a rewrite`, `sks: identity keybag provisioned`, `LOAD PASS`, `ALARM CHECK OK` after each step, `OPEN PASS`, `ENROL PASS`, `VERIFY PASS`.
+
+**Stop rules.** Stop and ask the user on any of these: a guard refusal line (a record outside the loaded set was touched), `identity-keybag provisioning failed`, `LOAD INCOMPLETE`, a timeout, any `ALARM`, or zero live identities in the persistence boot. A refusal in the middle of a create leaves a half-finished sequence (section 10), so do not repeat the load blindly.
+
+**Verified offline.**
+- The decision logic is tested with a harness built from the driver's own decision functions: the attach sequence with a delete between reads, the first write closing the list, an allowed rewrite of a loaded record, refusal of an existing record that was not loaded, refusal of every delete of an existing record, a read after the first write not counting, and an empty loaded list refusing everything. All checks pass.
+- The module builds against the running kernel with the matching vermagic and no unresolved symbol.
+- The alarm check is tested on canned diff output (pass, a changed record that is not allowed, a change outside the xART file, a bad CRC, an identical partition, a failing diff, a record in Linux's own list) and on the real partition read-only. Real result: OK, with only the roots and the one new record from the second load.
+
+**Not verified.** The module has not been loaded. It is not known whether the record the second load refused is one of the loaded set (it probably is, see section 10). If it is not, the guard refuses again, the script stops, and the next decision is the user's. Whether the enclave accepts the 13.5 create on this chip, and whether the identity survives a reboot, are open.
