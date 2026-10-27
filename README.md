@@ -151,6 +151,7 @@ These steps rebuild the state of the tested MacBook Pro 16-inch M3 Pro (J516S) o
 1. Build with the M3's old names (see `config.local.example.sh`): work folder `~/m3gpu`, Mesa prefix `/opt/mesa-m3`, kernel `7.2.11-m3gpu+`.
 2. Kernel: before `build/build-kernel.sh`, apply `patches/m3-kernel-tree-2026-10-26.patch` to the SiliconForest kernel at commit `0e1f46661376`. That one patch equals the stack `g15-j516s-b1-pin.patch`, `g15-fw-digest-diag.patch`, `g15-fw-masked-identity.patch` and `t6030-pmp-memory-floor.patch`. The installed image has sha256 `65798c91...`.
 3. Mesa: SiliconForest commit `7515336`. Optional: apply `patches/mesa-agx3-fmul-narrow-wait.patch` for llama.cpp flash attention. On the M3 this fix is built but not yet installed in `/opt/mesa-m3`.
+Built but not installed on the M3 (2026-10-26 21:45, staged in `~/m3gpu/out/kernel-7.2.11-m3gpu+-usb4-bt`): `CONFIG_USB4_APPLE_SOC=m` (now in `build/build-kernel.sh`) and `patches/hci-bcm4377-j516s-resume-recovery.patch`. The kernel image is the same. Only two modules differ: the new `thunderbolt_apple.ko` and a changed `hci_bcm4377.ko`.
 4. Run stages A to G, then I, J and K. Stage H is a diagnostic step that stage I replaces. Stage F is only for a rebuilt kernel; stages I and J do the same for their images.
 5. Optional: `sudo install/setup-macos-switch.sh` (boot macOS once without a password).
 6. Test: `tests/mem-shared.sh` (expect about 120 GB/s for the P cores and 130 GB/s for the GPU) and `ane-linux/llm/stage0.sh bench`.
