@@ -158,6 +158,18 @@ Result by the coordinator: overall PASS. Parts 1, 1b (mailbox bound to `apple-ma
 
 **Recommended step before 3b ("3a+").** Add a diagnostic module option that, after the sensor binds, powers the sensor and reads only its status, logging the identifier and nothing else. It needs no keybag and no xART write. A good answer (a known identifier) proves SPI mode, pins and power. A wrong answer is fixed with a DT edit or the existing `sensor_spi_mode` option, one test boot each, before any write is allowed. This is a driver change built as a module on the M3 (no kernel change) and needs the user's go.
 
+## Stage 3a+: status-only sensor probe (built 2026-10-27, not yet booted)
+
+**Why.** 3a left one thing open: the sensor never answered on the bus, because the driver reads the sensor status only in its bring-up, after a keybag. 3a+ closes that gap with no keybag and no xART write.
+
+**What it is.** A diagnostic module option, `sensor_probe=1` (default 0), added by `patches/apple-sep-sensor-probe.patch` (four driver files; it applies cleanly to the module source used for the earlier test boots). At the first open of `/dev/sep-bio`, after the sensor binds and before the SBIO setup, the driver power-cycles the sensor and reads its status at the same four delays the real bring-up uses. If the sensor stays silent it tries the other three SPI modes, each after a new power cycle. It logs, per read, silent or answered with the state and patch acknowledgment, and at the end one RESULT line: the working SPI mode, the device-tree mode and the sensor revision code, marked known or unknown against the driver's list. It logs no sensor data, no serial and no key material. It restores the original SPI mode and powers the sensor off. It registers nothing with the enclave and writes nothing. The open still ends with ENOENT, as in 3a.
+
+**Build.** A separate module file (`apple-sep-3a.ko`, hash file next to it) built out of tree on the M3 from a copy of the source, so the 3a module and the kernel stay as they are. Vermagic matches the running kernel and all 261 undefined symbols exist in it. Not loaded yet.
+
+**Test flow.** Same DTB as 3a (the expected boot file hash is the same). `touchid-boot.sh --probe` arms it; `touchid-check.sh --no-camera` then loads the 3a+ module with `sensor_probe=1`, opens once and adds part 6b. 6b PASS: RESULT line with a known revision code (and it names the working mode; if that differs from the device tree, the DT block gets that mode). PARTIAL: it answers with an unknown code. FAIL: silent in all four modes (power pin, pin mux or bus), or no probe line at all. The verdict logic was tested against stubbed logs for each case.
+
+**If it is silent in all modes.** The likely causes are the SPI pin mux (none in the DT, as on the M3 Air) and the power pin polarity. Each is one DT edit and one test boot; the probe log shows the reads, so the next step is chosen from evidence.
+
 ## Gates before step A2 (all must be true)
 
 1. The user says go in the session that owns reboots. The coordinator pauses the other M3 sessions first.
