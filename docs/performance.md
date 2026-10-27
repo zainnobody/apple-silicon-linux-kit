@@ -248,6 +248,25 @@ So the firmware aims for 80 % busy. At about 50 % busy it lowers the clock until
 
 c) macOS evidence: only the pattern number (133 G at about 317 frames/s, 31.5 ms per 10 frames). If the M3 GPU at the top clock needs 16.4 ms for 10 frames (Linux no-wait value), macOS spends about 15 ms per check and keeps the GPU near the top clock at about 52 % busy. With the same firmware words that would not happen, so macOS likely sends a performance hint with its work or uses other controller words. Not proven: a macOS run with `METAL_STRESS_CHECK_EVERY=0` and `powermetrics` GPU frequency would show it.
 
+d) Test boot with `asahi.g15_perf_tgt_util=50` (2026-10-27 12:14, one-time boot, `install/window/gpu-boot.sh` and `gpu-check.sh`, output `~/gpu-perf/gpu-check-20261027-121452`): **GPU_CHECK_FAIL, no gain.** The driver logged `DVFS target utilization 50 % from the module parameter (template 80 %)`, so the firmware got the new words.
+
+| Run | G pixel-iter/s | CPU check per 10 frames | GPU time per 10 frames | Against the top clock (16.3 ms) | GPU busy |
+|---|---|---|---|---|---|
+| Default, stage O (G1 a) | 63.2-64.0 | 27-29 ms | 38.3 ms | 2.35 x | 58 % |
+| Default, target 50 | 64.00 | 26.97 ms | 38.6 ms | 2.36 x | 59 % |
+| uclamp P core, stage O (G1 a) | 81.0-81.3 | 14.5 ms | 37.2 ms | 2.28 x | 72 % |
+| uclamp P core, target 50 | 52.93 | 14.55 ms | 64.7 ms | 3.97 x | 82 % |
+| No wait, target 50 | 257.20 (stage O 263.6) | none | 16.3 ms | 1.00 x | 100 % |
+
+GPU time per 10 frames = 10 / frames per second minus the CPU check time; the top-clock value comes from the no-wait run. One run each.
+
+- In every stop-and-go run the GPU is busy 58-82 % of the time, above both the 80 % template target (for the uclamp run) and the 50 % test target. A controller that aims at that busy share would raise the clock. It did not: the default run is the same to within 1 %, and the uclamp run became slower (3.97 times the top-clock time against 2.28).
+- So the words at HardwareDataA +0x788/+0x7ec do not control this case, or the firmware measures busy time in a way that a 15-27 ms idle gap resets (for example a power-down between bursts, with a restart at a low state). The decode in b) is not wrong for the record layout, but this test shows the target is not the limit.
+- The uclamp drop is one run on a fresh boot. It needs a repeat before it counts.
+- The parameter stays in the kernel with default 0 (no change). Do not set it.
+
+Next: measure, do not guess. Run the pstate sampler (root) during `VK_STRESS_CHECK_EVERY=10` on the normal boot, to see the clock state per burst and whether the GPU powers down in the CPU gaps. Only then choose the next controller word (the boost words at util 90/step 50, the filter a 0.2/0.005, or the idle power-down delay).
+
 ### GPU suite (2026-10-27 00:12, `tests/gpu-perf-suite.sh 60`, desktop idle)
 
 | Test | Result |
