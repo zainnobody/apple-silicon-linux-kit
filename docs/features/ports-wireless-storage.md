@@ -141,3 +141,17 @@ The built-in SD slot works for reading. The write test needs the lock switch mov
 
 The user said the T7 was moved to the right port. Linux again showed the partner on `port2`. The T7 link is the same, 10000M. The right port number is still not known. Ask the user to confirm the side.
 
+## SD write test and T7 on the right port, 2026-10-27 14:33 (my own test)
+
+The user moved the lock switch and said the T7 is on the right port. The card reinserted as read-write (`ro=0`).
+
+| Item | Result |
+|---|---|
+| SD write, `dd oflag=direct`, 256 MB temp file on the card, deleted after | 7.9 MB/s |
+| SD read back, same file | 46.7 MB/s |
+| Kernel log during the test | No mmc or FAT errors |
+| T7 read on the right port, 250 MB runs | 532, 551 and 633 MB/s (one 2 GB run gave 697 MB/s, one gave 38.7 MB/s) |
+
+The SD slot reads and writes. The write speed of 7.9 MB/s fits an old card (made 08/2016). It is not a slot fault. A fast UHS-I card would show the slot limit.
+The one slow T7 run (38.7 MB/s) did not repeat in three more runs. Watch for it. The typec `port2` partner name appeared for both the left front and the right port, so the typec port number does not tell the side. Use the USB host controller instead.
+
