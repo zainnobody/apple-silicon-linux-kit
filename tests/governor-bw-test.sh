@@ -16,7 +16,7 @@ trap restore EXIT
 hist() { for i in $(seq 1 40); do cat "$POL/scaling_cur_freq"; sleep 0.05; done | sort -n | uniq -c | tr '\n' ' '; echo; }
 run() { # <label>
 	hist > /tmp/gov-hist.txt &
-	local r; r="$(taskset -c "$CPU" "$B" 60)"
+	local r; r="$(OMP_NUM_THREADS=1 taskset -c "$CPU" "$B" 60)"
 	wait
 	echo "$1: $r"
 	echo "  clock samples (count kHz): $(cat /tmp/gov-hist.txt)"

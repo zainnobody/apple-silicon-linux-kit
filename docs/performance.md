@@ -144,7 +144,15 @@ macOS binary sha256 e51a4d49... (pthreads build for macOS 14 and later). The 6-t
 | gcc, four chains (OpenMP) | 54.5 / 52.5 GB/s |
 | gcc, four chains, one E core | 31.4 / 30.2 GB/s |
 
-The remaining gap to macOS (60.7 GB/s mean) is about 15 %. A possible cause: with one memory-bound thread, the P core clock sometimes drops (samples from 0.7 to 4.06 GHz), but a compute loop holds 4.06 GHz. The `schedutil` governor and the Apple cpufreq driver choose that clock. Also, this kernel drives M3 clusters with the t8112 table, which does not set the PS2 field of the DVFS command. The driver sets PS2 only on M1 (t8103). What PS2 does on M3 is not known; no value is guessed. A test with the `performance` governor (needs root) separates the clock effect from the rest.
+The remaining gap to macOS (60.7 GB/s mean) is about 15 %. A possible cause: with one memory-bound thread, the P core clock sometimes drops (samples from 0.7 to 4.06 GHz), but a compute loop holds 4.06 GHz. The `schedutil` governor and the Apple cpufreq driver choose that clock. Also, this kernel drives M3 clusters with the t8112 table, which does not set the PS2 field of the DVFS command. The driver sets PS2 only on M1 (t8103). What PS2 does on M3 is not known; no value is guessed. Governor test (2026-10-27, `tests/governor-bw-test.sh`, P core 7). The first run had a script error: it did not set `OMP_NUM_THREADS=1`, so 12 threads shared the one core. The result still shows that the clock does not limit memory reads on one core:
+
+| Governor | 12 threads on P core 7, best / mean | Clock samples |
+|---|---|---|
+| schedutil | 83.8 / 82.5 GB/s | 17 of 40 at 1.36 GHz, 17 at 4.06 GHz |
+| performance | 83.7 / 82.8 GB/s | 40 of 40 at 4.06 GHz |
+| schedutil again | 83.4 / 82.5 GB/s | 18 of 40 at 4.06 GHz |
+
+One P core reaches 83 GB/s, the same as the macOS one-thread best (83.1 GB/s). The memory system and the clock are not the limit. The one-thread gap comes from how one thread issues its reads, and the four-chain build already closes most of it (59.0 GB/s mean in the distro-pack run, 97 % of macOS). The script now sets `OMP_NUM_THREADS=1`; a true one-thread run under `performance` was not done.
 
 ## Planned: how far each part of the chip goes
 
