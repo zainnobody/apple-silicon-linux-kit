@@ -79,7 +79,36 @@ Kernel 7.2.11-m3gpu+ with the patched `hci_bcm4377.ko` (patch `patches/hci-bcm43
 | Fresh-boot scan | `bluetoothctl --timeout 25 scan on`, 3 runs | PASS | 13 or more devices in run 1, 4 in run 2, 4 in run 3. No `tx timeout` and no `-110` in the kernel log. Before the patch, the same scan found 0 devices (after resume). |
 | Pairing and connect | Headset in pairing mode, paired and connected from the desktop | PASS | `Paired: yes`, `Bonded: yes`, `Trusted: yes`, `Connected: yes`. No `hci0` error in the kernel log. Profiles: A2DP sink, HFP, AVRCP. |
 | Audio route | `pactl list cards`, `pactl list short sinks` | PASS (routing only) | The headset is the default sink. The microphone source exists. Profiles A2DP (SBC, SBC-XQ, AAC) and HFP (CVSD, mSBC) are available. Sound quality and a call were not tested by this session. |
-| Resume with the patch | One suspend and resume, then a scan | NOT DONE | Suspend is scheduled by the coordinator session. Expected log: `recovering transport once after resume command timeout`, then `performing hardware reset recovery`, then `hardware reset recovery completed successfully`. |
+| Resume with the patch | 3 suspend and resume cycles (s2idle), 2026-10-27 01:15 to 01:35 | PASS | See the section "Suspend and resume test with the patch". The fault came back at resume 2 and 3, and the driver recovered by itself in about 1 s each time. |
+
+## Suspend and resume test with the patch
+
+Run in the combined test window on 2026-10-27 (kernel 7.2.11-m3gpu+ with the patched `hci_bcm4377.ko`). Three s2idle cycles in one boot. After each cycle: kernel log for `hci0` and `hci_bcm4377`, a 20 s scan, the headset state, and the LibrePods service.
+
+| Cycle | Resume at | Kernel log | Scan | Headset and app | Result |
+|---|---|---|---|---|---|
+| 1 | 01:16:36 | No `hci0` or `hci_bcm4377` line. No timeout. | 14 devices | Connected, `librepods.service` active | PASS (no fault this time) |
+| 2 | 01:25:03 | `command 0x0c01 tx timeout`, `Opcode 0x0c01 failed: -110`, `Opcode 0x0c1a failed: -110`, then the recovery lines below | 17 devices | Connected, active | PASS (recovered) |
+| 3 | 01:34:32 | Same pattern as cycle 2 | 17 devices | Connected, active | PASS (recovered) |
+
+Recovery lines, in order (cycles 2 and 3, within about 1 s):
+
+1. `recovering transport once after resume command timeout`
+2. `transport needs hardware reset on next open`
+3. `device marked for reset, reinitializing hardware before open`
+4. `performing hardware reset recovery`
+5. `reset done`, then `hardware reset recovery completed successfully`
+6. `reloading calibration and PTB after hardware reset`, then `restoring BD_ADDR ... after hardware reset` (the address is not recorded here)
+
+What this shows:
+
+- The original fault is confirmed. The first resume in a boot was fine, and the second and third resume lost the first HCI command (`0x0c01`). Before the patch, the controller then stayed dead until the end of the boot (0 devices in every scan).
+- The patch works on J516S. The recovery routine that was limited to `apple,j493` now runs for BCM4388 on `apple,j516s`. In both faults it reset the chip, loaded the firmware again, and left Bluetooth usable. After each recovery, the controller was `Powered: yes` and `PowerState: on`, scans found devices, and the paired headset reconnected.
+- The 2 timeouts per fault (`0x0c01` twice) are the trigger for the recovery. They are expected. They are not left over after the recovery.
+- The 10 `Failed to read codec capabilities (-22)` lines after each reset are the same harmless lines as at every boot.
+- The cause of the lost command after resume (chip firmware not answering after the `QUIESCE` and `UNQUIESCE` sequence) is not fixed. The patch hides it. An upstream fix would need a trace of the chip state at suspend. Not done.
+
+Not tested: the stock 7.1.13 kernel (no recovery code there, so the fault is expected), a suspend with an active audio stream, a resume with the headset in the case.
 
 ## AirPods Max features with LibrePods
 
@@ -111,7 +140,6 @@ Note on a desktop crash seen at 23:23: `plasmashell` crashed (SIGSEGV) during th
 
 ## Left
 
-- Suspend and resume test with the patched driver (the original fault).
 - Popup windows. A call with a real app (Firefox or a chat app) to confirm the microphone. A capture-only recorder may get silence: test with `pw-record` and check the PipeWire and WirePlumber Bluetooth settings.
 - Privacy: the app writes the headset encryption keys into the user journal. Do not share its logs.
 - Optional: one resume test on the stock 7.1.13 kernel.
