@@ -1,0 +1,9 @@
+[Unit]
+Description=M3 self-test after boot and every hour
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=1h
+
+[Install]
+WantedBy=timers.target

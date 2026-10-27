@@ -1,0 +1,11 @@
+# Runs tests/m3-selftest.sh --quick (no GPU load, no camera). Result: ~/selftest/last.json
+# Install: cp m3-selftest.service m3-selftest.timer ~/.config/systemd/user/ && systemctl --user enable --now m3-selftest.timer
+# Undo:    systemctl --user disable --now m3-selftest.timer && rm ~/.config/systemd/user/m3-selftest.{service,timer}
+[Unit]
+Description=M3 self-test, quick mode (agx-linux-kit)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash %h/selftest/m3-selftest.sh --quick
+# The exit code counts FAILs; the result file is what counts, so the unit does not show as failed
+SuccessExitStatus=1 2 3 4 5 6 7 8 9 10
