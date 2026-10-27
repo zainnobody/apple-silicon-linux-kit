@@ -1,0 +1,103 @@
+diff --git a/drivers/gpu/drm/asahi-m3/g15/recovery.rs b/drivers/gpu/drm/asahi-m3/g15/recovery.rs
+index 0827385e92c5..1f3615cb01b7 100644
+--- a/drivers/gpu/drm/asahi-m3/g15/recovery.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/recovery.rs
+@@ -21,7 +21,8 @@
+ //! - Handshake on an error event or receipt fault: drop pending growth requests; wait up to
+ //!   200 x ~1-1.5 ms for Control+0x4590 = 1 while draining; write halted = 0, barrier,
+ //!   resume = 1; wait <= 500 ms for the firmware to clear resume; wait <= 1000 polls for a full
+-//!   drain, answering up to 4 further halts the same way. Then fail every published prefix
++//!   drain (each poll checks for a halt first; done after 2 drained polls), answering up to
++//!   4 further halts the same way. Then fail every published prefix
+ //!   (EIO on fault, ETIMEDOUT on timeout) and latch the VM error; if any had renders, set
+ //!   fs_resync and reinit so the next first TA waits on the FS stamp actually reached and an
+ //!   exclusive priming prefix rebuilds the render allocators. A firmware error with nothing
+@@ -642,19 +643,40 @@ fn handshake(&mut self) -> Result<bool> {
+             dev_err!(self.dev(), "recovery: resume not consumed ({} ms)\n", t);
+             return Ok(false);
+         }
++        dev_info!(self.dev(), "recovery step: halt 1 answered, resume consumed after {} polls\n", t);
+         // The firmware clears resume before finishing: wait for the queues to drain. Work of
+         // the failed prefixes that runs after the resume can fail in turn (a compute that
+         // waited on the aborted FS hitting a firmware compute timeout): its own halt is
+         // answered the same way, a bounded number of times, and the drain continues.
++        // The halt is checked before the drain: a further halt can come when the queues are
++        // already drained, and an unanswered halt fails the whole GPU.
+         let mut halts = 0;
++        let mut quiet = 0;
+         let mut t = 0;
+-        while t < logic::DRAIN_POLLS && !self.drained() {
++        while t < logic::DRAIN_POLLS {
+             let _ = self.drain_rings();
+-            if self.control_r32(control::HALTED)? == 1
+-                && self.transport_error().is_none()
+-                && halts < logic::FURTHER_HALTS
+-            {
++            if self.control_r32(control::HALTED)? == 1 {
++                let drained = self.drained();
++                if self.transport_error().is_some() || halts >= logic::FURTHER_HALTS {
++                    dev_err!(
++                        self.dev(),
++                        "recovery step: further halt not answered (halts {}, limit {}, drained {}, poll {})\n",
++                        halts,
++                        logic::FURTHER_HALTS,
++                        drained,
++                        t
++                    );
++                    break;
++                }
+                 halts += 1;
++                dev_info!(
++                    self.dev(),
++                    "recovery step: further halt {} seen at poll {} (drained {}, quiet {}); answering\n",
++                    halts,
++                    t,
++                    drained,
++                    quiet
++                );
+                 self.recover_snapshot("halted again");
+                 if !self.acknowledge_halt()?.0 {
+                     dev_err!(
+@@ -664,12 +686,28 @@ fn handshake(&mut self) -> Result<bool> {
+                     return Ok(false);
+                 }
+                 // Restart the drain wait, counting this poll.
++                quiet = 0;
+                 t = 1;
+                 continue;
+             }
++            if self.drained() {
++                quiet += 1;
++                if quiet >= logic::DRAIN_QUIET_POLLS {
++                    break;
++                }
++            } else {
++                quiet = 0;
++            }
+             poll_sleep();
+             t += 1;
+         }
++        dev_info!(
++            self.dev(),
++            "recovery step: drain loop end at poll {} (further halts {}, quiet {})\n",
++            t,
++            halts,
++            quiet
++        );
+         self.recover_snapshot("resumed");
+         self.report("recovery");
+         if !self.drained()
+diff --git a/drivers/gpu/drm/asahi-m3/g15/recovery/logic.rs b/drivers/gpu/drm/asahi-m3/g15/recovery/logic.rs
+index 6d36d1d6550d..a14fd5a42e24 100644
+--- a/drivers/gpu/drm/asahi-m3/g15/recovery/logic.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/recovery/logic.rs
+@@ -35,6 +35,9 @@
+ pub(crate) const RESUME_POLLS: u32 = 500;
+ pub(crate) const DRAIN_POLLS: u32 = 1000;
+ pub(crate) const FURTHER_HALTS: u32 = 4;
++/// Consecutive drain polls with the queues drained and no halt before the drain counts as
++/// done: a further halt can follow the drain within a poll (2026-10-27 08:52).
++pub(crate) const DRAIN_QUIET_POLLS: u32 = 2;
+ 
+ /// Stamp cell `obs` reached the own target `own`, bounded by the newest published target
+ /// `tail`. Stamps are seeded so that a written stamp is never 0 and has a zero low byte.

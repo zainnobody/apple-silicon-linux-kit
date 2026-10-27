@@ -59,14 +59,18 @@ What is known: the ISP firmware does the image processing. The driver only expos
 |---|---|---|---|---|---|
 | 1 | Better light. Proven: a second light turned a purple, grainy frame into a usable one | None | None | No | Large |
 | 2 | Read the value of `apple,temporal-filter` on this M3. **Done: it is 0 (off).** ISP platform ID is 0x10 | Done | None | No | The filter is off, so rank 3 is worth a try |
-| 3 | The value is 0: set it to 1 in the device tree that m1n1 passes to the kernel (the board DTB or an overlay), boot once, and compare frames in the same light | Medium | Medium: the firmware may reject it and the camera may vanish. Undo: put back the old DTB. Needs the GPU session, which owns boot files | Yes | Possibly large. Unknown |
+| 3 | **FAILED 2026-10-27, see below.** The value is 0: set it to 1 in the device tree that m1n1 passes to the kernel (the board DTB or an overlay), boot once, and compare frames in the same light | Medium | Medium: the firmware may reject it and the camera may vanish. Undo: put back the old DTB. Needs the GPU session, which owns boot files | Yes | Possibly large. Unknown |
 | 4 | User-space denoise as a virtual camera: GStreamer or ffmpeg (`hqdn3d` or `nlmeans`) in front of `/dev/video0`, published as a PipeWire video source (no kernel module). Untested | Medium | Low | No | Medium. Costs CPU and adds delay. Apps must pick the virtual camera |
 | 5 | `v4l2loopback` plus ffmpeg denoise. Same idea, but needs a kernel module built for this custom kernel | Medium to high | Medium | Maybe | Same as 4 |
 | 6 | Add exposure, gain and white balance controls to `apple-isp`. Needs ISP firmware commands that are not documented in this research | High | Medium | Yes | Unknown |
 | 7 | Make libcamera claim the node (Asahi issue 616). Gives libcamera apps access; libcamera cannot denoise firmware-processed NV12 | Low to medium | Low | Yes (kernel patch) | None for grain |
 | 8 | Check which `isp_*.dat` setfile the driver loads. No "not loaded" warning was logged on 2026-10-26, so low value | Low | None | No | Small |
 
-### Proposal only: switch on the temporal filter in the next boot-file window (not done)
+### FAILED (12:00 test boot, 2026-10-27): switch on the temporal filter
+
+Result (Touch ID session, `docs/features/touchid-stage2-plan.md` "Window result"): with `apple,temporal-filter = 1` the ISP node appears but streaming never starts (0 frames). On stop the firmware times out on OPCODE 0x0101, 0x0104 and 0x0021 and the driver force-stops it. The firmware on this M3 does not support the filter (as the maintainer said: not every board supports it). The property stays 0. Baseline on the normal boot: 150 frames, noise 3.914. Do not retry. The original proposal text follows for the record.
+
+### (Record) Proposal: switch on the temporal filter
 
 Status: proposal for the GPU session, which owns the boot files. Nothing was changed. The user has not given a go. It would ride in the Touch ID boot-file window (its own later reboot), see `touchid-stage2-plan.md`.
 
@@ -77,7 +81,38 @@ Status: proposal for the GPU session, which owns the boot files. Nothing was cha
 5. Pass: the camera appears and the grain is lower. Fail: no `apple-isp` node or a firmware handshake error (as in [Asahi issue 630](https://github.com/AsahiLinux/linux/issues/630)). Undo: put the old `boot.bin` back from macOS or by the usual rollback in `docs/install-plan.md` section 3.
 6. Risk: the camera may vanish if the firmware does not support the filter on this board. Nothing else in the boot path changes.
 
-Plan: do ranks 2 and 3 first, because they use the firmware's own denoise. If rank 3 fails, use rank 4 as a fallback.
+### Camera plan after the temporal filter failed (2026-10-27, written offline, tests start when the M3 is free at 12:50)
+
+Order, cheapest first. Every step is measured with `tests/camera-test.sh` (frame count, noise number, colour-cast number) before and after.
+
+1. **ISP control "Exposure, Dynamic Framerate" (V4L2 control `0x009a0903`, default 0).** It is the only control the driver exposes. If it lets the sensor lengthen the exposure in dim light (frame rate drops instead of gain going up), grain falls. No reboot, no install, no root: one `VIDIOC_S_CTRL` ioctl on `/dev/video*` (the node that reports driver `apple-isp`; `v4l2-ctl` is not installed, so use Python). Expected gain: unknown, possibly large in dim light. Risk: none (resets when the device closes). Test: noise and frame count with 0 and with 1.
+2. **Sensor presets (resolution modes).** The driver lists 6 camera configs; formats NV12 up to 1920x1080 and down to 640x480. A binned or smaller mode may carry less noise. Measure noise at each size. No reboot.
+3. **User-space denoise and colour fix as a PipeWire virtual camera (no kernel module).** Chain: `ffmpeg` reads the camera, runs filters, writes raw video to a pipe; `gst-launch-1.0 fdsrc ! videoparse ! pipewiresink mode=provide stream-properties="properties,media.class=Video/Source,media.role=Camera"` publishes it (pipeline form from a Laurent Pinchart post on the linux-media list, [lkml](https://lkml.iu.edu/hypermail/linux/kernel/2602.0/01104.html); the raw pixel format must be set, a GNOME forum post reports lost colours when it is not). Filters to measure: `hqdn3d` (cheap temporal and spatial denoise), `atadenoise` or `nlmeans` (better, more CPU), `grayworld` or `colortemperature` (colour cast), `eq` (brightness and gamma). Apps such as Firefox then pick the virtual source. Needs: `pipewire-gstreamer` (check `rpm -q`), and the camera must be free while the chain runs (only one reader). Costs CPU and about 1 to 3 frames of delay. If `pipewire-gstreamer` is missing, installing it needs root and the user's word in the session that does it.
+4. **Colour cast.** The first frame had a purple and yellow split in mixed light and a darker face; the same-light frame was close to natural. Measure `UAVG` and `VAVG` distance from 128 and the R/G and B/G ratios of the mean RGB, then try `grayworld` first.
+5. **Camera LED.** It lit on a 15 s run and was dark on shorter runs. The LED is not in `/sys/class/leds` or the device tree node. Repeat captures of 1, 5, 15 and 30 s (user watching) and write the timing; no software fix is known.
+
+Dead ends: temporal filter in the device tree (FAILED above); libcamera claiming the node (no gain for grain); `v4l2loopback` (needs a kernel module build; the PipeWire route does the same without one).
+
+## Camera fixes: test results (2026-10-27 12:50 to 13:00, kernel 7.2.11-m3gpu+, scene: a wall and bedding, user away, so only the numbers are comparable; scene lighting not controlled)
+
+Method: `tests/camera-test.sh` (same noise method as the Touch ID baseline: lower is better). Baseline on this scene: noise 4.99, cast 11.9, 150 frames in 5 s (30 fps). The Touch ID baseline of 3.914 was a different scene.
+
+| Test | Result |
+|---|---|
+| ISP control "Exposure, Dynamic Framerate" 0 against 1 (3 runs each, readback confirmed) | **No effect in this light**: noise 4.97 to 5.01 both ways, still 30 fps. It may act only in dim light; not tested dark |
+| Resolution presets 1920x1080, 1920x1440, 1280x960, 1280x720, 640x480 | noise 5.01, 4.90, 4.79, 4.96, 4.41; all 30 fps. Only 640x480 is lower (about 12%), probably from downscaling. **No useful preset** |
+| ffmpeg `hqdn3d` (default) | noise 3.33 (-34%), 30 fps kept |
+| `hqdn3d=4:3:8:6` | noise 3.10 (-38%); about 1.6 CPU cores with grayworld |
+| `nlmeans=s=3:p=3:r=7` | noise 3.05 (-39%); about 2.6 CPU cores |
+| `atadenoise` | noise 3.96 (-21%) |
+| `hqdn3d=4:3:8:6,grayworld` | noise 2.80, cast 3.21 (from 11.9); R/G 1.00, B/G 1.05 |
+| `colorchannelmixer=rr=0.95:bb=1.12` (fixed gains) | cast 2.16 |
+| **PipeWire virtual camera** (`ffmpeg` filters, pipe, `gst-launch-1.0 fdsrc ! videoparse ! pipewiresink mode=provide`), read back through `pipewiresrc` by node name | **Works.** Node `m3-clean-camera` ("M3-Clean-Camera", class Video/Source, role Camera) appears in PipeWire. 150 frames in 5 s. Same path for both: real camera noise 4.41, cast 10.5; virtual camera (hqdn3d + grayworld) noise 2.02 (-54%), cast 3.1 |
+| Picture check (side by side) | Right side smoother and neutral. `grayworld` over-corrects a scene that is mostly one colour (a lavender tint on warm walls). The new script defaults to fixed gains instead |
+
+Caveats: the noise number is a temporal difference, so a temporal denoiser lowers it by design and can ghost moving subjects; judge with a person moving. `pipewire-gstreamer` is already installed. Firefox and Chromium were not tested against the virtual source. The camera LED was not observed (user away). The default `fixed` white balance in `tools/camera-clean.sh` and the final `camera-test.sh --pw` guard were not re-run: the last `--pw` run printed PASS with the real camera's numbers (noise 4.19, cast 10.3) because the virtual source was not running and PipeWire fell back to the default source. The script now fails when the node is missing; that guard is untested.
+
+Scripts: `tests/camera-test.sh` (PASS or FAIL per check, `--save-baseline`, `--compare`, `--dyn-fps`, `--size`, `--vf`, `--pw`), `tools/camera-clean.sh` (the virtual camera, foreground, no root, no module).
 
 ## Next steps
 

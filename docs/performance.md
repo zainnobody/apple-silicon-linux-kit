@@ -44,6 +44,10 @@ No GPU errors during the run. The full run (`tests/stress.sh`) needs a desktop l
 | 2026-10-26 | Load soak, 60 min (`tests/load-soak.sh`) | Pass: 228.17 G pixel-iterations/s for the full hour (no drop), 0 wrong values in 195,843 checks, 0 kernel GPU or display problems. End temperatures 26.7 / 45.3 / 53.3 C (thermal zones 0-2) |
 | 2026-10-26 23:21 | Vulkan compute stress, 600 s (`tests/vk-stress.c`), desktop in use | Pass: 0 wrong values in 6,587 checks. One GPU fault in a desktop render job during the run (see below) |
 
+### KWin crash on a GPU fault in another process (2026-10-27 08:52:39)
+
+An invalid llama.cpp test tile made a llama-bench compute job write to unmapped GPU addresses. The kernel recovered, but `kwin_wayland`, a different process, crashed with SIGSEGV in the same second, and the desktop had to be restarted. So a GPU fault in one process can take down the compositor. Details and open questions: `docs/gpu-fault-2026-10-26.md`, "KWin crash on a fault in another process".
+
 ### GPU fault and plasmashell crash (2026-10-26 23:22)
 
 During the `vk-stress` run, the desktop was in use (plasmashell, Firefox and other GPU clients). This is the only GPU fault in 8 boots with the GPU stack.
@@ -66,7 +70,18 @@ Two open bugs: the render-path fault itself (kernel or Mesa G15 render state; th
 | After the memory floor fix (2026-10-26 20:43): 3B GPU / CPU | pp512 356 / 169, tg128 48.1 / 55.7 tokens/s |
 | After the memory floor fix: 8B GPU / CPU | pp512 150 / 71, tg128 22.7 / 25.1 tokens/s |
 
-Flash attention: the native compiler refused one instruction in the `flash_attn_f32_f16_aligned` shader, an f32 multiply with a half result (`fmul` f32 x f32 -> f16). Its short encodings hold only 8 of the 64 wait masks, and the shader needed a wider one. `patches/mesa-agx3-fmul-narrow-wait.patch` first runs the wait as its own instruction, as the compiler already does for the other short forms. With the patch, llama.cpp `test-backend-ops -o FLASH_ATTN_EXT` passes 5368 of 5368 tests on the GPU (11 cases are not supported by llama.cpp's Vulkan backend). With `-fa 1`, the speed is the same as with `-fa 0` (8B: 150 / 22.8 tokens/s), and the text is the same as the CPU text. The patch is in the Mesa build folder only, not yet in `/opt/mesa-m3`, so use `-fa 0` until it is installed. Details and the full table: `ane-linux/docs/llm-baseline.md`.
+Flash attention: the native compiler refused one instruction in the `flash_attn_f32_f16_aligned` shader, an f32 multiply with a half result (`fmul` f32 x f32 -> f16). Its short encodings hold only 8 of the 64 wait masks, and the shader needed a wider one. `patches/mesa-agx3-fmul-narrow-wait.patch` first runs the wait as its own instruction, as the compiler already does for the other short forms. With the patch, llama.cpp `test-backend-ops -o FLASH_ATTN_EXT` passes 5368 of 5368 tests on the GPU (11 cases are not supported by llama.cpp's Vulkan backend). With `-fa 1`, the speed is the same as with `-fa 0` (8B: 150 / 22.8 tokens/s), and the text is the same as the CPU text. Details and the full table: `ane-linux/docs/llm-baseline.md`.
+
+Installed in `/opt/mesa-m3` (stage M, 2026-10-27 01:36). Rerun 2026-10-27 07:40, new boot, on the charger at 12 % battery, `llama-bench -p 512 -n 128 -r 3 -ngl 99`, tokens/s:
+
+| Model | `-fa 0` pp512 / tg128 | `-fa 1` pp512 / tg128 |
+|---|---|---|
+| Llama 3.1 8B Q4_K_M | 149.98 / 22.79 | 150.13 / 22.69 |
+| Llama 3.2 3B Q4_K_M | 357.11 / 47.97 | 357.65 / 47.60 |
+
+0 GPU faults. Text check (40 tokens, greedy, 2 models x 2 prompts): the installed Mesa and the old Mesa build give the same text in 4 of 4 cases, and the GPU gives the same text as the CPU in 3 of 4. In the 4th case (8B, "The capital of France is") the GPU picks a different first word than the CPU with the old Mesa too, so it is GPU and CPU rounding, not the patch. Results on the M3: `~/llm-work/results/fa-20261027-0734`.
+
+**G2 (2026-10-27).** Llama 3.1 8B Q4_0 (requantized): pp512 169.8, tg128 26.65 tokens/s; Q4_K_M: 150.2 / 22.75. Token generation reads 124 GB/s of weights (macOS on Llama 2 7B: 109 GB/s), so it is at parity per byte. Prompt processing is about 59 % of macOS: the matrix multiplies run at about 2.2 TFLOPS without cooperative matrix (macOS uses `simdgroup_matrix`, about 4.6 TFLOPS). Batch size, flash attention and tile choice change it by less than 2 %. Details and the work estimate: `ane-linux/docs/llm-baseline.md`, section G2.
 
 **Select the native Vulkan driver outside the desktop.** The desktop session gets the native Mesa variables from the user environment generator. An SSH shell does not, so the Vulkan loader picks the distribution's Mesa. That driver writes an older compute format, and the kernel refuses every job (`G15: rejecting CDM record ... 00001212`, `submit failed ... EINVAL`). Benchmarks then report impossible speeds. Set this first:
 
@@ -207,6 +222,65 @@ The GPU still ran at state 1 (338 MHz) for most of the wait test. So the firmwar
 
 So the macOS figure of 133 G is a mixed CPU and GPU DVFS result, not a GPU limit. Linux reaches 255 G when the GPU is kept busy, which is 1.9 times the macOS figure for the check pattern. A fair GPU comparison needs the no-wait run in macOS too (`metal-stress` with no checks). That needs a macOS boot.
 
+**G1: closing the stop-and-go gap (2026-10-27).**
+
+a) CPU side (`tests/g1-cpu-side.sh 60`, 3 runs of 60 s each, macOS pattern, on the charger):
+
+| CPU setting | G pixel-iter/s | CPU check per 10 frames |
+|---|---|---|
+| Default | 63.2 / 63.2 / 64.0 | 27.0 to 28.9 ms |
+| `taskset -c 7` (P core) | 62.9 / 63.0 / 63.3 | 28.8 to 29.0 ms |
+| `uclampset -m 1024 taskset -c 7` | **81.0 / 81.1 / 81.3** | **14.4 to 14.6 ms** |
+
+Pinning alone does not help: `schedutil` keeps the P core slow because the thread mostly waits. `uclamp.min` 1024 halves the check time (+28 %). The GPU is then still busy only about 53 % of the time. The pstate sampler was not run (it needs root after 07:35).
+
+b) Driver side. The DVFS controller words come from the G15S HardwareData template of the firmware build (the macOS configuration), not from this Mac's ADT (its `sgx` node has no `perf-*` controller properties). Decoded at HardwareDataA (+0x4580) with the G15C record offsets, confirmed by the fixed neighbours:
+
+| Word | Value |
+|---|---|
+| `perf_tgt_utilization`, `_2` | 80 % |
+| `perf_boost_min_util`, `perf_boost_ce_step` | 90, 50 |
+| filter a / a2 | 0.2 / 0.005 |
+| integral / proportional gain | 1.755 / 5.85 |
+| base / max pstate (scaled) | 100 (state 1) / 800 (state 8) |
+
+So the firmware aims for 80 % busy. At about 50 % busy it lowers the clock until the GPU is busy 80 % of the time, near state 1. The driver has no module parameter or debugfs knob for this and no minimum-pstate request. `patches/g15-perf-tgt-util.patch` adds `asahi.g15_perf_tgt_util` (30 to 95, 0 = unchanged); built (image sha256 3f032b51...), install script `install/stage-n-tgt-util.sh`, not tested yet (needs root and one boot).
+
+c) macOS evidence: only the pattern number (133 G at about 317 frames/s, 31.5 ms per 10 frames). If the M3 GPU at the top clock needs 16.4 ms for 10 frames (Linux no-wait value), macOS spends about 15 ms per check and keeps the GPU near the top clock at about 52 % busy. With the same firmware words that would not happen, so macOS likely sends a performance hint with its work or uses other controller words. Not proven: a macOS run with `METAL_STRESS_CHECK_EVERY=0` and `powermetrics` GPU frequency would show it.
+
+d) Test boot with `asahi.g15_perf_tgt_util=50` (2026-10-27 12:14, one-time boot, `install/window/gpu-boot.sh` and `gpu-check.sh`, output `~/gpu-perf/gpu-check-20261027-121452`): **GPU_CHECK_FAIL, no gain.** The driver logged `DVFS target utilization 50 % from the module parameter (template 80 %)`, so the firmware got the new words.
+
+| Run | G pixel-iter/s | CPU check per 10 frames | GPU time per 10 frames | Against the top clock (16.3 ms) | GPU busy |
+|---|---|---|---|---|---|
+| Default, stage O (G1 a) | 63.2-64.0 | 27-29 ms | 38.3 ms | 2.35 x | 58 % |
+| Default, target 50 | 64.00 | 26.97 ms | 38.6 ms | 2.36 x | 59 % |
+| uclamp P core, stage O (G1 a) | 81.0-81.3 | 14.5 ms | 37.2 ms | 2.28 x | 72 % |
+| uclamp P core, target 50 | 52.93 | 14.55 ms | 64.7 ms | 3.97 x | 82 % |
+| No wait, target 50 | 257.20 (stage O 263.6) | none | 16.3 ms | 1.00 x | 100 % |
+
+GPU time per 10 frames = 10 / frames per second minus the CPU check time; the top-clock value comes from the no-wait run. One run each.
+
+- In every stop-and-go run the GPU is busy 58-82 % of the time, above both the 80 % template target (for the uclamp run) and the 50 % test target. A controller that aims at that busy share would raise the clock. It did not: the default run is the same to within 1 %, and the uclamp run became slower (3.97 times the top-clock time against 2.28).
+- So the words at HardwareDataA +0x788/+0x7ec do not control this case, or the firmware measures busy time in a way that a 15-27 ms idle gap resets (for example a power-down between bursts, with a restart at a low state). The decode in b) is not wrong for the record layout, but this test shows the target is not the limit.
+- The uclamp drop is one run on a fresh boot. It needs a repeat before it counts.
+- The parameter stays in the kernel with default 0 (no change). Do not set it.
+
+Next: measure, do not guess. Run the pstate sampler (root) during `VK_STRESS_CHECK_EVERY=10` on the normal boot, to see the clock state per burst and whether the GPU powers down in the CPU gaps. Only then choose the next controller word (the boost words at util 90/step 50, the filter a 0.2/0.005, or the idle power-down delay).
+
+e) Clock probe (2026-10-27 12:50, normal boot, `tests/gpu-clock-probe.sh`, 2 ms `pstate` sampling from debugfs):
+
+| Run | G pixel-iter/s | Fast bursts (state 8, about 17 ms) | Then |
+|---|---|---|---|
+| check 10, 60 s | 67.22 | first 19.97 s | every burst at state 1 (338 MHz, about 66 ms), power-off (state 0) between |
+| check 10, uclamp P core, 60 s | 78.79 | first 19.99 s | same |
+| no wait, 20 s | 263.60 | whole run | |
+| check 10, 30 s, after idle gaps of about 3, 2, 10 and 30 s | 87.08, 88.71, 86.68, 87.31 | first 19.96-19.99 s each time | same |
+
+- The firmware keeps the top clock for exactly 20 s of a new GPU client's work. Then its controller target steps 4, 3, 2 to 1 within about 300 ms, and every later burst runs at state 1, 4 times slower. A 2 s gap is enough to get a new 20 s window, so the window probably starts with a new client (context), not after a long idle.
+- So the stop-and-go result depends on the run length: 30 s gives 87 G, 60 s gives 64-67 G. The macOS 133 G figure needs the same check: is macOS also fast only for 20 s, or does it stay fast?
+- The template has no DVFS word that clearly encodes 20 s (value 20 only at 0xb20, 0xb54 and HardwareDataA +0xf7c, units not known). The 50 % target test did not change the state-1 phase.
+- Next: find what starts the window (a new context, a new queue or a firmware message), and whether the driver can send it again. The firmware words to try in a test boot are the boost words (HardwareDataA +0x790 = 90 % minimum busy, +0x794 = step 50), or the base state (+0x7d8/+0x7e0 = 100, state 1).
+
 ### GPU suite (2026-10-27 00:12, `tests/gpu-perf-suite.sh 60`, desktop idle)
 
 | Test | Result |
@@ -225,6 +299,30 @@ So the macOS figure of 133 G is a mixed CPU and GPU DVFS result, not a GPU limit
 | 1 | 9,321 | 6,463 | 7,892 |
 
 No macOS value on this Mac.
+
+## Heat and fans under sustained load (2026-10-27)
+
+`tests/heat-soak.sh` (with `tests/heat-sample.sh` and the safety stop `tests/heat-guard.sh`), stage O kernel, charger in, Plasma desktop up.
+
+**Fans off (10:13, the baseline).** Before the fan fix, the fans never ran. Output `~/gpu-perf/heat-soak-20261027-101316` on the M3.
+
+| Phase | Length | Throughput over the run | PMP CPU hotspot | SoC die max | Others max | Fans |
+|---|---|---|---|---|---|---|
+| GPU only: vk-stress, no wait | 600 s | 628-629 fps in every 30 s step (263.6 Gpix-iter/s): flat | 64 C at start, 80.8 C max, about 80 C steady, still rising slowly | 68.6 C | charger 48.9 C, Wi-Fi 54.0 C, battery 25.5 C | 0 / 0 rpm |
+| CPU + GPU: 7-Zip benchmark, 12 threads, in a loop, plus vk-stress | 336 s (stopped by the guard) | 7-Zip 67.6k-73.3k per pass: flat; P cores 4034 MHz mean in the first quarter, 4038 MHz in the last | 95-100 C at the start of each 7-Zip pass (about every 8 s), about 77 C between; 61 of 164 samples at 90 C or more; 100.0 C at 10:31:52 | 66.1 C | charger 43.5 C, Wi-Fi 51.5 C | 0 / 0 rpm |
+
+**Fans on (11:25).** The coordinator found the cause: the M3 SMC rejects the fan mode write until the key `Ftst` is set to 1. `patches/macsmc-hwmon-ftst-unlock.patch` (in the Documents copy of this repo) sets `Ftst`, and `m3-fancurve.service` (installed and enabled at 11:23) runs a fan curve. Same script, phases of 240 s. Full data: `docs/features/fans-heat.md` in the Documents copy (commit 75a6054).
+
+| Phase | Length | Throughput | PMP CPU hotspot max | SoC die max | Fans max |
+|---|---|---|---|---|---|
+| GPU only | 240 s | vk-stress 263.60 G (628.5 fps; fans off: 263.6 G) | 72.8 C (fans off: 80.8 C) | 61.6 C | 1616 rpm |
+| CPU + GPU | 240 s | vk-stress 263.26 G; 7-Zip 69,563 mean; P cores 4,030 MHz mean | 93.8 C, never 95 C (fans off: 100 C, guard stop) | 61.4 C | 4028 rpm |
+
+- **No throttling seen**, with or without fans. Fans off: the GPU rate did not drop in 10 min, the P cores stayed at 4056 MHz even at the 100 C sample, and the kernel logged no thermal lines. A 35 s check run gave 627 fps for the GPU with the CPU load, the same as without it.
+- **The guard did not stop the fans-on run.** With the fans, an all-core CPU load plus the GPU stays below 95 C in 240 s. Without them, it reached 100 C in under 6 min.
+- **Fan keys:** the device tree names the SMC keys `F0Ac`/`F1Ac` (actual), `F0Tg`/`F1Tg` (target), `F0Mn`/`F0Mx` (min/max) and `F0Md` (mode). Fan 1 reads min 1350 and max 5349 rpm, Fan 2 min 1458 and max 5777 rpm. In SMC automatic mode the SMC kept its own target at 0 with a 100 C hotspot.
+- **macOS reference:** Notebookcheck measured up to 2,400 rpm and 31.1 dB(A) after 30 min of Cinebench R23.
+- **Keep the fans working:** every M3 kernel build must carry `macsmc-hwmon-ftst-unlock.patch`. The patched module is in `/lib/modules/7.2.11-m3gpu+/updates/`, so a new kernel version does not get it. Keep `tests/heat-guard.sh` on for long loads.
 
 ## Planned: how far each part of the chip goes
 

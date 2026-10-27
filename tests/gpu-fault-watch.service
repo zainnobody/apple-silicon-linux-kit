@@ -1,11 +1,14 @@
-# User service for tests/gpu-fault-watch.sh. Log: ~/gpu-fault-watch.log
-# Install: cp to ~/.config/systemd/user/ && systemctl --user enable --now gpu-fault-watch
-# Undo:    systemctl --user disable --now gpu-fault-watch && rm ~/.config/systemd/user/gpu-fault-watch.service
+# User service for tests/gpu-fault-watch.sh. Installed on the M3 on 2026-10-27 by the coordinator
+# (the user's go): the script is in ~/m3gpu and runs through /bin/bash, because /data is unlabeled_t
+# for SELinux. Install (no root):
+#   install -D -m 0755 tests/gpu-fault-watch.sh ~/m3gpu/gpu-fault-watch.sh
+#   install -D -m 0644 tests/gpu-fault-watch.service ~/.config/systemd/user/gpu-fault-watch.service
+#   systemctl --user daemon-reload && systemctl --user enable --now gpu-fault-watch.service
+# Remove: systemctl --user disable --now gpu-fault-watch.service, then delete the unit file.
 [Unit]
-Description=GPU fault watcher (agx-linux-kit)
+Description=Log GPU faults, recoveries and core dumps to ~/gpu-fault-watch.log
 
 [Service]
-# bash runs the script, because /data files are unlabeled_t under SELinux and cannot be executed directly by systemd
 ExecStart=/bin/bash %h/m3gpu/gpu-fault-watch.sh
 Restart=on-failure
 RestartSec=10

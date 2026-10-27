@@ -2,6 +2,8 @@
 // (docs/gpu-fault-2026-10-26.md). After LOST_AFTER_S seconds (default 5) from the first
 // asahi ioctl, VM_BIND, GEM_CREATE and SUBMIT on the asahi render node fail with EIO, as they
 // do for a VM that carries a sticky error. Other ioctls pass through.
+// LOST_SUBMIT=0 keeps SUBMIT working, so the first failure a client sees is a refused buffer
+// (the order kwin_wayland saw at 2026-10-27 08:52: VM_BIND EIO, then a NULL Batch pool BO).
 // Build (needs Mesa's include/drm-uapi):
 //   gcc -O2 -shared -fPIC -I ~/m3gpu/src/mesa/include/drm-uapi -o lost-context-inject.so \
 //       tests/lost-context-inject.c -ldl
@@ -54,9 +56,14 @@ int ioctl(int fd, unsigned long request, ...)
 	void *arg = va_arg(ap, void *);
 	va_end(ap);
 
+	static int submit = -1;
+	if (submit < 0) {
+		const char *e = getenv("LOST_SUBMIT");
+		submit = e ? atoi(e) != 0 : 1;
+	}
 	unsigned int req = (unsigned int)request;
 	if (req == (unsigned int)DRM_IOCTL_ASAHI_VM_BIND || req == (unsigned int)DRM_IOCTL_ASAHI_GEM_CREATE ||
-	    req == (unsigned int)DRM_IOCTL_ASAHI_SUBMIT) {
+	    (submit && req == (unsigned int)DRM_IOCTL_ASAHI_SUBMIT)) {
 		if (lost()) {
 			errno = EIO;
 			return -1;
