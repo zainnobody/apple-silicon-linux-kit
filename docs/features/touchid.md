@@ -105,7 +105,7 @@ Revisit when one of these happens: Asahi moves SEP from TBA to WIP for M3; an `a
 
 ## Staged experiment (only if the user asks later)
 
-Use this only with the user's own go in the session that owns the kernel. Do not run any step before then. Stop at the first failure.
+**Read "Stage 1 status" below first: the device tree is shared by all boot entries (one `boot.bin`), so steps 2 and 3 also need a `boot.bin` rebuild with a tested rollback to `boot.bin.old`. A second boot entry covers only the kernel.** Use this only with the user's own go in the session that owns the kernel. Do not run any step before then. Stop at the first failure.
 
 0. **Backup first.** From a live USB or macOS Recovery, make a raw image of the APFS partitions (`Apple Silicon boot`, `Apple APFS` 46.6 GB, 2.3 GB, `recovery`) to an external disk. Verify a checksum. Keep the m1n1 stage 1 and stage 2 files and the current boot entry. Rollback for every step below starts here.
 1. **Read-only ADT work (no risk).** Get the ADT of this Mac (macOS `ioreg` or the m1n1 `adt` dump). Keep the SEP, mailbox, DART, sensor SPI and GPIO values in a private location outside the repo. Do not copy them into docs.
