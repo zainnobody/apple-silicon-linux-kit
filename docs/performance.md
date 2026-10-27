@@ -44,6 +44,10 @@ No GPU errors during the run. The full run (`tests/stress.sh`) needs a desktop l
 | 2026-10-26 | Load soak, 60 min (`tests/load-soak.sh`) | Pass: 228.17 G pixel-iterations/s for the full hour (no drop), 0 wrong values in 195,843 checks, 0 kernel GPU or display problems. End temperatures 26.7 / 45.3 / 53.3 C (thermal zones 0-2) |
 | 2026-10-26 23:21 | Vulkan compute stress, 600 s (`tests/vk-stress.c`), desktop in use | Pass: 0 wrong values in 6,587 checks. One GPU fault in a desktop render job during the run (see below) |
 
+### KWin crash on a GPU fault in another process (2026-10-27 08:52:39)
+
+An invalid llama.cpp test tile made a llama-bench compute job write to unmapped GPU addresses. The kernel recovered, but `kwin_wayland`, a different process, crashed with SIGSEGV in the same second, and the desktop had to be restarted. So a GPU fault in one process can take down the compositor. Details and open questions: `docs/gpu-fault-2026-10-26.md`, "KWin crash on a fault in another process".
+
 ### GPU fault and plasmashell crash (2026-10-26 23:22)
 
 During the `vk-stress` run, the desktop was in use (plasmashell, Firefox and other GPU clients). This is the only GPU fault in 8 boots with the GPU stack.
