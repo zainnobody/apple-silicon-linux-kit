@@ -11,6 +11,7 @@
 #   window N  become visible for N seconds (root; needs a terminal if sudo asks for a password)
 #   send ADDR FILE  send a file to a peer on awdl0 (user; needs an open window). ADDR is the peer link-local
 #             address with port, e.g. "[fe80::...%awdl0]:8770"; list peers with: ip -6 neigh show dev awdl0
+#   notify    desktop notification after each received file; follows the receiver log (no root)
 #   status    read-only
 #   undo      remove awdl0, the NetworkManager file, the firewall change; restore the MAC setting (root)
 set -u
@@ -75,6 +76,17 @@ send)
 	[ -n "${2:-}" ] && [ -f "${3:-}" ] || bad "usage: send ADDR FILE"
 	python3 "$SRC/omdrop-awdl/userspace/airdrop-send.py" --direct "$2" --ask-timeout 45 --op-timeout 10 "$3"
 	;;
+notify)
+	export DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$(id -u)/bus
+	tail -n0 -F "$SRC/receiver.log" | while read -r line; do
+		case "$line" in
+		*'POST /Upload HTTP/1.1" 200'*)
+			sleep 1
+			notify-send -a AirDrop "AirDrop: file received" "$(ls -t "$OUT" | head -1) saved in $OUT"
+			;;
+		esac
+	done
+	;;
 status)
 	ip -br link show awdl0 2>&1
 	"$DISC" status --json 2>&1
@@ -92,6 +104,6 @@ undo)
 	ok "undone; the three Python packages stay installed (sudo dnf remove python3-ifaddr python3-libarchive-c python3-zeroconf)"
 	;;
 *)
-	sed -n '2,15p' "$0"
+	sed -n '2,16p' "$0"
 	;;
 esac

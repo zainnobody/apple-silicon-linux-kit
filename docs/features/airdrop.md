@@ -30,6 +30,8 @@ All steps are in `build/airdrop-setup.sh`, run on the M3 in this order.
 | 7 | `airdrop-setup.sh window 180` | `omdrop-discoverable start 180`: makes the M3 visible for 180 s | `omdrop-discoverable stop` |
 | 8 | `airdrop-setup.sh send ADDR FILE` | sends a file to a peer; no root | none |
 
+| 9 | `airdrop-setup.sh notify` | follows the receiver log and runs `notify-send` after each upload (needs the desktop session bus) | stop the loop |
+
 Received files go to `~/Downloads`.
 
 Why step 3: Fedora's default is a random per-network Wi-Fi MAC (`stable-ssid`). `awdl-up` derives the AWDL address from the permanent MAC and exits with code 5 on a random one. The side effect is that the router sees the real MAC.
