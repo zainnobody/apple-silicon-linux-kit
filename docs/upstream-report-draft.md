@@ -1,6 +1,6 @@
 # Upstream report draft: J516S GPU firmware identity (not posted)
 
-Status: draft only. Nothing is posted. Rewritten 2026-10-26 after the masked-digest boot test. Target: an issue in `chriskearney/siliconforest-linux` (the kernel we run, issues enabled). A copy could go to `omacom/linux-aurora`, which carries the same firmware table. See the notes at the end.
+Status: POSTED 2026-10-26 as chriskearney/siliconforest-linux#20. Rewritten 2026-10-26 after the masked-digest boot test. Target: an issue in `chriskearney/siliconforest-linux` (the kernel we run, issues enabled). A copy could go to `omacom/linux-aurora`, which carries the same firmware table. See the notes at the end.
 
 ---
 

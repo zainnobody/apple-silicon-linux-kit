@@ -1,0 +1,1 @@
+J516S (Mac15,7): the GPU firmware TEXT digest depends on the machine, because the patchbay holds UAT addresses; proposal: admit by UUID plus a patchbay-masked digest
