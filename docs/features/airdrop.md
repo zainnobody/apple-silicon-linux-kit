@@ -72,7 +72,7 @@ Found on the way: with the iPhone on "Contacts Only" (iOS drops "Everyone for 10
 | Part | Command | What it installs | Status 2026-10-27 |
 |---|---|---|---|
 | user | `airdrop-persist.sh user` | systemd user services `airdrop-receiver` (Restart=always, log to `receiver.log`) and `airdrop-notify`, both enabled | installed and running |
-| root | `sudo airdrop-persist.sh root` | copies the reviewed helpers to root-owned `/usr/lib/omdrop`, installs `awdl0.service` (NOT enabled by default, see Wi-Fi coexistence) plus a drop-in that rebinds `awdl0` to firewalld zone `work`, opens TCP 8771 permanently, installs the upstream polkit policy (a local desktop session opens a window without a password) | NOT applied: needs the user's own approval and password |
+| root | `sudo airdrop-persist.sh root` | copies the reviewed helpers to root-owned `/usr/lib/omdrop`, installs `awdl0.service` (NOT enabled by default, see Wi-Fi coexistence) plus a drop-in that rebinds `awdl0` to firewalld zone `work`, opens TCP 8771 permanently, installs the upstream polkit policy (a local desktop session opens a window without a password) | applied 2026-10-27 13:25 by the coordinator on the user's go (given in the coordinator chat): snapshot 24 first, script sha256 `4c9dd86c...`, log `persist-root-1325.log` on the M3 |
 | undo root | `sudo airdrop-persist.sh remove` | removes the unit, drop-in, policy, `/usr/lib/omdrop`, the permanent port | |
 
 Windows stay manual until the polkit policy is installed. The policy applies only to an active local session on the M3, not to SSH.
@@ -192,3 +192,16 @@ Pass rules: after each step, wld0 is `UP` and associated, the router still pings
 | T6b | only after T6a passes and the measures (a) and (b) are deployed: create `awdl0` (T2), then press the suspend key again | with (a): the key press is blocked and Wi-Fi is untouched; with (b) and no inhibitor: no `-16` and wld0 reconnects |
 
 Stop at the first failure, save `journalctl -k -b` to the notes folder, and do not continue.
+
+## Status 2026-10-27 13:25 (reported by the coordinator; I did not re-read these on the M3)
+
+| Item | State |
+|---|---|
+| root part (`airdrop-persist.sh root`) | installed: 19 files in `/usr/lib/omdrop`, `awdl0.service` installed and disabled, polkit policy installed, firewalld `work` zone has 8771/tcp |
+| `awdl0` | does not exist (created on demand) |
+| `wld0` | connected, still in the default zone |
+| coordinator self-test after the install | 25 PASS, 0 FAIL, 1 WARN (the charger came off, unrelated) |
+| user part, buttons (`user`, `ui`) | not installed; need the user at the M3 |
+| tests T6a, T6b, file tests | not run; need the user at the M3 (console, suspend key) |
+| AirDrop | OFF until T6a and T6b pass |
+| undo of the root part | `sudo airdrop-persist.sh remove` |
