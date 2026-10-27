@@ -18,7 +18,8 @@ BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-recovery"
 grep -q "apple,j516s" /proc/device-tree/compatible || { echo "Not a J516S" >&2; exit 1; }
 [ "$(sha256sum "$STAGE/boot/vmlinuz-$KREL" | cut -d' ' -f1)" = "$WANT" ] || { echo "Staged image hash differs" >&2; exit 1; }
 [ "$(strings "$STAGE/boot/vmlinuz-$KREL" | grep -c 'recovery step')" -ge 4 ] || { echo "Recovery fix missing in the image" >&2; exit 1; }
-strings "$STAGE/boot/vmlinuz-$KREL" | grep -q g15_perf_tgt_util || { echo "tgt_util parameter missing in the image" >&2; exit 1; }
+# grep -c reads all input: grep -q would end strings with SIGPIPE under pipefail.
+strings "$STAGE/boot/vmlinuz-$KREL" | grep -c g15_perf_tgt_util > /dev/null || { echo "tgt_util parameter missing in the image" >&2; exit 1; }
 diff <(grep -v '^#' "/boot/config-$KREL" | sort) <(grep -v '^#' "$STAGE/boot/config-$KREL" | sort) \
 	| grep '^[<>]' | grep -vx '> CONFIG_USB4_APPLE_SOC=m' && { echo "Config differs beyond USB4_APPLE_SOC" >&2; exit 1; }
 [ -d "$STAGE/lib/modules/$KREL/kernel" ] || { echo "Staged modules missing" >&2; exit 1; }
