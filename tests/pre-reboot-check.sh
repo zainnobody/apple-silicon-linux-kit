@@ -43,7 +43,8 @@ grep -q '^UPDATEDEFAULT=no' /etc/sysconfig/kernel && ok "kernel updates keep the
 
 # Stage L state.
 [ -f /usr/lib/modules/$KREL/kernel/drivers/thunderbolt/thunderbolt_apple.ko ] && ok "thunderbolt_apple.ko installed" || bad "thunderbolt_apple.ko missing (stage L not done)"
-grep -qx "blacklist thunderbolt_apple" /etc/modprobe.d/m3gpu-thunderbolt-apple.conf 2>/dev/null && ok "thunderbolt_apple autoload blocked" || bad "thunderbolt_apple blacklist missing"
+# The autoload block is gone by design: the module loads at boot. A blacklist file means the old test state.
+[ ! -e /etc/modprobe.d/m3gpu-thunderbolt-apple.conf ] && ok "thunderbolt_apple autoload allowed (no blacklist file)" || bad "thunderbolt_apple blacklist file still present (module will not load at boot)"
 [ "$(strings /usr/lib/modules/$KREL/kernel/drivers/bluetooth/hci_bcm4377.ko | grep -c j516s)" -ge 1 ] && ok "patched hci_bcm4377.ko installed" || bad "hci_bcm4377.ko is not the patched one"
 
 # Nothing that should not be cut by a reboot.
