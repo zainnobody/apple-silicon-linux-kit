@@ -1,0 +1,112 @@
+import sys
+
+p = sys.argv[1]
+s = open(p).read()
+
+anchor = "static int apple_pmp_t6030_temp_sample(struct apple_pmp_report *rep, unsigned int index,"
+floor = r'''/*
+ * T6030 memory floor, from drivers/soc/apple/m3/pmp-display.c, which is only
+ * built with the SILICONFOREST_M3 stack. CPU-client PTD entries 288 and 289
+ * (EACC0, PACC0) request DCS4 and FAB2: valid bit 61, DCS bits 51:48, FAB
+ * bits 35:32, other fields kept. DVFS state entries 8 and 10 publish the
+ * PMP's response. Without the floor the PMP keeps DRAM and the fabric at
+ * their lowest states (CPU and GPU read about 30 GB/s on J516S).
+ *
+ * A read of a request entry may consume the PMP's change notification, so
+ * the requests are first cleared, then written back to back, and the result
+ * is confirmed on the DVFS state entries only, with up to ten tries.
+ */
+#define T6030_FLOOR_IDX0	288
+#define T6030_FLOOR_MASK	(BIT_ULL(61) | GENMASK_ULL(51, 48) | GENMASK_ULL(35, 32))
+#define T6030_FLOOR		(BIT_ULL(61) | (4ULL << 48) | (2ULL << 32))
+#define T6030_FLOOR_ENTRY(i)	((T6030_FLOOR_IDX0 + (i)) * 16)
+#define T6030_FLOOR_SET(i)	(0x10000 + (T6030_FLOOR_IDX0 + (i)) * 8)
+#define T6030_DVFS_STATE(i)	((8 + 2 * (i)) * 16)
+#define T6030_FLOOR_SETTLE_MS	100
+#define T6030_FLOOR_TRIES	10
+
+static bool memory_floor = true;
+module_param(memory_floor, bool, 0444);
+MODULE_PARM_DESC(memory_floor, "Request the T6030 DCS4/FAB2 memory floor once the PMP runs (default: on)");
+
+static struct apple_pmp_report *apple_pmp_floor_rep;
+static unsigned int apple_pmp_floor_try;
+static u64 apple_pmp_floor_prior[2];
+
+static void apple_pmp_t6030_floor_work(struct work_struct *work);
+static DECLARE_DELAYED_WORK(apple_pmp_floor_work, apple_pmp_t6030_floor_work);
+
+static void apple_pmp_t6030_floor_work(struct work_struct *work)
+{
+	struct apple_pmp_report *rep = apple_pmp_floor_rep;
+	u64 before[2], after[2];
+	bool confirmed = false;
+
+	if (readq(rep->base + rep->offsets->status) != PMP_REPORT_READY)
+		goto retry;
+	/* The first try reads the requests while no change of ours is pending. */
+	if (!apple_pmp_floor_try)
+		for (unsigned int i = 0; i < 2; i++)
+			apple_pmp_floor_prior[i] = readq(rep->base + T6030_FLOOR_ENTRY(i)) &
+						   ~T6030_FLOOR_MASK;
+	for (unsigned int i = 0; i < 2; i++)
+		writeq(apple_pmp_floor_prior[i], rep->base + T6030_FLOOR_SET(i));
+	msleep(T6030_FLOOR_SETTLE_MS);
+	for (unsigned int i = 0; i < 2; i++)
+		before[i] = readq(rep->base + T6030_DVFS_STATE(i));
+	for (unsigned int i = 0; i < 2; i++)
+		writeq(apple_pmp_floor_prior[i] | T6030_FLOOR, rep->base + T6030_FLOOR_SET(i));
+	msleep(T6030_FLOOR_SETTLE_MS);
+	for (unsigned int i = 0; i < 2; i++)
+		after[i] = readq(rep->base + T6030_DVFS_STATE(i));
+	confirmed = before[0] != after[0] || before[1] != after[1];
+	dev_info(rep->dev, "memory floor try %u: DVFS state %#llx/%#llx -> %#llx/%#llx%s\n",
+		 apple_pmp_floor_try + 1, before[0], before[1], after[0], after[1],
+		 confirmed ? "" : ", no response");
+retry:
+	if (!confirmed && ++apple_pmp_floor_try < T6030_FLOOR_TRIES) {
+		schedule_delayed_work(&apple_pmp_floor_work, HZ);
+		return;
+	}
+	if (!confirmed)
+		dev_warn(rep->dev, "memory floor not confirmed by the PMP\n");
+}
+
+/* Once, after the PMP is ready; T6030 MacBook Pros only. */
+static void apple_pmp_t6030_floor(struct apple_pmp_report *rep)
+{
+	if (!memory_floor || apple_pmp_floor_rep ||
+	    !of_machine_is_compatible("apple,t6030") ||
+	    !(of_machine_is_compatible("apple,j514s") || of_machine_is_compatible("apple,j516s")))
+		return;
+	apple_pmp_floor_rep = rep;
+	schedule_delayed_work(&apple_pmp_floor_work, HZ);
+}
+
+'''
+assert s.count(anchor) == 1
+s = s.replace(anchor, floor + anchor, 1)
+
+old = """		if (rep->offsets->temps)
+			apple_pmp_t6030_temps_register(rep);
+	}
+	apple_pmp_t6030_finish(rep, ret);"""
+new = """		if (rep->offsets->temps)
+			apple_pmp_t6030_temps_register(rep);
+		if (rep->offsets->temps)
+			apple_pmp_t6030_floor(rep);
+	}
+	apple_pmp_t6030_finish(rep, ret);"""
+assert s.count(old) == 1
+s = s.replace(old, new)
+
+old2 = """	/* No work or waiter may use the devres state after remove returns. */
+	cancel_work_sync(&rep->start_work);"""
+new2 = """	/* No work or waiter may use the devres state after remove returns. */
+	cancel_work_sync(&rep->start_work);
+	if (apple_pmp_floor_rep == rep)
+		cancel_delayed_work_sync(&apple_pmp_floor_work);"""
+assert s.count(old2) == 1
+s = s.replace(old2, new2)
+open(p, "w").write(s)
+print("patched")

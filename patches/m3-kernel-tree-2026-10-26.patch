@@ -1,7 +1,25 @@
-# Full uncommitted diff of the M3 kernel tree (~/m3gpu/src/linux at SiliconForest 0e1f46661376), 2026-10-26 21:45.
-# This is the source of the installed 7.2.11-m3gpu+ image (sha 65798c91). It equals the stack:
-#   g15-j516s-b1-pin.patch, g15-fw-digest-diag.patch, g15-fw-masked-identity.patch, t6030-pmp-memory-floor.patch
-# Use it to rebuild the current kernel in one step: git -C <linux at 0e1f46661376> apply <this file>
+# Full uncommitted diff of the M3 kernel tree (~/m3gpu/src/linux at SiliconForest 0e1f46661376), 2026-10-26 23:40.
+# Source of the running 7.2.11-m3gpu+ (image sha 65798c91) and its modules. It equals the stack:
+#   g15-j516s-b1-pin.patch, g15-fw-digest-diag.patch, g15-fw-masked-identity.patch, t6030-pmp-memory-floor.patch,
+#   hci-bcm4377-j516s-resume-recovery.patch (module only). Build config: m3-legacy/kernel/config-7.2.11-m3gpu+-usb4.
+# Rebuild in one step: git -C <linux at 0e1f46661376> apply <this file>
+diff --git a/drivers/bluetooth/hci_bcm4377.c b/drivers/bluetooth/hci_bcm4377.c
+index 886ccbabe7f7..ee1d4434ae43 100644
+--- a/drivers/bluetooth/hci_bcm4377.c
++++ b/drivers/bluetooth/hci_bcm4377.c
+@@ -1508,8 +1508,10 @@ static void bcm4377_setup_retry_work(struct work_struct *work)
+ 
+ static bool bcm4377_resume_recovery_supported(struct bcm4377_data *bcm4377)
+ {
+-	return bcm4377->hw->id == 0x4378 &&
+-	       of_machine_is_compatible("apple,j493");
++	return (bcm4377->hw->id == 0x4378 &&
++		of_machine_is_compatible("apple,j493")) ||
++	       (bcm4377->hw->id == 0x4388 &&
++		of_machine_is_compatible("apple,j516s"));
+ }
+ 
+ static bool bcm4377_resume_recovery_allowed(struct hci_dev *hdev)
 diff --git a/drivers/gpu/drm/asahi-m3/g15/hw.rs b/drivers/gpu/drm/asahi-m3/g15/hw.rs
 index 884005354f6a..7fced06bf8c8 100644
 --- a/drivers/gpu/drm/asahi-m3/g15/hw.rs
