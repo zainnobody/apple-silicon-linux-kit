@@ -163,6 +163,15 @@ Source: Asahi m1n1 user guide, read 2026-10-27 (<https://asahilinux.org/docs/sw/
 6. Boot back to Fedora: power cycle the M3 (hold the power button about 10 seconds, power on without the cable). Stage 1 then loads `boot.bin` from the ESP and GRUB boots the default kernel. Then, in recovery: `nvram boot-args=` and `csrutil enable` (not full security: the guide says that uninstalls m1n1).
 7. Cost: the M3 is off the network for the whole session, so all other sessions pause.
 
+## Window result (2026-10-27, first test boot with the SEP device tree)
+
+Details and per-part results: [touchid-stage2-plan.md](touchid-stage2-plan.md), "Window result".
+
+- **The boot chain worked.** The merged test DTB booted, m1n1 ran its `sep` step, and the SEP node carried both manifests and a `sep-firmware` reserved region. The manifest sizes differ from the macOS ADT dump, because the Linux boot has its own manifests. The restore unit put `boot.bin` back to stageE by itself.
+- **SEP dry load: partly proven.** With writes off, the driver loaded without a crash and stayed stable. It enabled the SEP DART and node, selected the `T6030/J516s` profile, parsed the xART gigalocker read-only (170 slots, 10 live records, 0 malformed) and created an empty host-state file. Then it logged nothing more in 5 minutes: no "endpoints advertised" line and no "no endpoint" line, no hwrng, no `/dev/sep-bio`. The code should log one of the two attach lines within about 3 seconds, so the SEP mailbox exchange is **unproven**. The cause is not known. The diag attributes were not captured, because the check run was cut off.
+- **Camera temporal filter 1: FAIL, do not repeat.** The camera node appeared and the property read 1, but a capture delivered no frames and hung. The stop commands to the ISP firmware timed out and the driver stopped it by force. A normal boot gives 150 frames in 5 seconds. This ISP firmware does not accept the filter. The property stays 0.
+- **Side effects:** a root-only host-state file now exists under `/var/lib` (no identity in it); `apple_sep` was loaded until the next reboot and the SEP registration is one-shot, so a retry needs a new test boot.
+
 ## Sources (all read on 2026-10-26)
 
 - Asahi M3 feature support: <https://asahilinux.org/docs/platform/feature-support/m3/>

@@ -44,7 +44,27 @@ The coordinator scheduled the window after the Neural Engine boot, together with
 | `touchid-check.sh` | After the boot: part 1 SEP manifests in the device tree, part 2 camera property, part 3 camera log and a 5 s capture with a temporal-noise number, part 4 module hash, vermagic and symbols, part 5 the dry load (last, never `rmmod`, never `/dev/sep-bio`). PASS or FAIL per part, log in `~/window/touchid/logs/`. `--baseline` records the camera noise number before the test boot. |
 | `touchid-disarm.sh` | Before the reboot: base `boot.bin` back, restore unit removed. |
 
-Self-test results (no root writes): `--dry` passes with base `boot.bin.stageE`. The check script on the normal boot reports parts 1 and 2 FAIL (correct: the test DTB is not active) and part 4 PASS.
+Self-test results (no root writes, before the window): `--dry` passes with base `boot.bin.stageE`. The check script on the normal boot reports parts 1 and 2 FAIL (correct: the test DTB is not active) and part 4 PASS.
+
+## Window result (2026-10-27, test boot 12:00, run by the coordinator)
+
+| Part | Result | Notes |
+|---|---|---|
+| 1 SEP manifests in the device tree | PASS | Both manifests present, alias set, reserved region present. Sizes differ from the macOS dump (the Linux boot has its own manifests). |
+| 2 camera property | PASS | `apple,temporal-filter` read 1 |
+| 3 camera | **FAIL (real)** | No frames, capture hung in the ISP stop path. Kernel: `IO: timed out on request` and `failed to send OPCODE 0x0101` (then 0x0104, 0x0021), `firmware did not suspend, stopping it`. The camera node itself appeared. Baseline on the normal boot: 150 frames in 5 s. |
+| 4 module | PASS | Hash, vermagic, 261 symbols |
+| 5 SEP dry load | **PARTIAL** | See below |
+
+**Camera.** The firmware hangs when the filter is on. This differs from Asahi issue 630 (the node never appears): here probe works and streaming does not. The kernel recovered by force-stopping the firmware and the machine stayed usable. Decision: the property stays 0 and the proposal is closed. The audio session can go on with its ranks 2 and 3 (the firmware's own denoise controls, or user-space denoise). My log check also matched an `apple-dcp` line as an ISP error (the text `disp` contains `isp`). Fixed.
+
+**SEP.** Kernel lines after the insmod: DART changeset applied (BIT(40) alias window), SEP node enabled, platform device created, profile `T6030/J516s`, xART parsed read-only (170 slots, 10 live records, max revision 301, 0 malformed, 0 duplicate, 0 repaired), "created a new host-state store". Nothing after that for 5 minutes, and no crash, panic, IOMMU fault or UBSAN line. `insmod` returned at once, so probe finished. In the driver, the warm registration is sent in probe and a settle timer then logs either `attach: N endpoints advertised` or `attach: ... no endpoint advertised` within about 3 seconds plus message idle time. Neither line appeared. That means either the timer kept restarting (messages kept arriving) or it did not run. Which one is not known. The check run was cut off by its caller during the poll, so the diag attributes were never read.
+
+What this proves: the device tree, DART, profile choice and the read-only APFS parse work on this Mac, and the load is safe. What it does not prove: that the SEP answered the registration. Likely suspects for a silent SEP: the profile fields copied from the M3 Air recipe (shared-memory layout, first item spelling, size) were tuned on firmware 26.x, and this boot runs an older firmware.
+
+**Changes to the scripts after the window** (carried from the coordinator's fixes plus mine): run as the user, not with sudo (guard added); paths from `UHOME`; the module is loaded from `/lib/modules/.../touchid-test/` (SELinux blocks modules in the home folder; the check installs it if missing); `touchid-boot.sh` builds the SEP-only DTB by default and `--camera` is opt-in and marked do-not-use; the camera log match no longer hits `disp`; the dry load now starts a detached observer that records the kernel log, diag attributes, `/dev/sep*` and hwrng at 1 to 240 seconds into a log file, so a killed caller loses nothing; `xarm_trace=1` is added (opcode and status only, no payload or key material); a PARTIAL verdict exists for "profile and xART fine, no attach line".
+
+**Next step, one more test boot (about 12 minutes):** same plan, SEP only (camera filter stays 0), with the observer and trace above. Needs the user's go and the same recovery readiness. Because the registration is one-shot, the current normal boot cannot retry it.
 
 ## Gates before step A2 (all must be true)
 
