@@ -26,9 +26,11 @@ Under Linux, the CPU and the GPU read memory at about 32 GB/s. In macOS, the sam
 
 ## What this means for Linux
 
-On this kernel the PMP is only a power gate (`ps_pmp` in `t6030-pmgr.dtsi`). No Linux driver starts the PMP firmware and sends it its configuration. So no agent raises DCS or fabric speed, and memory stays at the level the boot firmware left. This fits one shared limit of about 32 to 37 GB/s for all CPU clusters and the GPU.
+First reading (later corrected, see the update): on this kernel the PMP is only a power gate (`ps_pmp` in `t6030-pmgr.dtsi`), and no Linux driver starts the PMP firmware. So no agent raises DCS or fabric speed, and memory stays at the level the boot firmware left. This fits one shared limit of about 32 to 37 GB/s for all CPU clusters and the GPU.
 
 This is a strong explanation, but not proven. The proof is a measurement after DCS goes up.
+
+**Update, 2026-10-26 evening: proven and fixed.** The PMP already runs on this kernel (`PMP ready` in the log). What was missing is the memory floor request. The SiliconForest fork has it in `drivers/soc/apple/m3/pmp-display.c`, which this build does not compile. `patches/t6030-pmp-memory-floor.patch` sends the same request (DCS4, FAB2) from the maintained PMP report driver. After the patch, the CPU reads 123 GB/s and the GPU 130 GB/s. No m1n1 tracing was needed. The options in the table below are kept for reference only. Results: `performance.md`, section "Fix: the PMP memory floor".
 
 ## Possible fixes, from simplest to most complete
 

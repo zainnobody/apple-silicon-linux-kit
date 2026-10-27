@@ -50,6 +50,8 @@ No GPU errors during the run. The full run (`tests/stress.sh`) needs a desktop l
 | llama.cpp, Llama 3.1 8B Q4_K_M, GPU | pp512 125 tokens/s, tg128 5.8 tokens/s |
 | llama.cpp, Llama 3.1 8B Q4_K_M, CPU (6 threads) | pp512 67 tokens/s, tg128 6.6 tokens/s |
 | GPU and CPU text for the same prompt | Same |
+| After the memory floor fix (2026-10-26 20:43): 3B GPU / CPU | pp512 356 / 169, tg128 48.1 / 55.7 tokens/s |
+| After the memory floor fix: 8B GPU / CPU | pp512 150 / 71, tg128 22.7 / 25.1 tokens/s |
 
 Flash attention must be off (`-fa 0`): the native compiler refuses one instruction in that shader. Details and the full table: `ane-linux/docs/llm-baseline.md`.
 
@@ -95,6 +97,27 @@ Same machine in macOS 15.6.1 (offline, 2026-10-26 18:40, `tests/cpu-bw.c` built 
 | 6, background QoS (E cores) | 38.9 / 31.3 GB/s | 29.8 GB/s (E cores, mean) |
 
 macOS reads 3.4 times faster with all cores, and 2 times faster with one thread. So the hardware is not the limit: Linux leaves the memory system in a slow state. In macOS one thread alone goes beyond the whole Linux limit. Device tree findings: `docs/memory-pmp-findings.md` (the PMP coprocessor sets memory and fabric speed; no Linux driver starts it). Research notes: `docs/memory-bandwidth-research.md` (no Linux driver casts a memory or fabric performance vote on T6030; the fork has one only for T8140).
+
+### Fix: the PMP memory floor (2026-10-26, tested on the M3)
+
+Cause, now proven: no Linux driver on this kernel requested a memory floor from the PMP. The SiliconForest fork has the request in `drivers/soc/apple/m3/pmp-display.c` (CPU-client PTD entries 288 and 289, DCS4 and FAB2). That file is only built with `CONFIG_SILICONFOREST_M3`, which this build turns off. `patches/t6030-pmp-memory-floor.patch` moves the same request into the maintained PMP report driver. The boot option `pmp_report.memory_floor=0` turns it off.
+
+Kernel log on the test boot: `memory floor try 1: DVFS state 0x30200/0x30200 -> 0x32204/0x32204`. The PMP accepted the request on the first try.
+
+`tests/mem-shared.sh` after the fix (2026-10-26 20:42 boot, mean values):
+
+| Readers | Before | After |
+|---|---|---|
+| P cores alone (6 threads) | 32.4 GB/s | 123.5 GB/s (best 127.1) |
+| E cores alone (6 threads) | 29.8 GB/s | 65.1 GB/s |
+| All 12 cores | 32.2 GB/s | 109.7 GB/s |
+| GPU alone | 31.1 GB/s | 130.1 GB/s (best 133.6) |
+| P cores and GPU at the same time | 19.0 + 17.8 GB/s | 123.2 + 131.2 GB/s |
+| P cores and E cores at the same time | 21.2 + 16.2 GB/s | 64.3 + 56.3 GB/s |
+
+The P cores now read more than macOS with 6 threads (89.3 GB/s best). The GPU reads 4.2 times faster than before. Llama 3.1 8B token generation goes from 5.8 to 22.7 tokens/s on the GPU, and from 6.6 to 25.1 on the CPU. GPU and CPU text still match. The kernel log has no GPU fault, firmware halt or refused submit.
+
+Limits: the floor is fixed, not load-based, so idle power is higher than in macOS. The test measured one boot only.
 
 ## Planned: how far each part of the chip goes
 

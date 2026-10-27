@@ -236,6 +236,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
         <tr><td class="stage-id">E</td><td>GPU, display and external display options on. Native display at 3456x2160 and brightness work. GPU firmware refused.</td><td><span class="chip fail">GPU refused</span></td></tr>
         <tr><td class="stage-id">F</td><td>Test kernel replaced with the exact-hash pin build. Old kernel backed up to <code>/root/agx-backup/20261026-130500-pre-pin</code>.</td><td><span class="chip pass">Pass, GPU works</span></td></tr>
         <tr><td class="stage-id">G</td><td>Linker-cache service, user environment generator, two new no-password actions (<code>mesa-select</code>, <code>restart-login</code>). Desktop and login screen use the native Mesa only on GPU boots.</td><td><span class="chip pass">Pass</span></td></tr>
+        <tr><td class="stage-id">J</td><td>Test kernel image with the PMP memory floor patch (20:41). Image, System.map and config only; backup in <code>/root/m3gpu-backup/20261026-204139-pre-memfloor</code>.</td><td><span class="chip pass">Pass, memory 4x faster</span></td></tr>
       </tbody>
     </table>
   </div>
@@ -269,6 +270,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
         <tr><td>Brightness</td><td>Work in progress</td><td><span class="chip pass">Works, test kernel</span></td></tr>
         <tr><td>Desktop acceleration</td><td>Not usable</td><td><span class="chip pass">Works, test kernel</span></td></tr>
         <tr><td>Ambient light sensor (AOP)</td><td>Not listed</td><td><span class="chip fail">Crashed once</span></td></tr>
+        <tr><td>Memory bandwidth (CPU / GPU read)</td><td>Not listed</td><td><span class="chip pass">123 / 130 GB/s, test kernel</span></td></tr>
         <tr><td>Wi-Fi, Bluetooth</td><td>Working</td><td><span class="chip pass">Works</span></td></tr>
         <tr><td>HDMI, external displays</td><td>Disabled / work in progress</td><td><span class="chip wait">Not tested</span></td></tr>
         <tr><td>Sleep and suspend</td><td>Does not work</td><td><span class="chip wait">Off on purpose</span></td></tr>
@@ -290,7 +292,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
     <li><span class="chip pass">Step 3</span><div><span><b>Stock kernel with stageE.</b> Passed 13:43.</span><small>The stock kernel booted with stageE, the login screen started, and the Mesa service kept the system Mesa.</small></div></li>
     <li><span class="chip pass">Step 4</span><div><span><b>Login screen on native Mesa.</b> Done in stage G.</span><small>The login screen was black with the system Mesa. It draws on the GPU now.</small></div></li>
     <li><span class="chip wait">Step 5</span><div><span><b>Make the GPU boot the default.</b> Keep stageE, make the test kernel the default GRUB entry, keep the stock kernel as the fallback entry.</span><small>Needs the no-password tool to get one more action, so one sudo step.</small></div></li>
-    <li><span class="chip wait">Step 6</span><div><span><b>Fedora to macOS remotely.</b> Check <code>asahi-bless</code> read-only, then test one switch.</span><small>macOS to Fedora already works: the default startup disk is Fedora.</small></div></li>
+    <li><span class="chip pass">Step 6</span><div><span><b>Fedora to macOS remotely.</b> Done: <code>install/setup-macos-switch.sh</code> adds <code>agx-os macos-once</code>, tested once.</span><small>macOS to Fedora already works: the default startup disk is Fedora.</small></div></li>
     <li><span class="chip next">Step 7</span><div><span><b>Upstream report.</b> Draft written: see "Upstream report draft" under Reports.</span><small>Nothing is posted without your approval of the exact text.</small></div></li>
     <li><span class="chip wait">Step 8</span><div><span><b>Clean-up.</b> Remove the no-password sudo rule, turn m1n1 updates back on, restore KDE sleep settings if wanted.</span><small>Each item only with your agreement.</small></div></li>
   </ol>
