@@ -106,7 +106,7 @@ The firmware is wedged and needs a `brcmfmac` reload or a reboot.
 ### Confirmed by reading code
 
 1. `-16` is `-EBUSY`. Upstream `brcmf_cfg80211_add_iface()` prints "iface validation failed" when `brcmf_vif_add_validate()` fails. That function counts the existing interfaces by `wdev.iftype`, adds the requested type, and runs `cfg80211_check_combinations()`. It runs before the type switch, so it applies to station, AP, monitor and P2P adds alike.
-2. The AWDL patch (`brcmf_awdl_add_vif()`, omdrop-awdl patches 0001 and 0008) registers the AWDL interface as `NL80211_IFTYPE_STATION` for cfg80211 bookkeeping. So while `awdl0` exists it holds a station slot, and any other interface add can exceed the advertised combinations and fail with `-16`.
+2. The AWDL patch (`brcmf_awdl_add_vif()`, omdrop-awdl patches 0001 and 0008) registers the AWDL interface as `NL80211_IFTYPE_STATION` for cfg80211 bookkeeping. So while `awdl0` exists it holds a station slot. Whether that makes another add exceed the advertised combinations depends on the firmware's MCHAN flag (see "What the logs prove"); it is a likely contributor, not a proven cause.
 3. No omdrop helper calls the nl80211 add-interface path. `awdl-up` creates `awdl0` through a firmware vendor command (`brcm_iovar.py awdl-if create`). `grep` over omdrop-awdl `userspace/` and omdrop-plugin `bin/` finds no `iw dev ... add`, no `NEW_INTERFACE`, no `ip link add`. So the `add_iface` caller at 00:39:00 is not the AirDrop code. It is something else that asked the driver for an interface.
 4. The receiver (`airdrop-serve.py`) only binds a socket on `awdl0`. It never creates an interface. Its restart loop (every 5 s while `awdl0` has no link-local address) wastes CPU and fills the log, but it cannot cause `add_iface`.
 5. The upstream docs and `awdl-up` comments say two other things that matter: with a PSF template loaded (after any window), `awdl=0` once hung the firmware, and a clean reconfigure needs a driver reload, which drops Wi-Fi.
@@ -132,9 +132,21 @@ The caller was `wpa_supplicant`, started by a suspend that did not happen. In or
 4. NetworkManager: "wake requested". `wpa_supplicant` runs `nl80211: deinit ifname=wld0`, starts `wld0` again, and tries to create `p2p-dev-wld0`: `Failed to create interface p2p-dev-wld0: -16`, then the kernel line `brcmf_cfg80211_add_iface: iface validation failed: err=-16`. `awdl0` was up at that time.
 5. 00:39:13: `brcmf_c_set_joinpref_default: Set join_pref error (-52)` as NetworkManager starts to reconnect; 00:39:33: `Authentication ... timed out`, `reason=3`. The firmware no longer answers.
 
-So H1 (suspend, here an aborted one) and H2 (`wpa_supplicant` re-creating the P2P device) are confirmed as one chain. H3 (window end) and H4 (root part) are ruled out: no `awdl0` helper, `omdrop-discoverable` or `firewall-cmd` run appears in that minute; the firewalld lines are its reaction to NetworkManager sleeping.
+So H1 (suspend, here an aborted one) and H2 (`wpa_supplicant` re-creating the P2P device) are confirmed as one chain, with the aborted suspend as the proven trigger. H3 (window end) and H4 (root part) are ruled out: no `awdl0` helper, `omdrop-discoverable` or `firewall-cmd` run appears in that minute; the firewalld lines are its reaction to NetworkManager sleeping.
 
-Not separable from the logs: whether the failed P2P add (`-16`, host side, before any firmware call) or the station going down and up under an active AWDL interface wedged the firmware. Both need `awdl0` to exist. Both are removed by the same measure: no `awdl0` at the time NetworkManager sleeps and wakes the radio. A suspend key press with a USB-C display attached repeats this chain on every press, with or without AirDrop (without `awdl0` the P2P add can succeed).
+What the logs prove, and what they do not:
+
+| Claim | Status |
+|---|---|
+| A suspend key press started a refused s2idle (display attached), NetworkManager slept and woke the radio, `wpa_supplicant` re-initialised `wld0` and its P2P add failed with `-16` | proven by the logs |
+| NetworkManager woke at 00:39:00 (`wake requested`, state `CONNECTED_LOCAL`, then `CONNECTING` at 00:39:13). What stayed down afterwards was `wld0` (firmware not answering), not NetworkManager. The saved dump ends at 00:42, so it cannot show 01:04 | proven for 00:30 to 00:42 |
+| `awdl0` caused the `-16` | **likely, not proven** (next row) |
+| the failed P2P add, or the station going down and up, wedged the firmware | not separable from the logs |
+| AirDrop code called `add_iface` | disproven: no helper uses that path |
+
+Why `awdl0` is the likely contributor. Upstream `brcmf_setup_ifmodes()`: with P2P and without MCHAN, combination 0 allows `STATION` max 1, `P2P_DEVICE` max 1 and `P2P_CLIENT`/`P2P_GO` max 1; a second combination allows STATION 1, AP 1, P2P_CLIENT 1, P2P_DEVICE 1. STATION is 2 only when the firmware reports MCHAN. The AWDL patch registers `awdl0` as `NL80211_IFTYPE_STATION`. With `wld0` and `awdl0` both counted as stations, any new interface (here the P2P device) exceeds the limit and returns `-EBUSY`. Without `awdl0` the same add (one station plus one P2P device) fits. This is derived from code, not observed: whether the BCM4388 reports MCHAN is not checked (read-only check after release: `iw phy phy0 info`, section "valid interface combinations"), and no control run without `awdl0` exists. Test T6a (baseline without `awdl0`) and T6b (with `awdl0`) are the control experiment. Until they run, AWDL is a possible contributor and the aborted suspend is the only proven trigger.
+
+Consequence that does not depend on the answer: a suspend key press with a USB-C display attached repeats the NetworkManager sleep and wake with no real sleep. That belongs to the sleep and display work, not to AirDrop.
 
 ### Design: a stable mode
 
