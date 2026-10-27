@@ -81,23 +81,17 @@ Status: proposal for the GPU session, which owns the boot files. Nothing was cha
 5. Pass: the camera appears and the grain is lower. Fail: no `apple-isp` node or a firmware handshake error (as in [Asahi issue 630](https://github.com/AsahiLinux/linux/issues/630)). Undo: put the old `boot.bin` back from macOS or by the usual rollback in `docs/install-plan.md` section 3.
 6. Risk: the camera may vanish if the firmware does not support the filter on this board. Nothing else in the boot path changes.
 
-Plan: do ranks 2 and 3 first, because they use the firmware's own denoise. If rank 3 fails, use rank 4 as a fallback.
+### Camera plan after the temporal filter failed (2026-10-27, written offline, tests start when the M3 is free at 12:50)
 
-## VA-API layer for the AVD: built and tested for VP9 and AV1 (2026-10-27 07:43 to 08:00)
+Order, cheapest first. Every step is measured with `tests/camera-test.sh` (frame count, noise number, colour-cast number) before and after.
 
-- Source: `sofus13/libva-v4l2_request` commit `f54d8d2c36433b38ba9b8633ac10eec444ac9cf1` (master, meson version 1.2, GPL-3.0). It is megi's driver with Sofus's AVD work. The tag `1.3` also exists; the Omarchy package notes say tag 1.3 shows green frames in Chromium and a community fork (`iconidentify/libva-v4l2_request`, 1.3.r11) fixes it. I did not use that fork.
-- Built on the M3 with `meson` and `ninja` (`nice -n 19`, `-j4`), all dependencies already installed (libva 2.23.0, libdrm, kernel headers with the AV1 and VP9 stateless controls). All six codec checks passed at configure time: H.264, HEVC, MPEG-2, VP8, VP9, AV1.
-- Installed one file: `~/.local/lib64/dri/v4l2_request_drv_video.so` (904672 bytes). No system file changed, no root. Undo: `rm ~/.local/lib64/dri/v4l2_request_drv_video.so`. Script: `build/build-libva-v4l2-request.sh`.
-- Use: `export LIBVA_DRIVERS_PATH=$HOME/.local/lib64/dri LIBVA_DRIVER_NAME=v4l2_request`. Optional: `LIBVA_V4L2_REQUEST_MEDIA_PATH=/dev/media0` to pick the AVD media node.
-- Tested with the user's go (the auto mode classifier had denied the first run, which needed that go). Kernel `7.2.11-m3gpu+`, up since 07:24.
-  - `vaInitialize` returns 0 (VA-API 1.23), vendor string `v4l2-request`, log line `detected 1 Request API decoder`. Profiles: H.264 constrained baseline, main and high; HEVC main and main10; VP9 profile 0 and 2; AV1 profile 0. (`vainfo` is not installed; the probe used `libva` through Python.)
-  - **VP9** (1080p30 10 s, libvpx clip), `ffmpeg -hwaccel vaapi` against the software decode, both converted to NV12 and hashed per frame: 300 of 300 frames **bit-identical**. User CPU 2.05 s (hardware, including download and hashing) against 3.15 s (software).
-  - **AV1** (1080p30 10 s, SVT-AV1 clip): 300 frames out, **298 of 300 identical; frames 0 and 1 differ**. User CPU 2.00 s against 4.41 s (software). Cause not found. Possible link: the upstream note that AV1 submission is deferred by one frame, and the Omarchy notes about an early-export bug. Not isolated.
-  - Kernel log: no UBSAN line during the VA-API AV1 run (checked in the two-minute window after each run). The GStreamer path logged UBSAN at `avd-av1.c`; a different caller sets the controls differently. Not analysed.
-  - Decode uses `/dev/video0` [avd] and `/dev/media0`, NV12 at 1920x1088.
-  - **H.264 and HEVC through VA-API: not tested.** Fedora's `ffmpeg-free` has no H.264 or HEVC decoder. GStreamer's `va` plugin loads but registers no `vah264dec` or `vah265dec` element (cause not found; I deleted the GStreamer registry cache in `~/.cache/gstreamer-1.0` once to force a rescan, which regenerates). H.264 and HEVC decode works through the direct `v4l2sl*dec` GStreamer path (see above).
-  - Not tested: mpv, Chromium, Firefox, VLC, and a real-world clip.
-- Known limits from upstream notes: Firefox's video sandbox blocks it; H.264 streams with `pic_order_cnt_type == 1` are not fully supported.
+1. **ISP control "Exposure, Dynamic Framerate" (V4L2 control `0x009a0903`, default 0).** It is the only control the driver exposes. If it lets the sensor lengthen the exposure in dim light (frame rate drops instead of gain going up), grain falls. No reboot, no install, no root: one `VIDIOC_S_CTRL` ioctl on `/dev/video*` (the node that reports driver `apple-isp`; `v4l2-ctl` is not installed, so use Python). Expected gain: unknown, possibly large in dim light. Risk: none (resets when the device closes). Test: noise and frame count with 0 and with 1.
+2. **Sensor presets (resolution modes).** The driver lists 6 camera configs; formats NV12 up to 1920x1080 and down to 640x480. A binned or smaller mode may carry less noise. Measure noise at each size. No reboot.
+3. **User-space denoise and colour fix as a PipeWire virtual camera (no kernel module).** Chain: `ffmpeg` reads the camera, runs filters, writes raw video to a pipe; `gst-launch-1.0 fdsrc ! videoparse ! pipewiresink mode=provide stream-properties="properties,media.class=Video/Source,media.role=Camera"` publishes it (pipeline form from a Laurent Pinchart post on the linux-media list, [lkml](https://lkml.iu.edu/hypermail/linux/kernel/2602.0/01104.html); the raw pixel format must be set, a GNOME forum post reports lost colours when it is not). Filters to measure: `hqdn3d` (cheap temporal and spatial denoise), `atadenoise` or `nlmeans` (better, more CPU), `grayworld` or `colortemperature` (colour cast), `eq` (brightness and gamma). Apps such as Firefox then pick the virtual source. Needs: `pipewire-gstreamer` (check `rpm -q`), and the camera must be free while the chain runs (only one reader). Costs CPU and about 1 to 3 frames of delay. If `pipewire-gstreamer` is missing, installing it needs root and the user's word in the session that does it.
+4. **Colour cast.** The first frame had a purple and yellow split in mixed light and a darker face; the same-light frame was close to natural. Measure `UAVG` and `VAVG` distance from 128 and the R/G and B/G ratios of the mean RGB, then try `grayworld` first.
+5. **Camera LED.** It lit on a 15 s run and was dark on shorter runs. The LED is not in `/sys/class/leds` or the device tree node. Repeat captures of 1, 5, 15 and 30 s (user watching) and write the timing; no software fix is known.
+
+Dead ends: temporal filter in the device tree (FAILED above); libcamera claiming the node (no gain for grain); `v4l2loopback` (needs a kernel module build; the PipeWire route does the same without one).
 
 ## Next steps
 
