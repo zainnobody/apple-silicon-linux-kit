@@ -65,6 +65,74 @@ Fix proposals, most useful first:
 
 Status: not fixed. Nothing was installed or run on the M3.
 
+## Charger loss at 08:51:52 on 2026-10-27 (read-only investigation)
+
+Read on the M3 on 2026-10-27 after the reboot (current kernel `7.2.11-m3gpu+`, stage O). Source: the journal of the previous boot (`journalctl -b -2`, boot id `c7f6dd7e`, 07:24 to 09:40), the `macsmc-power` driver source in `~/m3gpu/src/linux/drivers/power/supply/macsmc-power.c`, and a web search. Nothing was written to the M3.
+
+**Facts from the journal**
+
+- The only kernel message at the moment of the loss is the SMC firmware line `macsmc 36c400000.smc: RTKit: syslog message: aceElec.cpp:708: Elec: Elec Cause 0x20` at 08:51:52. No USB, Type-C, `tipd` or power-supply message came with it. The kernel does not log AC changes, so the AC `online` change itself (0 for about 30 min, per the user) is not in the journal. I did not see a sampler log of it.
+- `Elec Cause` lines exist only in that boot. The three other boots I checked (`-3`, `-1` and the current one) have none; boot `-4` was not checked. The first line in that boot is the one at 08:51:52, so it is the first such event of the run.
+- 47 seconds later (08:52:39) a GPU compute fault in `llama-bench` was followed by a KWin crash, see `docs/gpu-fault-2026-10-26.md`. The load at that moment was high. Whether a heavy load can make the SMC drop an adapter is **not proven**; it is a timing match only.
+- 08:51:52 to 09:08: no further `Elec` line. Then three plug sequences at 09:08:56, 09:09:04 and 09:16:29 (the user re-plugging the dongle and charger). Each has the same pattern: `0x0`, `0x200000`, `0x8000`, `0x20`, then `charger.cpp:2638: Not charging:0` (the third had `Not charging:2000` first), then `0x1000` and `0x0`. USB hubs on `xhci-hcd.4.auto` appear and vanish in the same seconds.
+- 09:16:46: the VIA hub and RTL8153 (`r8152 enu1u2`) disconnect (`usb 1-1`, `1-1.2`, `2-1`), and the log shows `Elec Cause 0x0`. The user's AC `online` came back at about 09:20.
+- Nothing in the journal says which Type-C port had the charger. Today the charger is on PD controller `1-0c` (`tps6598x-source-psy-1-0c` online 1, status `Charging`). `typec/port3` and `port2` are `source [sink]`.
+
+**What the driver and the web say about the bits**
+
+- `macsmc-ac` `online` is the SMC key `CHIS` (non-zero means online). The battery `status` comes from `CH0R`, `CHCE`, `CHCC`, `AC-i` (below 100 mA reads as discharging), `BSFC`, `CHLS`/`CHWA` and `CHNC`. `Not charging` is reported when `CHNC` has any flag set (for example `CHNC_NOAC_CH0J` bit 53, `CHNC_NOAC_CH0I` bit 54, `CHNC_NOCHG_CH0C` bit 14, `CHNC_NOCHG_CH0B_CH0K` bit 15).
+- The `Elec Cause` text is firmware (`aceElec.cpp`), so its bits are **not defined in the kernel**. A web search for the string and for the keys `CH0J`, `CH0K`, `CH0R`, `CHNC` found nothing documented, and the Asahi SMC page lists none of them. Everything below about the bits is my inference.
+- Inference: `0x20` is bit 5. The driver's `CH0R` register also has bit 5 as `CH0R_NOAC_CH0J` ("AC not usable because of CH0J"). `0x8000` is bit 15, and `CHNC` bit 15 is `CHNC_NOCHG_CH0B_CH0K`. These matches may be chance. If they are real, `0x20` would mean "adapter input inhibited by CH0J" and `0x8000` "charging inhibited by CH0B/CH0K". **Unconfirmed.** `0x200000` (bit 21) and `0x1000` (bit 12) match nothing in the driver.
+- The pattern fits a charger or Type-C power-contract problem more than a battery problem: the same `0x20` follows every plug while the dongle is attached and the value is `0x0` once the dongle is gone.
+
+**Can Linux see or reset the state?**
+
+| Question | Answer |
+|---|---|
+| See AC online, per-port source state, Type-C roles | **Yes.** `macsmc-ac/online`, `tps6598x-source-psy-*/online`, `/sys/class/typec/port*` (`power_role`, `power_operation_mode`) |
+| See why the SMC refuses charging | **Partly.** `status` and `charge_behaviour` are derived from the keys. The raw `CH0R`, `CHNC`, `CHIS`, `CH0J` values are **not exposed**. There is no SMC key debugfs on this kernel (debugfs shows only `macsmc-hwmon`) |
+| See the `Elec Cause` value | **Only in the kernel log**, as firmware text |
+| Reset the inhibitors | **Partly.** `echo auto > /sys/class/power_supply/macsmc-battery/charge_behaviour` (root) writes `CH0I`, `CHTE` and `CH0C` to 0. Loading the driver (probe) also writes `CH0K` and `CH0B` to 0. **Nothing in Linux writes `CH0J`**, the key that matches bit 5 |
+| Force a reset of the adapter | **Not found.** Unplug and replug the charger (what the user did). Whether a driver reload (`modprobe -r macsmc_power; modprobe macsmc_power`) clears the state is **untested** and could drop battery reporting for a moment |
+
+**What to do next time it happens (before replugging)**
+
+1. Save `cat /sys/class/power_supply/macsmc-ac/online`, `cat /sys/class/power_supply/macsmc-battery/{status,charge_behaviour}`, `for d in /sys/class/power_supply/tps6598x-*; do echo $d $(cat $d/online); done`, and `for p in /sys/class/typec/port*; do echo $p $(cat $p/power_role $p/power_operation_mode); done`.
+2. Save `journalctl -k -b --since "-15min" | grep -E "Elec Cause|charger.cpp|tipd|typec|usb "`.
+3. Try `echo auto > charge_behaviour` as root and read `status` again. If this fixes it, the cause was an inhibitor Linux can clear.
+4. Ask the GPU session for a small read-only patch: a debugfs file in `macsmc-power` that prints `CHIS`, `CH0R`, `CHNC`, `CH0J`, `CH0K`, `CH0I`, `AC-i`, `ACPW`, `CHCE`, `CHCC`. This turns the guesses above into facts.
+5. Note the load at the time. Use a charger rated for the machine (the user says the same charger works on another machine), and note whether the dongle was drawing power from the Mac (the M3 was the power source on that port).
+
+**Status:** cause **not found**. Open: what raised `0x20` at 08:51:52 with no plug event, and why the state lasted 30 minutes.
+
+## Install plan for the Wi-Fi recovery hook (needs the user's go)
+
+The hook (`tools/sleep-wifi-hook.sh`) writes one file under `/usr/lib/systemd/system-sleep/`. That is a lasting system change, so it is **not installed** and needs the user's own go in the session that owns this report. Steps:
+
+1. **Show it.** On the M3, in the repo copy: `tools/sleep-wifi-hook.sh print`. Nothing is written.
+2. **Install (user types the password in the own Terminal tab):** `sudo tools/sleep-wifi-hook.sh install`. It runs a syntax check first, then writes `/usr/lib/systemd/system-sleep/90-agx-wifi-recover` (mode 0755, root). Check: `tools/sleep-wifi-hook.sh status` prints `installed`.
+3. **Logic test without a suspend (user at the Mac).** Wi-Fi drops for about 10 seconds, so SSH over Wi-Fi drops too. Run `d=$(mktemp -d); echo 0 > $d/fail; export AGX_SUSPEND_STATS=$d AGX_SLEEP_SAVE=$d/save; sudo -E /usr/lib/systemd/system-sleep/90-agx-wifi-recover pre suspend; echo 2 > $d/fail; sudo -E /usr/lib/systemd/system-sleep/90-agx-wifi-recover post suspend`. Expect: a journal line `agx-wifi-recover: suspend failed (fail count 0 -> 2)` and Wi-Fi back within 15 seconds (`nmcli -t -f DEVICE,STATE d`).
+4. **Real test (user at the Mac, USB-C display attached).** The coordinator's root sleep inhibitor blocks the suspend key, so it must be released first. Press the suspend key. Expect the kernel to log `refusing system sleep: a USB-C display is attached`, then the journal line from the hook and Wi-Fi back within 30 seconds. Check with `journalctl -b | grep -E "agx-wifi-recover|refusing system sleep"`.
+5. **Pass criteria:** Wi-Fi and Tailscale are back within 30 seconds after the failed suspend, and a normal suspend (no display attached) still works and logs no `agx-wifi-recover` line.
+6. **Undo:** `sudo tools/sleep-wifi-hook.sh undo` removes the file. `tools/sleep-wifi-hook.sh status` then prints `not installed`. No other file, setting or service is touched.
+7. **Risk:** low. The hook always exits 0, acts only when `suspend_stats/fail` grew, and only switches the Wi-Fi radio off and on. If the radio toggle does not fix the drop, change the hook to restart NetworkManager or reload `brcmfmac`, and test again.
+
+## Battery-life test plan (user at the M3, charger out)
+
+Goal: real hours of use on battery on this kernel, from measured watts. Formula: hours = 93.0 Wh (measured full capacity) divided by average watts, then compare with the 97.8 Wh design value. Use `battery-sampler.sh` from the shared notes folder (61 samples, 10 s apart, aborts if AC stays online).
+
+Before every run: close all GPU, LLM and build jobs (an out-of-memory event hit on the last long run), release the coordinator's sleep inhibitor if a sleep step is included, set the brightness by hand and **write it down**, keep the lid open, give no input, and record `uname -r`, `tuned-adm active`, `iw dev wld0 get power_save`, Bluetooth on or off, and whether the memory floor is on.
+
+| Run | Condition | Length | Result to record |
+|---|---|---|---|
+| A | Idle desktop, brightness fixed at one value (for example 30%), Wi-Fi on | 10 min | Mean W and hours. This is the baseline |
+| B | Same, screen off by DPMS (lock the screen and wait) | 10 min | Mean W. The difference to A is the panel cost |
+| C | Lid closed, sleep (needs no display and no cable) | 10 min | Energy drop in Wh from `energy_now` before and after, as W. Check `suspend_stats` |
+| D | Light use: a browser with one page and a video, same brightness | 10 min | Mean W and hours. No hardware video decode on this machine, so video decode runs on the CPU |
+| E (optional, needs a reboot) | Run A with `pmp_report.memory_floor=0` or on stock 7.1.13 | 10 min | The cost of the memory floor in W |
+
+Each run starts with a full charge note (`capacity`) and ends with a replug. Report mean, minimum and maximum W per run, the `capacity` drop, and the estimated hours. Earlier data point only: about 6.0 W for 50 seconds at brightness 26 (not a result). Do not compare with macOS numbers unless macOS is measured the same way.
+
 ## Overall answer
 
 - **Sleep: works on this kernel in the logs.** Three s2idle suspends, 0 failures, and one 79 s sleep that came back by itself. The GPU session later reported 3 more key-wake cycles that passed (relayed, not run by me). This is better than the Asahi status file says ("no sleep"). The status file may describe the stock kernel. Not tested on stock.
