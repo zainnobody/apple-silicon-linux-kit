@@ -60,8 +60,15 @@ State key: **no driver** = node exists, nothing binds. **probe fails** = driver 
 2. **Build and install the AVD firmware (row 3).** The module is loaded and only the file is missing. No kernel change, no reboot needed to try (module reload is enough, but a reload needs the user's go). **Owner:** the audio, camera and video session ([m3-audio-camera-video](#local_08dc64de-f910-4bcb-aa52-26241f1db629)) builds the file. The user types the sudo password to copy it to `/lib/firmware/apple/`. Open risk: the decode of 4K H.264 is working downstream, HEVC, VP9 and AV1 are still in progress.
 3. **Try Touch ID (SEP) enablement (row 5).** Needs a `t6030` `apple,sep` DT node and `CONFIG_APPLE_SEP=m`. The driver code exists in the tree but is untested on M3 and talks to the Secure Enclave, so it carries more risk and cannot be reverted by a config change alone. **Owner:** the GPU session for kernel and DT, with the user's explicit go. The ANE (row 6) is larger work (no M3 driver exists) and stays below this.
 
+## Root reads (done 2026-10-26 after the 21:59 reboot, kernel still `7.2.11-m3gpu+`)
+
+- `/sys/kernel/debug/devices_deferred` lists exactly `1-0c`, `1-0a`, `2-08`, with no reason text. This matches the journal and the three PD rows. It does not name the missing dependency, so the link to the USB4 driver stays a source-reading inference.
+- `CONFIG_USB4_APPLE_SOC` is still not set in `/boot/config-7.2.11-m3gpu+`. `thunderbolt_apple` is not loaded.
+- `/boot/efi/vendorfw` holds `firmware.cpio`, `firmware.tar`, `manifest.txt` (447 lines) and `u-boot/`. The manifest and the tar list 9 `apple/` files only (tpmtfw, 6 ISP, HmCA, aop-als-cal). **No `avd-*` file.** This confirms the extraction never made the AVD firmware.
+- After the reboot, `avd 30b080000.avd` fails again with `-2`, and `pmgr ... sync_state() pending due to 30b080000.avd` also appears (the failed AVD probe keeps one power domain pending).
+
 ## Open items
 
-- Root-only reads still missing: `devices_deferred`, `dmesg`, `/boot/efi/vendorfw` listing (command above).
+- `dmesg` itself was not read (journal covers the kernel log).
 - Not tested by hand: haptic click, HDR and True Tone, fan control, DP/HDMI audio, USB devices on any port.
 - The Phoronix AVD firmware article and the lore thread returned HTTP 403. Their content is known only from search summaries. Re-check them in a browser.

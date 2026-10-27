@@ -26,7 +26,30 @@ Rules kept: no reboot, no kernel or boot change, nothing posted, one temporary f
 | Internal SSD | `fio` on one 1 GB file in `~`, then deleted | PASS | Apple SSD AP1024Z, btrfs with `compress=zstd:1`. Direct I/O: sequential read 6135 MiB/s, sequential write 2008 MiB/s with 1 job, 3.7 to 3.9 GiB/s with 4 jobs. Random 4k: read 219k IOPS (855 MiB/s), write 48.8k IOPS (191 MiB/s). Buffered write 3.0 GiB/s (1 job). No macOS number measured on this machine. | Not listed |
 | Keyboard and keyboard backlight | `/proc/bus/input/devices`, `/sys/class/leds` | Devices present. Backlight check PENDING (needs the user). | `Apple MTP keyboard`, LED `white:kbd_backlight` (0 to 255, now 0). | Keyboard backlight: linux-asahi, kernel 7.3 |
 | Trackpad | `/proc/bus/input/devices` | Device present. Feel check PENDING (needs the user). | `Apple MTP multi-touch`. `libinput list-devices` returned no output over SSH (the user `user` is not in the `input` group). | linux-asahi |
-| AirDrop and file sharing | Web research (no test on the M3) | NOT AVAILABLE natively. Experimental route exists. | AirDrop needs AWDL. The M3 Wi-Fi chip (Broadcom BCM4388, `brcmfmac`) has no AWDL mode. `omdrop-owl` (published 2026-10-08) makes a Linux machine appear in the iPhone share sheet, but only with a MediaTek MT7921 or MT7925 adapter, channels 6, 44 or 149, about 1 MB/s. Intel Unison (Dell Mobile Connect origin) is Windows only. Tailscale Taildrop and KDE Connect (`kdeconnect-cli` installed) work, but the user does not want Taildrop. A side session `m3-airdrop` is proposed (task_7bcafca6). | Not listed |
+| AirDrop and file sharing | Web research and read-only checks by the `m3-airdrop` session (nothing installed or tested on the M3) | NOT TESTED. Probably possible with the built-in chip. | The `m3-airdrop` session found AWDL code already in the running kernel's `brcmfmac`, so no kernel change may be needed (an earlier note in this report said a MediaTek adapter is required; that was too strong). Details and plan: `side-session-notes/local_beeadd4b-7455-462f-bd22-fa7a051ccef2/airdrop-m3.md`. Intel Unison is Windows only. Tailscale Taildrop and KDE Connect work, but the user does not want Taildrop. | Not listed |
+
+## Update 2026-10-26 22:15 (not my own test; from the coordinator and `usbc-usb4-gap.md` section 6b)
+
+- My USB test at 22:13 with the user's external drive showed no device. The `thunderbolt_apple` module was not loaded then.
+- At 22:13:55 the USB-C session loaded `thunderbolt_apple`. All three PD controllers bound, `typec` `port1` to `port3` appeared, and a Samsung PSSD T7 Shield on `port3` (`2-08`) showed in `lsusb` on the USB 3 bus. So the earlier failure was the missing driver.
+- I must rerun the USB 2, USB 3, SD and Thunderbolt tests myself after the module is loaded again. Speed tests wait until the partition backup ends.
+
+## USB 3 test, 2026-10-26 22:56 to 23:00 (my own test, `thunderbolt_apple` loaded by the USB-C session)
+
+Drive: Samsung PSSD T7 Shield, 3.6 TB, exFAT ("Old Cousin", 53% full). Port: `port2` (PD `1-0a`, left front; `typec` shows host mode). Driver `uas`.
+
+| Item | Result | Evidence |
+|---|---|---|
+| Detect and speed | PASS | `lsusb -t`: Mass Storage, Driver=uas, 10000M. `/sys/bus/usb/devices/2-1/speed` = 10000. |
+| Read | PASS | fio direct, queue depth 8, 1 MiB: 902 MiB/s (a second run: 428 MiB/s). dd direct, queue depth 1: 386 MB/s. |
+| Write, hardware path | PASS | `dd oflag=direct` to a new file on the drive: 518 MB/s (1 MiB blocks) and 685 MB/s (16 MiB blocks). So the port, the 10 Gb/s link and the drive write fast. |
+| Write, exFAT buffered | SLOW (Linux exFAT driver, not the port) | `dd` buffered 512 MiB then `sync`: 16.8 s (about 32 MB/s). `dd conv=fsync`: 65 MB/s and 22 MB/s. `fio` direct with libaio on exFAT: 2.3 MB/s (aborted at 337 MiB). Mount: `exfat rw,...,errors=remount-ro`, not rotational, write cache on. Control on the internal SSD: 5.4 GB/s. The drive and the USB path are not the limit. The exFAT write path in this kernel is. A Linux filesystem on the drive (ext4, btrfs) should write fast, but that needs a format, so I did not test it. |
+| Port left rear (`port1`) | NOT TESTED (the USB-C session uses it) | |
+| Port right (`port3`) | NOT TESTED | |
+| USB 2 | NOT TESTED | |
+| SD card | NOT TESTED | |
+
+Notes: the kernel log says `exFAT-fs (sda2): Volume was not properly unmounted`. The drive was already marked so when it was plugged in. Temporary files (`.fio-usb-test.bin`, `.dd-usb-test.bin`) were deleted, and the drive has none left. The user's data on the drive was not changed.
 
 ## Notes
 
@@ -39,7 +62,7 @@ Rules kept: no reboot, no kernel or boot change, nothing posted, one temporary f
 1. Finish the device tests (list below).
 2. Test Bluetooth on the stock kernel `7.1.13` to see whether the controller timeouts come from the test kernel. This needs a reboot, which the GPU session must hear about first.
 3. Thunderbolt, USB4 and USB-C data: the fix is one config line, `CONFIG_USB4_APPLE_SOC=m`, in `build/build-kernel.sh`, then one rebuild (`docs/features/usbc-usb4-gap.md`). This is kernel work and belongs to the GPU session. After that kernel boots, repeat the USB 2, USB 3, SD and Thunderbolt tests in this report.
-4. Bluetooth timeouts: check the `hci_bcm4377` firmware and driver messages on the stock kernel. If they remain, report to Asahi upstream (not posted).
+4. Bluetooth timeouts: the `m3-bluetooth` session wrote a plan (`docs/features/bluetooth.md`). The GPU session staged a kernel with a changed `hci_bcm4377.ko` and `thunderbolt_apple.ko` at `~/m3gpu/out/kernel-7.2.11-m3gpu+-usb4-bt` (not installed, no reboot yet). Retest Bluetooth and USB-C after it boots.
 5. Optional: compare SSD speed in macOS with the same `fio` command, and run LAN `iperf3` to the Mac host to measure Wi-Fi without the internet line.
 
 ## What needs the user's hands

@@ -42,9 +42,9 @@ No GPU errors during the run. The full run (`tests/stress.sh`) needs a desktop l
 | 2026-10-26 13:57 | Readback test, 20 runs | 20 of 20 pass |
 | 2026-10-26 13:57 | Idle soak, 60 min, login screen on the GPU | Pass: readback 3/3 after the soak, 0 kernel GPU or display problems |
 | 2026-10-26 | Load soak, 60 min (`tests/load-soak.sh`) | Pass: 228.17 G pixel-iterations/s for the full hour (no drop), 0 wrong values in 195,843 checks, 0 kernel GPU or display problems. End temperatures 26.7 / 45.3 / 53.3 C (thermal zones 0-2) |
-| 2026-10-27 23:21 | Vulkan compute stress, 600 s (`tests/vk-stress.c`), desktop in use | Pass: 0 wrong values in 6,587 checks. One GPU fault in a desktop render job during the run (see below) |
+| 2026-10-26 23:21 | Vulkan compute stress, 600 s (`tests/vk-stress.c`), desktop in use | Pass: 0 wrong values in 6,587 checks. One GPU fault in a desktop render job during the run (see below) |
 
-### GPU fault and plasmashell crash (2026-10-27 23:22)
+### GPU fault and plasmashell crash (2026-10-26 23:22)
 
 During the `vk-stress` run, the desktop was in use (plasmashell, Firefox and other GPU clients). This is the only GPU fault in 8 boots with the GPU stack.
 
@@ -177,7 +177,7 @@ One P core reaches 83 GB/s, the same as the macOS one-thread best (83.1 GB/s). T
 
 The 600 s value is not a valid reference: after the first 30 s every 30 s window ran at about 105 frames/s while other programs used the GPU. A clean rerun with no other GPU client is open. On Linux the compute kernel is about 2 times slower than the fragment shader version of the same math (228 G), so the compute path has room to improve.
 
-### 7-Zip benchmark (`7z b`, 7-Zip 26.04, 2026-10-27)
+### 7-Zip benchmark (`7z b`, 7-Zip 26.04, 2026-10-26 23:32)
 
 | Threads | Compress (MIPS) | Decompress (MIPS) | Total rating (MIPS) |
 |---|---|---|---|
