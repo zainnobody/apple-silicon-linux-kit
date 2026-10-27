@@ -102,6 +102,15 @@ Closed since the first version of this report: the USB-C data fix (`thunderbolt_
 - Find an SD card and insert it in the MacBook slot. Then in the dongle reader.
 - Plug in a Thunderbolt device if you have one.
 
-## M3 state at the last check, 2026-10-27 02:2x
+## T7 direct on a USB-C port, 2026-10-27 14:17 (my own test, read only)
 
-The M3 did not answer on SSH (port 22 timed out twice). Tailscale showed it offline, last seen 38 minutes earlier. I ran no extra tests. I did not reboot, suspend or reload any module.
+The user said the T7 was on the right-side port. Linux showed the partner on `port2`, which my map calls left front. Check the map or the side.
+
+| Item | Result |
+|---|---|
+| Link | `PSSD T7 Shield`, 10000M (USB 3.2 Gen 2), driver `uas` |
+| Raw read, `dd iflag=direct`, 2 GB, two runs | 722 MB/s and 734 MB/s |
+| Raw read, 6.3 GB, later offset | 701 MB/s |
+| Write test | Not done. The drive holds user data. |
+
+The M3 had just booted (up 1 minute at the check). I did not cause that reboot. The T7 passes USB 3 on one port. The other two ports are still open.
