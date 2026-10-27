@@ -48,6 +48,7 @@ Why step 3: Fedora's default is a random per-network Wi-Fi MAC (`stable-ssid`). 
 | Firmware 23.30.58 service record | the BCM4387 format is rejected (`EBADE`); the helper's length-header fallback works. Same quirk the project reports for 23.20.95 |
 | Receiver | serves `<awdl0 MAC>._airdrop._tcp.local` on the link-local address, TCP 8771 |
 | Mac to M3 (Finder AirDrop, Everyone) | works: the M3 shows by name in Finder; `/Discover`, `/Ask`, `/Upload` all answered 200; a 5-byte file arrived |
+| Mac to M3 from the command line | works: `tests/airdrop-send-from-mac.swift` (system AirDrop service, picker click on the target); a 27-byte file arrived and the receiver logged `/Upload` 200 |
 | M3 to iPhone (`airdrop-setup.sh send`) | works: the iPhone asked, the user accepted, 18-byte file arrived (`Upload ... ok`). Needs the iPhone unlocked and on "Everyone for 10 Minutes"; a few tries are normal (the iPhone listens in bursts) |
 | iPhone to M3 | works: `/Discover`, `/Ask`, `/Upload` answered 200 and an 18-byte file arrived in `~/Downloads`. Three earlier windows failed because the iPhone had dropped "Everyone for 10 Minutes" (iOS reverts to Contacts Only after 10 minutes). In a failing window the iPhone is in the AWDL peer table with matching counters but sends no data frames (`datarx` flat) |
 | M3 to Mac | not supported by choice. Two tries failed anyway: the Mac refuses TCP on the fixed port 8770 that `--direct` uses |
