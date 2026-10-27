@@ -33,6 +33,19 @@ Date: 2026-10-27. Status: **plan only**. No reboot, no sudo, no write to the ESP
   - The module contains the new `T6030/J516s` profile. It has not been loaded.
 - A kernel rebuild is not needed for any step of route A.
 
+## Window scripts (prepared 2026-10-27, not run)
+
+The coordinator scheduled the window after the Neural Engine boot, together with the camera temporal-filter change. The steps above are scripted in `~/window/` on the M3 (source copies in the private notes folder):
+
+| Script | What it does |
+|---|---|
+| `touchid-boot.sh --dry` | Read-only. A0 hash check, builds the merged test DTB (SEP nodes, `sep` alias, `apple,temporal-filter` 0 to 1), proves the diff has 1 removed line and only added lines otherwise, composes the expected `boot.bin.sep`. Writes nothing to the ESP. |
+| `touchid-boot.sh` | Does the same, then builds `boot.bin.sep`, proves it equals the base `boot.bin` with only the J516S dtb replaced, switches `boot.bin`, and arms a self-removing unit that puts the base back on the first boot that uses it. A plain reboot is the test boot; the next reboot is normal. It stops if the Neural Engine window is armed or a Touch ID unit exists, and it never reboots. |
+| `touchid-check.sh` | After the boot: part 1 SEP manifests in the device tree, part 2 camera property, part 3 camera log and a 5 s capture with a temporal-noise number, part 4 module hash, vermagic and symbols, part 5 the dry load (last, never `rmmod`, never `/dev/sep-bio`). PASS or FAIL per part, log in `~/window/touchid/logs/`. `--baseline` records the camera noise number before the test boot. |
+| `touchid-disarm.sh` | Before the reboot: base `boot.bin` back, restore unit removed. |
+
+Self-test results (no root writes): `--dry` passes with base `boot.bin.stageE`. The check script on the normal boot reports parts 1 and 2 FAIL (correct: the test DTB is not active) and part 4 PASS.
+
 ## Gates before step A2 (all must be true)
 
 1. The user says go in the session that owns reboots. The coordinator pauses the other M3 sessions first.
