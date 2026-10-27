@@ -98,6 +98,10 @@ Safety review: SkillSpector scan of `linux/` found 19 findings (17 MEDIUM, 2 LOW
 | Resume on put-on | Put the headset on again (with `librepods-m3-resume-playback.patch` built) | PASS | Log: `Paused playback for ...firefox...`, then `Resumed playback for ...firefox...` about 1 s after put-on at 23:46:36. The user confirmed. Before the patch there was no resume attempt: the default rule needs both ears in ear, and the check for the active sink ran before the sink came back. The patch resumes when one ear is back, after 1 s. A short pause, resume, pause chain can happen while the headset reports its ears in steps (23:46:31 to 23:46:32). |
 | Pause on take-off, second cause | Video playing, headset off, headset on (service started after the video) | FAIL (found), fix built | No pause and no resume. LibrePods gates the pause on `getCurrentMediaState()`, which asks D-Bus with an empty service name and is unreliable. `librepods-m3-pause-gate.patch` removes the gate (`pause()` already reads each player) and keeps the list of paused players. Built and the service restarted. The test with this build is pending. |
 | Codec | `pactl list cards` | FIXED | LibrePods forced SBC-XQ on every put-on and tried AAC last. `librepods-m3-aac-codec.patch` prefers the codec-negotiating profile `a2dp-sink` (AAC). Built and confirmed: the active profile is `a2dp-sink`. Sound was not compared by ear. |
+| Audio out (A2DP) | 1 s tone to the headset sink, AAC profile | PASS (routing) | `paplay` finished with no error. Heard-by-ear not confirmed by this session. |
+| Call profile (HFP) link | `pactl set-card-profile ... headset-head-unit` and `-cvsd`, `btmon` capture | PASS | `Enhanced Setup Synchronous Connection` and `Synchronous Connect Complete` with status Success, link type eSCO, air mode transparent (mSBC). Chip SCO routing is `01` (host transport), read with vendor command 0xFC1D. Read Buffer Size: SCO MTU 254, 1 packet. |
+| Microphone, capture only | `parecord` 6 to 12 s from the headset source, user speaking, 4 runs (mSBC and CVSD) | FAIL | Digital silence (-90 dBFS) in every run. Source not muted, volume 100%. |
+| Microphone, capture with playback open | `parecord` 8 s while `paplay` plays a silent file to the headset sink | PASS | 55 of 79 blocks above -45 dBFS, peak -22.5 dBFS: the voice was captured. So the Bluetooth chip and driver carry call audio. The silence happens when only the capture side is open. This looks like a PipeWire or BlueZ behavior, not a driver fault. Real call apps open both sides. Not tested with a real call app. |
 | Popup windows | User report | OPEN | The window opens only at start (without `--hide`), on a tray click or on a `reopen` command. A user report of popups during idle is not explained. The app was restarted three times without `--hide` during tests, which may explain part of it. |
 | Autostart | `install/librepods.service` as a systemd user unit, `enable --now` | PASS | `is-active` and `is-enabled` both report yes. The app starts in the tray with `--hide` and connects to the headset (battery read). Not tested across a login. |
 
@@ -106,6 +110,6 @@ Note on a desktop crash seen at 23:23: `plasmashell` crashed (SIGSEGV) during th
 ## Left
 
 - Suspend and resume test with the patched driver (the original fault).
-- Popup windows, and a call and microphone test.
+- Popup windows. A call with a real app (Firefox or a chat app) to confirm the microphone. A capture-only recorder may get silence: test with `pw-record` and check the PipeWire and WirePlumber Bluetooth settings.
 - Privacy: the app writes the headset encryption keys into the user journal. Do not share its logs.
 - Optional: one resume test on the stock 7.1.13 kernel.
