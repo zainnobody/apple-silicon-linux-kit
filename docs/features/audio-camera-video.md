@@ -59,14 +59,18 @@ What is known: the ISP firmware does the image processing. The driver only expos
 |---|---|---|---|---|---|
 | 1 | Better light. Proven: a second light turned a purple, grainy frame into a usable one | None | None | No | Large |
 | 2 | Read the value of `apple,temporal-filter` on this M3. **Done: it is 0 (off).** ISP platform ID is 0x10 | Done | None | No | The filter is off, so rank 3 is worth a try |
-| 3 | The value is 0: set it to 1 in the device tree that m1n1 passes to the kernel (the board DTB or an overlay), boot once, and compare frames in the same light | Medium | Medium: the firmware may reject it and the camera may vanish. Undo: put back the old DTB. Needs the GPU session, which owns boot files | Yes | Possibly large. Unknown |
+| 3 | **FAILED 2026-10-27, see below.** The value is 0: set it to 1 in the device tree that m1n1 passes to the kernel (the board DTB or an overlay), boot once, and compare frames in the same light | Medium | Medium: the firmware may reject it and the camera may vanish. Undo: put back the old DTB. Needs the GPU session, which owns boot files | Yes | Possibly large. Unknown |
 | 4 | User-space denoise as a virtual camera: GStreamer or ffmpeg (`hqdn3d` or `nlmeans`) in front of `/dev/video0`, published as a PipeWire video source (no kernel module). Untested | Medium | Low | No | Medium. Costs CPU and adds delay. Apps must pick the virtual camera |
 | 5 | `v4l2loopback` plus ffmpeg denoise. Same idea, but needs a kernel module built for this custom kernel | Medium to high | Medium | Maybe | Same as 4 |
 | 6 | Add exposure, gain and white balance controls to `apple-isp`. Needs ISP firmware commands that are not documented in this research | High | Medium | Yes | Unknown |
 | 7 | Make libcamera claim the node (Asahi issue 616). Gives libcamera apps access; libcamera cannot denoise firmware-processed NV12 | Low to medium | Low | Yes (kernel patch) | None for grain |
 | 8 | Check which `isp_*.dat` setfile the driver loads. No "not loaded" warning was logged on 2026-10-26, so low value | Low | None | No | Small |
 
-### Proposal only: switch on the temporal filter in the next boot-file window (not done)
+### FAILED (12:00 test boot, 2026-10-27): switch on the temporal filter
+
+Result (Touch ID session, `docs/features/touchid-stage2-plan.md` "Window result"): with `apple,temporal-filter = 1` the ISP node appears but streaming never starts (0 frames). On stop the firmware times out on OPCODE 0x0101, 0x0104 and 0x0021 and the driver force-stops it. The firmware on this M3 does not support the filter (as the maintainer said: not every board supports it). The property stays 0. Baseline on the normal boot: 150 frames, noise 3.914. Do not retry. The original proposal text follows for the record.
+
+### (Record) Proposal: switch on the temporal filter
 
 Status: proposal for the GPU session, which owns the boot files. Nothing was changed. The user has not given a go. It would ride in the Touch ID boot-file window (its own later reboot), see `touchid-stage2-plan.md`.
 
