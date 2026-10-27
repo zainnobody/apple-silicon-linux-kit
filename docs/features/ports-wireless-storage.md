@@ -25,7 +25,7 @@ Rules kept: no reboot, no kernel or boot change, nothing posted, one temporary f
 | Bluetooth: pairing | Needs a device in pairing mode | NOT TESTED (scan fails first) | | Working |
 | Internal SSD | `fio` on one 1 GB file in `~`, then deleted | PASS | Apple SSD AP1024Z, btrfs with `compress=zstd:1`. Direct I/O: sequential read 6135 MiB/s, sequential write 2008 MiB/s with 1 job, 3.7 to 3.9 GiB/s with 4 jobs. Random 4k: read 219k IOPS (855 MiB/s), write 48.8k IOPS (191 MiB/s). Buffered write 3.0 GiB/s (1 job). No macOS number measured on this machine. | Not listed |
 | Keyboard and keyboard backlight | `/proc/bus/input/devices`, `/sys/class/leds` | PASS for the keyboard and the backlight. The MacBook Pro keyboard has no backlight keys (F5 is dictation, F6 is Do Not Disturb), so the default KDE shortcuts never fire. Set from software: the light turned on and off through KDE PowerDevice (`setKeyboardBrightness`, 0 to 255). The user set the shortcuts `Ctrl+Alt+Up` and `Ctrl+Alt+Down` in `kglobalshortcutsrc` (group `org_kde_powerdevil`); both work. | `Apple MTP keyboard`, LED `white:kbd_backlight` (0 to 255, now 0). | Keyboard backlight: linux-asahi, kernel 7.3 |
-| Trackpad | `/proc/bus/input/devices` | Device present. Pointer speed felt slow with the KDE default (acceleration 0, adaptive profile). Pointer speed set to 0.6 live through KWin; the user has not yet judged it, and it is not saved. | `Apple MTP multi-touch`. `libinput list-devices` returned no output over SSH (the test user is not in the `input` group). | linux-asahi |
+| Trackpad | `/proc/bus/input/devices` | Device present. Pointer speed felt slow with the KDE default (acceleration 0, adaptive profile). Pointer speed set to 0.6 through KWin and saved in `kcminputrc`. The user says it feels much better and close to the Mac. | `Apple MTP multi-touch`. `libinput list-devices` returned no output over SSH (the test user is not in the `input` group). | linux-asahi |
 | AirDrop and file sharing | Web research and read-only checks by the `m3-airdrop` session (nothing installed or tested on the M3) | NOT TESTED. Probably possible with the built-in chip. | The `m3-airdrop` session found AWDL code already in the running kernel's `brcmfmac`, so no kernel change may be needed (an earlier note in this report said a MediaTek adapter is required; that was too strong). Details and plan: `side-session-notes/local_beeadd4b-7455-462f-bd22-fa7a051ccef2/airdrop-m3.md`. Intel Unison is Windows only. Tailscale Taildrop and KDE Connect work, but the user does not want Taildrop. | Not listed |
 
 ## Update 2026-10-26 22:15 (not my own test; from the coordinator and `usbc-usb4-gap.md` section 6b)
@@ -64,6 +64,19 @@ Dongle: VIA Labs USB-C hub with a Realtek gigabit Ethernet port and two storage 
 | Card reader slot in the dongle | EMPTY | `sdb` shows 0B, "Media removed". No card inserted, so no result. |
 
 The built-in MacBook SD slot (`mmc0`) is a different device and is still untested. Speed tests and the left rear port (`port1`) are still open.
+
+## USB 2 speed on the right port, 2026-10-27 01:55 (my own test, after the combined reboot, `thunderbolt_apple` loaded at boot)
+
+Same hub dongle on `port3` (right side). The 1.9 GB NTFS flash drive is a USB 2 device (480M).
+
+| Item | Result | Evidence |
+|---|---|---|
+| USB 2 read speed | PASS | Raw read with `dd iflag=direct` (read only, drive not mounted, no data written): 29.6 MB/s over 256 MiB, 29.5 MB/s over a second 128 MiB. This is the normal limit of USB 2 (about 30 to 40 MB/s). |
+| USB 2 write speed | NOT TESTED | The drive was not mounted (a user mount over SSH was refused by polkit), and I chose not to write to the user's flash drive. |
+| Ethernet port of the dongle | Link DOWN | `r8152` interface present, no carrier because no cable is plugged in. Not a fault. |
+| Dongle after reboot | PASS | The same devices and speeds as before the reboot. |
+
+USB 3 speed of the T7 on `port3` (right) and `port1` (left rear) is still not measured. The T7 is not plugged in right now.
 
 ## Notes
 
