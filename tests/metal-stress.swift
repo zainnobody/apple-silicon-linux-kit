@@ -2,11 +2,14 @@
 // (1024x1024, 400 iterations, new seed per frame), run as a Metal compute
 // kernel. Every 10th frame is read back and checked against the CPU.
 // Run: swift -O metal-stress.swift <seconds>
+// METAL_STRESS_CHECK_EVERY=n waits and checks every n-th frame (default 10; 0 never waits),
+// the same option as VK_STRESS_CHECK_EVERY in vk-stress.c.
 import Foundation
 import Metal
 
 let W = 1024, H = 1024, ITERS = 400
 let seconds = CommandLine.arguments.count > 1 ? Double(CommandLine.arguments[1]) ?? 60 : 60
+let checkEvery = Int(ProcessInfo.processInfo.environment["METAL_STRESS_CHECK_EVERY"] ?? "") ?? 10
 
 let src = """
 #include <metal_stdlib>
@@ -37,6 +40,7 @@ let grid = MTLSize(width: W, height: H, depth: 1)
 var frames = 0, checks = 0, wrong = 0
 let t0 = Date()
 var last = t0
+var checkTime = 0.0
 while Date().timeIntervalSince(t0) < seconds {
     var seed = UInt32(truncatingIfNeeded: frames &* 2654435761)
     let cb = q.makeCommandBuffer()!
@@ -48,8 +52,9 @@ while Date().timeIntervalSince(t0) < seconds {
     enc.endEncoding()
     cb.commit()
     frames += 1
-    if frames % 10 == 0 {
+    if checkEvery > 0 && frames % checkEvery == 0 {
         cb.waitUntilCompleted()
+        let c0 = Date()
         checks += 1
         let p = out.contents().bindMemory(to: UInt32.self, capacity: W * H)
         var bad = 0
@@ -60,6 +65,7 @@ while Date().timeIntervalSince(t0) < seconds {
         }
         wrong += bad
         if bad > 0 { print("frame \(frames): \(bad) wrong samples") }
+        checkTime += Date().timeIntervalSince(c0)
     }
     if Date().timeIntervalSince(last) >= 30 {
         last = Date()
@@ -71,5 +77,9 @@ let t = Date().timeIntervalSince(t0)
 let rate = Double(frames) * Double(W * H * ITERS) / t / 1e9
 print(String(format: "frames %d in %.1f s (%.1f fps, %.2f Gpix-iter/s), checks %d, wrong samples %d",
              frames, t, Double(frames) / t, rate, checks, wrong))
+if checks > 0 {
+    print(String(format: "CPU check time %.2f ms per check (GPU idle meanwhile), every %d frames",
+                 checkTime * 1000 / Double(checks), checkEvery))
+}
 print(wrong == 0 ? "STRESS_PASS" : "STRESS_FAIL")
 exit(wrong == 0 ? 0 : 1)

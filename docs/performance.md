@@ -175,7 +175,34 @@ One P core reaches 83 GB/s, the same as the macOS one-thread best (83.1 GB/s). T
 | Linux, 600 s, desktop in use | 109.8 (first 30 s: 201) | 46.0 | 0 of 6,587 checks |
 | macOS 15.6.1, Metal, steady 0 to 450 s | about 317 | about 133 | 0 of 14,831 checks |
 
-The 600 s value is not a valid reference: after the first 30 s every 30 s window ran at about 105 frames/s while other programs used the GPU. A clean rerun with no other GPU client is open. On Linux the compute kernel is about 2 times slower than the fragment shader version of the same math (228 G), so the compute path has room to improve.
+The 600 s value is not a valid reference: after the first 30 s every 30 s window ran at about 105 frames/s while other programs used the GPU.
+
+**What limits this test (2026-10-27, `tests/gpu-perf-suite.sh`).** The GPU is not slower than in macOS. The test pattern is the limit:
+
+| Run (Linux, `vk-stress`) | G pixel-iter/s | CPU check per 10 frames |
+|---|---|---|
+| No wait (`VK_STRESS_CHECK_EVERY=0`), 60 s | **255.5** | none |
+| Wait and check every 100th frame, 60 s | 192.9 | 56.8 ms |
+| Wait and check every 10th frame (as `metal-stress`), 30 to 60 s runs | 62 to 115 | 17 to 27 ms |
+| `gles-stress` (fragment shader, same math), 60 s | 226.1 | about 1 ms per check |
+
+- On each 10th frame the test empties the GPU queue and checks 21,904 values on the CPU. The GPU has no work during the check (17 to 27 ms), about half of the time.
+- The GPU clock state (read each 0.2 s from the debugfs `asahi-g15/pstate` file) shows the effect. With no wait, the GPU stays at state 8 (1380 MHz) for the full run. With the wait on every 10th frame, the firmware DVFS often runs the GPU at states 1 to 3 (338 to 796 MHz). Then 10 GPU frames take about 33 ms instead of 16 ms.
+- The driver gives the firmware the full Apple DVFS controller set from the device tree (`perf-tgt-utilization`, gains, filters, boost: `g15/board/record.rs`), the same values that macOS gets. No firmware word was changed.
+- The CPU side changes the result too. On an E core the check takes 27 ms (62 G). The energy-aware scheduler can put the test there, because the process mostly waits for the GPU. On a P core: 20 ms (113 G). gcc and clang builds check equally fast (25.4 ms both). `performance` governor, `uclampset -m 1024` and `sched_energy_aware=0` gave 86, 84 and 91 G: a faster check, but lower GPU states. All settings were set back after the test.
+- The same setup varies from 85 to 115 G between 30 s runs, because the DVFS state changes.
+
+So the macOS figure of 133 G is a mixed CPU and GPU DVFS result, not a GPU limit. Linux reaches 255 G when the GPU is kept busy, which is 1.9 times the macOS figure for the check pattern. A fair GPU comparison needs the no-wait run in macOS too (`metal-stress` with no checks). That needs a macOS boot.
+
+### GPU suite (2026-10-27 00:12, `tests/gpu-perf-suite.sh 60`, desktop idle)
+
+| Test | Result |
+|---|---|
+| Compute, no wait | 255.5 G pixel-iter/s |
+| Fragment shader (`gles-stress`) | 226.1 G pixel-iter/s, 0 wrong |
+| GPU memory read (`vk-bandwidth 512 20 16`) | best 133.6, mean 126.6 GB/s (specification 150 GB/s) |
+| `glmark2-wayland`, 1920x1080 window | score 3192 |
+| Kernel GPU faults | 0 |
 
 ### 7-Zip benchmark (`7z b`, 7-Zip 26.04, 2026-10-26 23:32)
 

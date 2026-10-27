@@ -3,7 +3,8 @@
 // (16x16 groups, 400 xorshift steps per pixel, new seed per frame). Frames are submitted without
 // waiting; every 10th frame is waited for and every 7th pixel is checked against the CPU.
 // Build with tests/build-tests.sh. Usage: vk-stress <seconds>   (needs vk-stress.spv in the
-// current folder, or VK_STRESS_SPV)
+// current folder, or VK_STRESS_SPV). VK_STRESS_CHECK_EVERY=n waits and checks every n-th frame
+// (default 10, as in metal-stress; 0 never waits, so the GPU never idles).
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -54,6 +55,7 @@ int main(int argc, char **argv)
 {
 	double seconds = argc > 1 ? atof(argv[1]) : 60;
 	const char *spv = getenv("VK_STRESS_SPV") ? getenv("VK_STRESS_SPV") : "vk-stress.spv";
+	long check_every = getenv("VK_STRESS_CHECK_EVERY") ? atol(getenv("VK_STRESS_CHECK_EVERY")) : 10;
 
 	VkApplicationInfo app = { .sType = VK_STRUCTURE_TYPE_APPLICATION_INFO, .apiVersion = VK_API_VERSION_1_1 };
 	VkInstanceCreateInfo ici = { .sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, .pApplicationInfo = &app };
@@ -165,7 +167,7 @@ int main(int argc, char **argv)
 	const uint64_t timeout = 10ull * 1000 * 1000 * 1000;
 
 	long frames = 0, checks = 0, wrong = 0;
-	double t0 = now(), last = t0;
+	double t0 = now(), last = t0, check_s = 0;
 	while (now() - t0 < seconds) {
 		unsigned seed = (unsigned)frames * 2654435761u;
 		int k = (int)(frames % RING);
@@ -188,8 +190,9 @@ int main(int argc, char **argv)
 		VkSubmitInfo si = { .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO, .commandBufferCount = 1, .pCommandBuffers = &cb[k] };
 		CHECK(vkQueueSubmit(queue, 1, &si, fence[k]));
 		frames++;
-		if (frames % 10 == 0) {
+		if (check_every > 0 && frames % check_every == 0) {
 			CHECK(vkWaitForFences(dev, 1, &fence[k], VK_TRUE, timeout));
+			double c0 = now();
 			checks++;
 			long bad = 0;
 			for (int y = 0; y < H; y += 7)
@@ -199,6 +202,7 @@ int main(int argc, char **argv)
 			wrong += bad;
 			if (bad)
 				printf("frame %ld: %ld wrong samples\n", frames, bad);
+			check_s += now() - c0;
 		}
 		if (now() - last >= 30) {
 			last = now();
@@ -210,6 +214,9 @@ int main(int argc, char **argv)
 	double t = now() - t0;
 	printf("frames %ld in %.1f s (%.1f fps, %.2f Gpix-iter/s), checks %ld, wrong samples %ld\n",
 	       frames, t, frames / t, frames * (double)W * H * ITERS / t / 1e9, checks, wrong);
+	if (checks)
+		printf("CPU check time %.2f ms per check (GPU idle meanwhile), every %ld frames\n",
+		       check_s * 1000 / checks, check_every);
 	printf("%s\n", wrong == 0 ? "STRESS_PASS" : "STRESS_FAIL");
 	vkDestroyDevice(dev, NULL);
 	vkDestroyInstance(instance, NULL);
