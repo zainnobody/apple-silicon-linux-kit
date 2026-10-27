@@ -1,0 +1,61 @@
+ linux/media/mediacontroller.cpp | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+From 88abaf08f8fa89823c63d0a1bf03dad088e78a5a Mon Sep 17 00:00:00 2001
+From: m3-local <m3@localhost>
+Date: Mon, 26 Oct 2026 23:52:40 -0700
+Subject: [PATCH] linux: pause without the empty-service state query; keep the
+ paused list
+
+---
+ linux/media/mediacontroller.cpp | 14 +++++++-------
+ 1 file changed, 7 insertions(+), 7 deletions(-)
+
+diff --git a/linux/media/mediacontroller.cpp b/linux/media/mediacontroller.cpp
+index 0a87b27..344adb5 100644
+--- a/linux/media/mediacontroller.cpp
++++ b/linux/media/mediacontroller.cpp
+@@ -52,11 +52,10 @@ void MediaController::handleEarDetection(EarDetection *earDetection)
+ 
+   if (shouldPause && isActiveOutputDeviceAirPods())
+   {
+-    if (getCurrentMediaState() == Playing)
+-    {
+-      LOG_DEBUG("Pausing playback for ear detection");
+-      pause();
+-    }
++    // pause() reads each MPRIS player and pauses only those that are playing.
++    // getCurrentMediaState() asks D-Bus with an empty service name and is unreliable.
++    LOG_DEBUG("Pausing playback for ear detection");
++    pause();
+   }
+ 
+   // Then handle device profile switching
+@@ -358,7 +357,7 @@ void MediaController::pause()
+   QDBusConnection bus = QDBusConnection::sessionBus();
+   QStringList services = bus.interface()->registeredServiceNames().value();
+ 
+-  pausedByAppServices.clear();
++  QStringList pausedNow;
+   int pausedCount = 0;
+ 
+   for (const QString &service : services)
+@@ -391,7 +390,7 @@ void MediaController::pause()
+     if (reply.isValid())
+     {
+       LOG_INFO("Paused playback for: " << service);
+-      pausedByAppServices << service;
++      pausedNow << service;
+       pausedCount++;
+     }
+     else
+@@ -402,6 +401,7 @@ void MediaController::pause()
+ 
+   if (pausedCount > 0)
+   {
++    pausedByAppServices = pausedNow;
+     LOG_INFO("Paused " << pausedCount << " media player(s) via DBus");
+   }
+   else
+-- 
+2.56.0
+

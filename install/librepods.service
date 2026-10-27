@@ -6,6 +6,7 @@ After=graphical-session.target
 [Service]
 Type=simple
 Environment=QT_QPA_PLATFORM=wayland
+Environment=QT_LOGGING_RULES=librepods.debug=true
 ExecStart=%h/librepods-build/linux/build/librepods --hide
 Restart=on-failure
 RestartSec=5

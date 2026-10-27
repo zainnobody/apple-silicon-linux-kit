@@ -15,8 +15,8 @@ sudo dnf -y install \
 [ -d "$SRC/.git" ] || git clone https://github.com/kavishdevar/librepods.git "$SRC"
 cd "$SRC"
 git checkout -q "$PIN"
-# Local fixes, in this order. Both patches are verified on the M3.
-for p in librepods-m3-aac-codec.patch librepods-m3-resume-playback.patch; do
+# Local fixes, in this order. The first two are verified on the M3. The pause patch is built; its put-on test is pending.
+for p in librepods-m3-aac-codec.patch librepods-m3-resume-playback.patch librepods-m3-pause-gate.patch; do
 	if git apply --check "$KIT/patches/$p" 2>/dev/null; then
 		git apply "$KIT/patches/$p"
 	else
