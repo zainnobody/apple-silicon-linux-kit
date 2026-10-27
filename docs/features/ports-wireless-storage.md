@@ -104,7 +104,7 @@ Closed since the first version of this report: the USB-C data fix (`thunderbolt_
 
 ## T7 direct on a USB-C port, 2026-10-27 14:17 (my own test, read only)
 
-The user said the T7 was on the right-side port. Linux showed the partner on `port2`, which my map calls left front. Check the map or the side.
+The user confirmed the T7 was on the left front port. Linux showed the partner on `port2`. The port map is correct.
 
 | Item | Result |
 |---|---|
@@ -113,4 +113,4 @@ The user said the T7 was on the right-side port. Linux showed the partner on `po
 | Raw read, 6.3 GB, later offset | 701 MB/s |
 | Write test | Not done. The drive holds user data. |
 
-The M3 had just booted (up 1 minute at the check). I did not cause that reboot. The T7 passes USB 3 on one port. The other two ports are still open.
+The M3 had just booted (up 1 minute at the check). I did not cause that reboot. The T7 passes USB 3 on the left front port. The right port and the left rear port are still open.
