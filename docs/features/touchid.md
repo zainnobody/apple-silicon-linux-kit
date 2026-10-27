@@ -37,7 +37,7 @@ The tree (`origin` is a fork named siliconforest-linux, branch merged from "inte
 ### Userspace
 
 - `fprintd 1.94.5` and `libfprint 1.94.100` are installed (Fedora packages). `fprintd-enroll` exists. They have no Apple SEP backend, so they find no device.
-- The driver comments say its `/dev/sep-bio` interface is shaped for libfprint (enrol stages, touch counts). I found no libfprint merge request or out-of-tree libfprint driver for it (search of gitlab.freedesktop.org/libfprint and the web, 2026-10-26). The bridge would have to be written.
+- The driver comments say its `/dev/sep-bio` interface is shaped for libfprint (enrol stages, touch counts). My web search on 2026-10-26 found no libfprint merge request. **Corrected 2026-10-27:** the project that carries the SEP driver also ships an out-of-tree libfprint driver (a patch for libfprint 1.94.100) and Fedora packaging. Not built or tried here.
 - Sealing keys with `keyctl` works at the kernel level in the driver, but the driver docs say there is no login keyring integration. Unsealing does not need a fingerprint.
 
 ## What this machine has, from read-only checks (2026-10-26)
@@ -171,6 +171,10 @@ Details and per-part results: [touchid-stage2-plan.md](touchid-stage2-plan.md), 
 - **SEP dry load: partly proven.** With writes off, the driver loaded without a crash and stayed stable. It enabled the SEP DART and node, selected the `T6030/J516s` profile, parsed the xART gigalocker read-only (170 slots, 10 live records, 0 malformed) and created an empty host-state file. Then it logged nothing more in 5 minutes: no "endpoints advertised" line and no "no endpoint" line, no hwrng, no `/dev/sep-bio`. The code should log one of the two attach lines within about 3 seconds, so the SEP mailbox exchange is **unproven**. Cause found afterwards, in the source: my test DTB left the SEP mailbox node disabled, so the driver's mailbox lookup deferred silently (`-EPROBE_DEFER` prints nothing). A second test boot repeated the silence. See the plan, "Second test boot". The fix is in the DTB script, not in the driver; a third test boot is needed to learn whether the SEP answers.
 - **Camera temporal filter 1: FAIL, do not repeat.** The camera node appeared and the property read 1, but a capture delivered no frames and hung. The stop commands to the ISP firmware timed out and the driver stopped it by force. A normal boot gives 150 frames in 5 seconds. This ISP firmware does not accept the filter. The property stays 0.
 - **Side effects:** a root-only host-state file now exists under `/var/lib` (no identity in it); `apple_sep` was loaded until the next reboot and the SEP registration is one-shot, so a retry needs a new test boot.
+
+## Third test boot (2026-10-27 13:10): the SEP answers
+
+With the mailbox node enabled the driver attached: 12 endpoints, xART read through the xART manager endpoint (all status 0, no write attempt), key store open, `trusted` key source registered. The SEP random source returns only zeros (the driver rejects it; Touch ID does not need it). Sensor and Touch ID stay off until `/dev/sep-bio` is opened; with writes off a capture is refused by design. **Correction:** a libfprint driver for this SEP does exist in the same project (patch for libfprint 1.94.100, our version, plus Fedora packaging), so the userspace gap is smaller than the first research said. Stages, risks and the next step: [touchid-stage2-plan.md](touchid-stage2-plan.md), "Third test boot".
 
 ## Sources (all read on 2026-10-26)
 

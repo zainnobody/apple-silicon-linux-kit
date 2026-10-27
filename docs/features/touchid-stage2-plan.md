@@ -92,6 +92,32 @@ This is not the shared-memory layout. The suspicion about firmware 26.x versus o
 3. Pass criteria in order: part 1 and 1b PASS (before the load); then at the dry load, a `SEP platform profile` line, then `attach: N endpoints advertised`. That last line is new information. If it says no endpoint advertised, the registration was sent and the SEP stayed silent: then the profile fields (shared-memory layout and size for this firmware) are the next suspect.
 4. After the load, no suspend and no sleep until the next reboot. The registration is one-shot.
 
+## Third test boot (13:10): the SEP answers (analysis 2026-10-27, read-only)
+
+Result by the coordinator: overall PASS. Parts 1, 1b (mailbox bound to `apple-mailbox`), 2, 4 and 5 PASS. The attach line came 5 s after the load. The cause of the earlier silence is confirmed: the disabled mailbox node.
+
+**What the kernel log and the diag attributes show** (read with no write and no open of `/dev/sep-bio`):
+- Attributes: `attach=attached`, `endpoints=12`, `keystore=open`, `boot=warm`, `protocol=variant5`, `xart=disabled`, `profile=T6030/J516s`, `sensor=unbound`, `touchid=unknown`, `keybag=unknown`.
+- The registration of the shared memory worked: the SEP sent its endpoint list within a second. This means the profile's shared-memory layout, copied from the M3 Air recipe, is accepted by this firmware. The worry about firmware 26.x versus older firmware is not confirmed for this step.
+- All 12 endpoints match the Asahi SEP notes: control (0x00), sbio (0x08, biometrics), scrd (0x0a, credentials), sse (0x0c), hdcp (0x0e), xars (0x10) and xarm (0x13, the xART manager), sks (0x12, key store), hibe (0x14, hibernation), pnon (0x15, boot policy), skdl (0x17, key derivation) and stac (0x18, trusted accessory).
+- xART exchange: the enclave fetched its records through xarm (ops 0x13, 0x00, 0x05 several times, 0x07), all with status 0. No "refused the enclave's write" line appeared, so the enclave did not try to write in this boot. The key store endpoint opened.
+- The driver also registered a `trusted` key source `applesep`. Nothing sealed a key.
+
+**hwrng EIO is not a transport fault.** In `get_entropy_word` a lost message would give `ETIMEDOUT` and a stopped driver `ECANCELED`. The only `EIO` in that path is the driver's own check that all four entropy words were zero (`survey_hwrng`). So the SEP answered the `GET_ENTROPY` request every time, with zero data, five attempts of four words. The source says the same happened on the M1 with firmware 13.5. The driver already refuses to use the SEP for random numbers: Touch ID tokens use the kernel RNG (`mint_token_bytes`). So the SEP random source being absent does not block Touch ID. It only means `/dev/hwrng` stays without an SEP source (`rng_current` is `none`). Possible reasons (not tested): this firmware does not implement op 0x36 for this caller, or it returns the word elsewhere in the reply. Low priority.
+
+**Correction to my first research (touchid.md):** I wrote that no libfprint backend exists. The same project ships one: `patches/libfprint-1.94.100-apple-sep.patch`, a Fedora spec (`packaging/fedora/aurora-sep.spec`), the `aurora-touchid` setup, `fprintd` and greeter units, and an installer. Our Fedora has libfprint 1.94.100 and fprintd 1.94.5, the version the patch targets. I have not built or tried any of it.
+
+**What stands between this state and a real Touch ID read**
+
+| Stage | What it needs | Writes? | Risk |
+|---|---|---|---|
+| 3a, sensor only (read-only) | A J516S sensor block in the device tree: power on the NUB GPIO (the ADT names pin 33, same controller kind as the M3 Air's pin 29), SPI mode (unverified), SPI pin mux (not in the ADT; try without), `firmware-name` for the per-Mac calibration file. The calibration file is carved from the iBoot system container by `extract-mesa-calibration.py` (a raw read of that partition, root, then a file under `/lib/firmware/apple/`). Not yet checked that this Mac's container holds one. Then one open of `/dev/sep-bio` with writes off: the driver enables the SPI bus and the sensor, registers the biometric buffers with the SEP, then stops with "no persisted identity keybag" (ENOENT). No capture is possible (`EROFS`). | No xART write, no keybag. A root-only host-state file already exists | Low. A wrong SPI mode or pin shows as a sensor read error in the log. The sensor power GPIO polarity is copied from the Air (unverified) |
+| 3b, enrol and verify | `xart_writes=1` and `provision_keybag=1`, plus **`xart_guard=1` or 2 set explicitly** (in this tree the guard is off by default, which lets the enclave rewrite any OS's session record). The sensor stage working. The patched libfprint and `fprintd` for a real desktop use. A raw copy of the iBoot system container first. | Yes: xART records in the shared `.gl` extent and a Linux identity keybag | High. The driver's own text says a refused save has left the enclave unresponsive until reboot |
+
+**Backup is smaller than I wrote before.** The xART store is one 6 MB file inside the iBoot system container, which is one 500 MB partition (`iBootSystemContainer`). A raw copy of that one partition, with a checksum, is a full undo for the xART state. I wrote earlier that all APFS partitions needed a copy. That is more than needed for this step.
+
+**Recommendation:** do stage 3a next, but only after (1) the calibration file check and the J516S sensor block are prepared offline, and (2) the user agrees to one more test boot. Do not start stage 3b until 3a works and the user has a raw copy of the container. Stage 3b also needs a decision about macOS: it shares the gigalocker.
+
 ## Gates before step A2 (all must be true)
 
 1. The user says go in the session that owns reboots. The coordinator pauses the other M3 sessions first.
