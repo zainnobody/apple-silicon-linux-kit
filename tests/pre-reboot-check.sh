@@ -4,7 +4,7 @@
 # Prints PRE_REBOOT_OK only when every check passes.
 set -u   # no pipefail: grep -q ends pipes early on purpose
 KREL=7.2.11-m3gpu+
-IMG_SHA=65798c912f6b14c382cef3a818d66584d644604224694ee298182a39d962c113
+IMG_SHA=c6224575f2a72dd2fa140ea6a7c93dff6b052b6dea2dc61bf82f9c8654d2ca91
 STAGEE_SHA=f3197272d588f4b0a037c5f81f0cfb2c36dfc6c7398a4205910ed8b9cbaa0725
 fail=0
 ok()   { echo "ok:   $*"; }
@@ -13,7 +13,7 @@ skip() { echo "SKIP: $*"; }
 root() { sudo -n "$@" 2>/dev/null; }
 canroot() { sudo -n true 2>/dev/null; }
 
-[ "$(sha256sum /boot/vmlinuz-$KREL | cut -d' ' -f1)" = "$IMG_SHA" ] && ok "kernel image is the memory-floor image" || bad "kernel image sha differs"
+[ "$(sha256sum /boot/vmlinuz-$KREL | cut -d' ' -f1)" = "$IMG_SHA" ] && ok "kernel image is the stage O image" || bad "kernel image sha differs"
 [ "$(sha256sum /boot/efi/m1n1/boot.bin 2>/dev/null | cut -d' ' -f1)" = "$STAGEE_SHA" ] && ok "boot.bin is stageE" \
 	|| { st="$(root sha256sum /boot/efi/m1n1/boot.bin || root /usr/local/sbin/m3gpu-default status)"
 	     echo "$st" | grep -q "^$STAGEE_SHA " && ok "boot.bin is stageE" || bad "boot.bin is not stageE (or unreadable)"; }
