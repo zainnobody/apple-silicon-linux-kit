@@ -7,4 +7,6 @@ set -u
 LOG=${GPU_FAULT_WATCH_LOG:-$HOME/gpu-fault-watch.log}
 echo "$(date --iso-8601=seconds) watch start, kernel $(uname -r)" >> "$LOG"
 exec journalctl -f -n 0 -o short-iso-precise --no-pager |
-	grep --line-buffered -E 'GPU fault|fault bank|recovery (error|halted|resumed|step)|recovered:|not drained|fail-stop|GPU work of a client failed|dumped core|BO creation failed|DeviceLost' >> "$LOG"
+	grep --line-buffered -E 'GPU fault|fault bank|recovery (error|halted|resumed|step)|recovered:|not drained|fail-stop|GPU work of a client failed|dumped core|BO creation failed|DeviceLost' |
+	# drop ssh and sudo command lines that only quote the pattern
+	grep --line-buffered -vE 'tailscaled|sshd|sudo\[' >> "$LOG"
