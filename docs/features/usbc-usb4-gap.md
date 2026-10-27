@@ -302,3 +302,9 @@ Open items after the install (none blocks it):
 4. 4K at 60 Hz needs a monitor with an HDMI 2.0 or DisplayPort EDID. The TV used offers 4K only up to 30 Hz.
 5. Log noise: the `DPTX message 0x85...` flood (about 3 lines per second) fills the journal.
 6. Two displays at once (each USB-C or HDMI path uses one of the two display processors).
+
+## 10. Maintenance window log (2026-10-27)
+
+- **P2, sleep test with the module loaded: pass, 3 of 3 cycles** (s2idle success 1 to 3). Cycle 1 ran with the Mac cable plugged into the left back port: at suspend the log shows `Gen2/3 link error ... error=83` on both lanes and `thunderbolt 0-1: host disconnected`; after the resume the ACIO firmware came back ready and both lanes entered `CL0`. Cycles 2 and 3 ran with no cable. After each resume: the module stayed loaded, PD controllers `1-0a`, `1-0c`, `2-08`, `1-06` stayed bound, the three `cio` devices stayed bound, `port1..3` present, no `thunderbolt`, `acio`, `typec` or deferred-probe error, journal 256.7 MB. The 4.1 s resume time comes from the Bluetooth chip (`hci0 0x0c01 tx timeout`, then `recovering transport once after resume command timeout`) and Wi-Fi `-52` errors, not from USB4.
+- **P3, autoload block removed** (01:5x, after the user's approval in the session; the first try was denied by the app's permission check): `/etc/modprobe.d/m3gpu-thunderbolt-apple.conf` deleted. `modprobe -c` shows no `blacklist`, `install` or `softdep` rule for `thunderbolt_apple`. No other file blocked the module (modprobe.d, modules-load.d, dracut, udev rules, kernel command line). The module is still loaded.
+- **P4 (reboot and health check) and P5 (rollback): pending.** Rollback: recreate the file with the single line `blacklist thunderbolt_apple` from another kernel or macOS.
