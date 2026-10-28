@@ -130,6 +130,20 @@ Scripts: `tests/camera-test.sh` (PASS or FAIL per check, `--save-baseline`, `--c
 - **mpv: not tested.** It is not installed, and installing needs root. A user Flatpak would put a large runtime from the internet under `~/.local/share/flatpak`; not done. `ffplay` and VLC use the `ffmpeg-free` libavcodec, which has no H.264 or HEVC decoder.
 - **Firefox: not tested.** It would use the same `ffmpeg-free` libavcodec for VA-API, so H.264 cannot work; upstream also says its sandbox blocks the driver.
 
+## HEVC decode (8-bit and 10-bit) and the camera re-run (2026-10-27 22:30, battery 90% before and after)
+
+- HEVC clips: two 1080p30 10 s clips made on another Mac with libx265 (8-bit `yuv420p`, 10-bit `yuv420p10le`), copied to the M3. The M3 has no software HEVC decoder (`ffmpeg-free`), so the reference is a software decode on the Mac (frame hashes, bit-exact by definition of the standard). The M3 result is GStreamer `vah265dec` through the VA-API layer (`GST_VA_ALL_DRIVERS=1`), hashed per frame.
+
+| Clip | Output format | Frames identical to the software decode | User CPU |
+|---|---|---|---|
+| HEVC 8-bit | NV12 | **300 of 300** | 0.39 s |
+| HEVC 10-bit | **P010 (works)** | **300 of 300** | 0.73 s |
+
+- 10-bit works through the VA-API layer: the driver chose CAPTURE format P010 (1920x1088). No HEVC-specific kernel warning. UBSAN lines in the window came from the AV1 `set_header` path of an earlier test.
+- `ffmpeg -hwaccel vaapi` cannot be used for HEVC here: `ffmpeg-free` has no HEVC decoder.
+- Camera re-run on a new scene: the guard works (`camera-test.sh --pw m3-clean-camera` fails with "not found" when `tools/camera-clean.sh` is not running). Baseline of the real camera: noise 4.361, cast 15.15, R/G 1.117, B/G 0.831, 150 frames. Clean virtual camera (default: `hqdn3d=4:3:8:6` plus the fixed gains `rr=0.96:bb=1.10`, 1280x720): noise 1.663 (**-61.9%**), cast 7.47, R/G 1.074, B/G 0.935, 150 frames in 5 s (30 fps), `camera-test.sh --compare` PASS. The fixed gains halve the cast on this warm scene; `--wb gray` goes lower but may tint. No temporary files or processes left on the M3.
+- Still untested: Firefox or another app picking the virtual source, the LED, motion ghosting of the denoiser (needs a person moving).
+
 ## Next steps
 
 1. Reload `apple_avd` (needs the user's go), check the kernel log and `/dev/video*`, then run the H.264 and HEVC decode tests with CPU use.
