@@ -28,6 +28,7 @@ Kernel config: `m3-legacy/kernel/config-7.2.11-m3gpu+-installed` (installed imag
 | Change | Patch | Status on the M3 |
 |---|---|---|
 | AGX3 packer: retire a wide wait before the narrow f32 multiply (llama.cpp flash attention) | `patches/mesa-agx3-fmul-narrow-wait.patch` | Installed in `/opt/mesa-m3` (stage M, 2026-10-27) |
+| AGX3 packer: allow an in-place op with a multi-slot scoreboard wait (llama.cpp Q3_K mat-vec) | `patches/mesa-agx3-inplace-multislot-wait.patch` | Tested in a test prefix 2026-10-27 (q3_K 48/48, 0 GPU faults); not installed in `/opt/mesa-m3` yet |
 | A lost context does no GPU work instead of crashing (after a GPU fault the VM refuses all binds) | `patches/mesa-asahi-lost-context-noop.patch` | Tested 2026-10-27: not effective (moves the crash), not installed; see docs/gpu-fault-2026-10-26.md |
 
 The SiliconForest Mesa is for private use: build it yourself, do not share the binaries.
@@ -88,6 +89,7 @@ Module hashes (sha256, first 16): 3a `194b730a6287d3f6`, 3b `1138669b8cb6f46c`, 
 | Root-owned files on the M3 (`m3gpu-boot`, Mesa selector, sudoers) | `install/m3-installed/` |
 | The exact M3 copies of the build and stage scripts, the incremental kernel builds, the kernel configs | `m3-legacy/` |
 | macOS one-time boot without a password | `install/setup-macos-switch.sh` |
+| Load `apple_dart` before its consumers (late IOMMU probe warning), draft with undo | `install/dart-order/` (not installed) |
 
 ## Research
 
