@@ -7,6 +7,7 @@
 #                                  calibration installed, module present, AC power, apple_sep not loaded
 #   touchid-3b.sh load             pre, then insmod with xart_writes=1 provision_keybag=1 xart_guard=3 (TOUCHID_GUARD=0|1|2|3
 #                                  overrides the guard), watches the log, trusted-key seal/unseal test, then the alarm check
+#                                  TOUCHID_3B_PARAMS="entropy_trace=1" adds module parameters to the insmod line
 #   touchid-3b.sh alarm            the alarm check alone (also runs after load, open, enrol and verify)
 #   touchid-3b.sh open             first open of /dev/sep-bio: sensor bring-up, key-store restore (sepbio info)
 #   touchid-3b.sh enrol [LABEL]    enrol one finger. The USER touches the sensor (power button) when prompted
@@ -101,9 +102,9 @@ step_load() {
 	local T0 start att=0 prof=0 wr=0 gd=0 kb=0 fail="" ks=""
 	T0=$(date '+%Y-%m-%d %H:%M:%S')
 	printf '%s\n%s\n' "$(cat /proc/sys/kernel/random/boot_id)" "$T0" > "$W/load-since"
-	say "insmod $KON xart_writes=1 provision_keybag=1 xart_guard=$GUARD sensor_trace=1 xarm_trace=1 at $T0"
+	say "insmod $KON xart_writes=1 provision_keybag=1 xart_guard=$GUARD sensor_trace=1 xarm_trace=1${TOUCHID_3B_PARAMS:+ $TOUCHID_3B_PARAMS} at $T0"
 	say "this load can write the shared xART store and create the Linux identity keybag in the enclave"
-	if [ -n "$TEST" ]; then true; else rt insmod "$KO" xart_writes=1 provision_keybag=1 xart_guard="$GUARD" sensor_trace=1 xarm_trace=1 || { say "insmod FAILED"; kl "$T0" | tail -n 8; exit 1; }; fi
+	if [ -n "$TEST" ]; then true; else rt insmod "$KO" xart_writes=1 provision_keybag=1 xart_guard="$GUARD" sensor_trace=1 xarm_trace=1 ${TOUCHID_3B_PARAMS:-} || { say "insmod FAILED"; kl "$T0" | tail -n 8; exit 1; }; fi
 	start=$(date +%s)
 	while [ $(( $(date +%s) - start )) -lt 150 ]; do
 		k=$(kl "$T0")

@@ -1,0 +1,63 @@
+--- a/drivers/soc/apple/sep.rs	2026-10-27 18:50:48.019282911 -0700
++++ b/drivers/soc/apple/sep.rs	2026-10-28 02:27:22.384549297 -0700
+@@ -698,6 +698,7 @@
+     rng_failures: Atomic<u64>,
+ 
+     rng_survey_attempts: Atomic<u32>,
++    entropy_traced: Atomic<u32>,
+ 
+     rx: rxring::RxRing,
+ 
+@@ -915,6 +916,7 @@
+                 rng_shutdown: Atomic::new(false),
+                 rng_failures: Atomic::new(0),
+                 rng_survey_attempts: Atomic::new(0),
++                entropy_traced: Atomic::new(0),
+                 rx: rxring::RxRing::new(),
+                 rx_count: Atomic::new(0),
+                 settle_mark: Atomic::new(0),
+@@ -1235,10 +1237,15 @@
+         // four zero words here. Do not advertise that source to the RNG core.
+         // This is a minimal sanity check, not a complete RNG health test.
+         let mut any_bits = 0u32;
+-        for _ in 0..4 {
+-            any_bits |= self.get_entropy_word()?;
++        let mut words = [0u32; 4];
++        for w in words.iter_mut() {
++            *w = self.get_entropy_word()?;
++            any_bits |= *w;
+         }
+         if any_bits == 0 {
++            if *module_parameters::entropy_trace.value() != 0 && self.rng_survey_attempts.load(Relaxed) == 1 {
++                dev_info!(self.dev, "hwrng: survey words {:#010x} {:#010x} {:#010x} {:#010x}\n", words[0], words[1], words[2], words[3]);
++            }
+             return Err(EIO);
+         }
+         self.register_hwrng()
+@@ -2077,6 +2084,15 @@
+ 
+         match disposition {
+             control::Delivery::Entropy => {
++                // Opt-in (entropy_trace=1): both raw words of the first replies, to see what the
++                // enclave sends back when the entropy word is zero. No request is added.
++                if *module_parameters::entropy_trace.value() != 0 {
++                    let n = self.entropy_traced.load(Relaxed);
++                    if n < 8 {
++                        self.entropy_traced.store(n + 1, Relaxed);
++                        dev_info!(self.dev, "hwrng: GET_ENTROPY reply {} msg0 {:#018x} msg1 {:#018x}\n", n + 1, msg.msg0, msg.msg1);
++                    }
++                }
+                 self.control_wq.notify_all();
+             }
+             control::Delivery::Matched => self.control_wq.notify_all(),
+@@ -2496,6 +2512,10 @@
+             default: 0,
+             description: "Opt-in xART opcode/status trace without payloads or key material",
+         },
++        entropy_trace: u8 {
++            default: 0,
++            description: "Opt-in trace of the first eight raw GET_ENTROPY replies (both message words) and of the first survey, without adding requests",
++        },
+         sensor_probe: u8 {
+             default: 0,
+             description: "Diagnostic: at the first /dev/sep-bio open, power the sensor and read only its status over SPI (tries the other SPI modes when it stays silent); logs the answer and revision code, registers nothing with the enclave, writes nothing",
