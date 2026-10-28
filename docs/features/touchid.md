@@ -208,11 +208,15 @@ Patches: `patches/touchid/` (apply in order on the M3 tree `drivers/soc/apple/se
 | 1 | 12 of 4 s | right index, touched late on request | MATCH in cycle 9. Cycles 1 to 7: no finger, state 17, scan stops at 263 ms. Cycle 8: state 19 at 1996 ms and a frame at 2081 ms, then the 4 s cancel came before the enclave answer. Cycle 9: finger on at the start, MATCH. |
 | 2 | 10 of 6 s | right index, touched late on request | MATCH in cycle 3. Cycles 1 and 2: no finger seen. Cycle 3: finger on at the start, frame at 106 ms, MATCH. Touch time not known. |
 | 3 | 10 of 6 s | right middle (not enrolled), on at the start | NO MATCH in cycle 1 (frame at 105 ms). No false accept. |
+| 4 | 8 of 8 s (01:07:35 to 01:08:44) | right index, touched late on request | No result. No cycle saw a finger, not even at a cycle start. The user reports the touch came soon after the prompt, but the answer reached the coordinator at about 01:09:20, after the loop ended. Not a valid trial: the touch time is unknown. |
+| Control | one verify, 01:10:22 | right index, on before the start | MATCH (finger at 23 ms, frame at 103 ms). |
+| Hold | one verify, 01:12:14 | right index, held 60 s before the start | MATCH (finger at 23 ms, frame at 105 ms). A held finger does not go into the sensor baseline. |
 
 - The loop catches a late touch in the next cycle, so a user-space retry loop is a working fallback (latency up to one cycle, about 6 s).
 - New: run 1 cycle 8 is the first late touch that the sensor detected (about 2.0 s after the capture start, after the 263 ms status change). So the detect window is not limited to about 260 ms. The earlier late touches came 3 s or more after the start. One event only: repeat with a known touch time.
 - Alarm check OK after every run. Journals: `~/window/loop-20261028-0055.*`, `-0057.*`, `-0059.*` on the M3.
-- Next: a loop with 8 s cycles to measure how late a touch can come in one cycle, then the 3f test boot (settle mode).
+- A chat prompt is not a usable touch timer (run 4). For the window measurement, the loop must run longer (20 cycles or more) and log the touch time on the M3 itself, for example from the data-ready interrupt count.
+- Next: that measurement, then the 3f test boot (settle mode).
 
 **Backups (private, not in any repo):** `ibootsys-20261027-150622` (`45b0f6cb`) and `ibootsys-20261027-180807` (`8ef6c876`), each on the M3 under `/data/touchid-backup` and on the Mac under `private-dumps/touchid-backup`. Do not restore an older backup: anti-replay.
 
