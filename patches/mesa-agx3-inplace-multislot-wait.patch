@@ -1,0 +1,33 @@
+Mesa (SiliconForest 7515336, AGX3 packer): retire a multi-slot wait before an in-place ALU op
+with one identity carrier. Without it the packer refused `not x, x` waiting slots 0x30 or 0x3,
+and hk failed vkCreateComputePipelines for llama.cpp's mul_mat_vec_q3_k_f32_f32 (VK_ERROR_UNKNOWN).
+Tested 2026-10-27 on the M3 (prefix ~/m3gpu/out/mesa-q3k-prefix, not installed): test-backend-ops
+MUL_MAT q3_K 48/48, q4_0 94/94, q4_K 96/96, q6_K 55/55, q2_K 55/55, 0 GPU faults.
+Applies on top of mesa-agx3-fmul-narrow-wait.patch (same file, other hunk).
+
+diff --git a/src/asahi/compiler/agx3_pack_binary.c b/src/asahi/compiler/agx3_pack_binary.c
+index b93b25c2b87..faf5e3736a1 100644
+--- a/src/asahi/compiler/agx3_pack_binary.c
++++ b/src/asahi/compiler/agx3_pack_binary.c
+@@ -4042,12 +4042,19 @@ agx3_emit_alu(struct util_dynarray *emission, enum agx_isa_encoding enc,
+       }
+    }
+ 
++   /* An in-place prelude reads its own destination, so one carrier must
++    * retire every slot before that read. The AGX3B identity carrier has one
++    * wait field per slot (agx3_alu_bit_width), so it retires the whole mask at
++    * once; elsewhere only a single slot is safe. llama.cpp's Q3_K mat-vec
++    * shader reaches this with `not x, x` waiting 0x30 and 0x3. */
++   const bool whole_mask = exact_in_place && enc == AGX_ISA_ENCODING_AGX3B;
+    if (overlaps_source &&
+-       (!exact_in_place || (wait_mask & (wait_mask - 1)) != 0))
++       (!exact_in_place ||
++        (!whole_mask && (wait_mask & (wait_mask - 1)) != 0)))
+       return false;
+ 
+    while (wait_mask != 0) {
+-      const uint16_t prewait = wait_mask & -wait_mask;
++      const uint16_t prewait = whole_mask ? wait_mask : wait_mask & -wait_mask;
+       uint8_t prelude[AGX3_ALU_MAX_LENGTH];
+       uint8_t prelude_len = 0;
+       const bool ok =
