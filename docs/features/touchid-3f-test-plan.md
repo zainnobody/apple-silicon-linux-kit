@@ -11,6 +11,8 @@ Run this with the user present. The user touches the sensor on request. Everythi
 - Each start gives a finger-detect window of about 250 ms. The raw status then changes to a "scan finished, nothing seen" value and the state stays 17.
 - A start command while armed does nothing. Idle followed at once by a start did not detect a held finger in 28 windows.
 - The driver itself pauses 1800 ms after idle before the next start (between enrol captures and before each verify). The first re-arm tests skipped that pause. Whether the pause is the missing piece is a hypothesis.
+- **New (restart loop, 2026-10-28):** one late touch was seen. In 17 loop captures the sensor saw a finger at only two offsets after the capture start: 23 ms (finger on at the start, 6 times) and 1996 ms (once). The 1996 ms poll is off the 256 ms poll grid, so the data-ready interrupt woke the loop. The frame followed 85 ms later, as in the finger-on-at-start case (82 ms). The sensor properties in the device description give `time-between-scans` as 0x20000, which is 2.0 s in 16.16 fixed point (my reading). The detection fits that second scan.
+- Three readings fit all data. Only the touch time on the M3 clock can tell them apart (section 7): H1, the sensor scans at the start and again at about 2.0 s, then never; H2, a finger is only detected when it lands in the first 2 s after the start; H3, detection is continuous but earlier touches were not real touches (the touch time came from a chat prompt, so it is unknown).
 
 ## 2. What is prepared (offline, not run on hardware)
 
@@ -19,7 +21,9 @@ Run this with the user present. The user touches the sensor on request. Everythi
 | `apple-sep-3f.ko` | The 3d trace, the 3e re-arm, and a settle pause after idle. Parameters under `/sys/module/apple_sep/parameters/` (writable at run time): `sensor_rearm_mode` (0 off, 1 timed idle, settle, start; 2 on status change idle, settle, start; 3 timed start only; 4 on status change full restart with power cycle; default 2), `sensor_rearm_settle_ms` (default 1800), `sensor_rearm_ms` (default 300, modes 1 and 3). |
 | `touchid-boot.sh --sensor-irq` | Test DTB with the data-ready interrupt in the sensor node. |
 | `touchid-3b.sh` | `load`, `open`, `enrol`, `verify`, `status` and `alarm`, with the alarm check after each step. Select the module with `TOUCHID_3B_MODULE=apple-sep-3f.ko`. |
-| `loopverify.sh [CYCLES]` | Fallback: up to 12 full new verifies of 4 s each. See section 6. |
+| `loopverify.sh [CYCLES]` | Fallback: up to 12 full new verifies of 4 s each. With `--marks`: 24 cycles of 7 s for the touch-timing run. See sections 6 and 7. |
+| `touchmark.py` | Touch-time logger: Enter at landing and at lifting, stamped with the M3 clock into `~/window/touch.marks`. |
+| `touchmark-report.py` | Matches the marks with the capture trace of a loop run and tells, per touch, when it landed and whether the sensor saw it. |
 
 ## 3. Steps
 
@@ -53,13 +57,28 @@ For each late-touch trial: the finger, how long it was held, the mode and settle
 
 ## 6. The restart loop (fallback)
 
-`loopverify.sh` runs up to 12 verifies in a row. Each is a complete new capture session: sensor power-up, the 1.8 s pause, arm, the 250 ms finger-detect window. A cycle is cancelled after 4 s (`LOOP_CYCLE_S`, at least 3). The user holds one finger on the sensor for the whole run (about 55 s). The loop stops at the first MATCH or NO MATCH, after two errors in a row, or after the cycles, and then runs the alarm check.
+`loopverify.sh` runs up to 12 verifies in a row (with `--marks`, see section 7: 24 cycles of 7 s, no stop at the first result, 6 results at most). Each is a complete new capture session: sensor power-up, the 1.8 s pause, arm, the 250 ms finger-detect window. A cycle is cancelled after 4 s (`LOOP_CYCLE_S`, at least 3). The user holds one finger on the sensor for the whole run (about 55 s). The loop stops at the first MATCH or NO MATCH, after two errors in a row, or after the cycles, and then runs the alarm check.
 
 Safety:
 - The cancel is the normal Ctrl-C style cancel of the verify client. A cycle that gets no frame writes nothing to the xART store (the earlier late-touch tests show no store operations in the log). Only the final MATCH or NO MATCH writes, as any verify does.
 - A cycle shorter than the pause plus the bring-up cancels before the sensor arms. The first version of the script used 1.5 s and would have tested nothing after the first cycle. It also ignored a closed sudo window. Both are fixed.
 - The detect window is only about 250 ms in a cycle of about 4.5 s, so the finger must stay down for the whole run. This is a test, not a usable login path.
 
-## 7. After the test
+## 7. Touch-timing run (needs only a test boot with a 3d, 3e or 3f module; use re-arm mode 0)
+
+Purpose: measure when a landing finger is detected, with the touch time taken on the M3 clock.
+
+1. Tab 1 (ssh -t to the M3): `python3 -I ~/window/touchmark.py`. The user presses Enter when the finger lands and Enter again when it lifts. One hand on the sensor, the other on Enter. Keys: `r` starts a new pair, `q` quits.
+2. Tab 2: `echo 0 | sudo tee /sys/module/apple_sep/parameters/sensor_rearm_mode` (only if the module has it), then `~/window/loopverify.sh --marks`. It runs 24 cycles of 7 s (about 3 min), keeps going after a result, stops after 6 results, saves the kernel log and prints the report.
+3. The user touches at irregular moments: land the finger, hold it about 1.5 s, lift, then wait 2 to 8 s. About 25 touches. Vary the landing time on purpose: some right after the start of a cycle, some in the middle, some late. Use the enrolled finger so a MATCH ends no run early (a run ends after 6 results; at most 6 detections are needed).
+4. The report (also: `python3 -I ~/window/touchmark-report.py ~/window/loop-<time>.journal ~/window/loop-<time>.journal.marks 7`) lists, for each touch, when it landed in the capture, how long it stayed, and whether and when the sensor saw it. The summary groups touches by landing time.
+5. How to read it:
+   - H1 (second scan at 2.0 s): a touch that lands at 0.3 to 1.9 s and stays past 2.0 s is seen at +1.996 s whatever the landing time (latency drops as the landing gets later). A touch that lands at 2.3 s or later is never seen.
+   - H2 (first 2 s only): a touch landing at 0.3 to 1.9 s is seen within about 100 ms of landing. A touch landing later is never seen.
+   - H3 (continuous): a touch landing at 2.3 s or later, held 1.5 s, is seen within about 100 ms.
+   - A touch that lands at 1.9 to 2.3 s and stays 0.5 s or more is the sharpest test of H1.
+6. Stop rules are those of section 4. Each result writes the xART store (about 7 operations); 6 results is the cap. The alarm check runs at the end of the loop script.
+
+## 8. After the test
 
 Whatever the result, write it into this file and into the stage 3b plan. Take a fresh backup before the next test boot. Touch ID stays off login, PAM and sudo until the trial plan in the stage 3b plan passes with many more trials.
