@@ -114,6 +114,22 @@ Caveats: the noise number is a temporal difference, so a temporal denoiser lower
 
 Scripts: `tests/camera-test.sh` (PASS or FAIL per check, `--save-baseline`, `--compare`, `--dyn-fps`, `--size`, `--vf`, `--pw`), `tools/camera-clean.sh` (the virtual camera, foreground, no root, no module).
 
+## VA-API through GStreamer: H.264, VP9 and AV1 bit-identical (2026-10-27 13:30, battery 90% before and after)
+
+- Why `vah264dec` was missing: GStreamer's `va` plugin checks the driver vendor string and logs `Unsupported driver: v4l2-request`, so it registers no element. The plugin has an override: `GST_VA_ALL_DRIVERS=1`. With it, `vah264dec`, `vah265dec`, `vavp9dec` and `vaav1dec` appear ("VA-API ... Decoder in v4l2-request"). Environment for every test: `LIBVA_DRIVERS_PATH=$HOME/.local/lib64/dri LIBVA_DRIVER_NAME=v4l2_request GST_VA_ALL_DRIVERS=1`.
+- Method: 1080p30 10 s clips, raw NV12 output of the VA-API decode compared byte for byte with a software decode (`libopenh264`, `libvpx-vp9`, `libdav1d` through `ffmpeg`).
+
+| Codec | Frames | Result | User CPU, VA-API against software |
+|---|---|---|---|
+| H.264 (OpenH264 clip) | 300 | **300 of 300 identical** | 0.38 s against 0.87 s |
+| VP9 | 300 | **300 of 300 identical** | 0.39 s against about 1.4 s (earlier ffmpeg run) |
+| AV1 | 300 | **300 of 300 identical** (the `ffmpeg -hwaccel vaapi` path differed on frames 0 and 1; the GStreamer path does not) | 0.74 s against about 4.4 s (earlier ffmpeg run) |
+
+- **UBSAN:** the GStreamer AV1 run logged 12 UBSAN lines again (as with `v4l2slav1dec`); the `ffmpeg -hwaccel vaapi` AV1 run logged none. So the warning depends on the caller, which fits the report draft (`-1` in unused `ref_frame_idx[]`).
+- **HEVC through VA-API: not tested.** There is no HEVC clip on the M3 (no encoder). Another download of the sample clip was not authorised in this session. `vah265dec` exists and the driver lists the HEVC profiles.
+- **mpv: not tested.** It is not installed, and installing needs root. A user Flatpak would put a large runtime from the internet under `~/.local/share/flatpak`; not done. `ffplay` and VLC use the `ffmpeg-free` libavcodec, which has no H.264 or HEVC decoder.
+- **Firefox: not tested.** It would use the same `ffmpeg-free` libavcodec for VA-API, so H.264 cannot work; upstream also says its sandbox blocks the driver.
+
 ## Next steps
 
 1. Reload `apple_avd` (needs the user's go), check the kernel log and `/dev/video*`, then run the H.264 and HEVC decode tests with CPU use.
