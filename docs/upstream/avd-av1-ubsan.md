@@ -58,7 +58,11 @@ for (i = 0; i < 6; i++) {
 		    frame->reference_frame_ts[frame->ref_frame_idx[j]]) {
 ```
 
-Reading: the code indexes `reference_frame_ts[]` with `ref_frame_idx[...]` without checking that the value is in 0..7. For frames that do not use references (key frames and intra-only frames) the userspace control carries -1 in unused `ref_frame_idx[]` entries, so the lookup reads `reference_frame_ts[-1]`, one element before the array. This is a reading of the code and the log, not a tested fix.
+Cause: `ref_frame_idx[]` is `__s8`. A slot the frame does not use holds -1 (key frames and intra-only frames, and callers that mark a slot unused). The driver indexes `reference_frame_ts[]` with it directly at these places in `avd-av1.c` (line numbers of the tree above): 363 (`set_refs`), 452 (`is_valid_ref_frame`), 481 (`avd_select_refs`, `last_ref_idx`), 581 and 582 (`set_ref_hdr`, the pair comparison), plus 550, 828 and 1073 (these only see slots that were selected or a valid primary reference, so they were not reported, but they use the same pattern). The read at `[-1]` takes the 8 bytes before the array inside the control struct and uses them as a buffer timestamp. `avd_get_ref_buf()` returns the destination buffer for an unknown timestamp, so the visible result was normally right and only UBSAN noticed.
+
+Proposed fix: `patches/avd-av1-ref-idx-bounds.patch` (in the kit repo). A new helper `avd_av1_ref_buf()` returns the destination buffer for a slot outside 0..7, the same value `avd_get_ref_buf()` already returns for an unknown timestamp, so decode output does not change. `set_ref_hdr()` skips slot pairs with an invalid index. 8 hunks, one file.
+
+Status of the fix: the patched file compiles without warnings with the M3 kernel build flags (7.2.11-m3gpu+); the patch applies to the tree above. **It was not loaded or run**: loading a module needs root, and no root window was open. The 300-frame AV1 check with the patched module is still to do.
 
 ## How to reproduce
 
@@ -73,7 +77,7 @@ Reading: the code indexes `reference_frame_ts[]` with `ref_frame_idx[...]` witho
 
 ## Impact
 
-Reads past the end of an array in kernel code. UBSAN reports only; no crash or corrupt output was seen. A kernel built without UBSAN or with a different compiler may read other data. Please advise whether the reference-frame check in `is_valid_ref_frame` needs a bound on the index.
+Reads past the end of an array in kernel code. UBSAN reports only; no crash or corrupt output was seen. A kernel built without UBSAN or with a different compiler may read other data. The patch above bounds every use of the index.
 
 ## Not known
 

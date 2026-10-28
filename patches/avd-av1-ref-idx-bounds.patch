@@ -1,0 +1,132 @@
+From: agx-linux-kit
+Subject: [PATCH] media: apple: avd: do not index reference_frame_ts[] with -1
+
+ref_frame_idx[] is -1 for a reference slot that a frame does not use (key
+frames and intra-only frames). avd-av1.c used it to index
+reference_frame_ts[8] without a range check, which UBSAN reports as
+"index -1 is out of range for type '__u64 [8]'" and reads the 8 bytes before
+the array.
+
+Add avd_av1_ref_buf(): an unused or out of range slot gives the destination
+buffer, the same result avd_get_ref_buf() already gives for an unknown
+timestamp, so decode output does not change. set_ref_hdr() skips slot pairs
+with an invalid index.
+
+Tested: compiles without warnings with the M3 kernel build flags (7.2.11-m3gpu+).
+Not tested on hardware: loading the module needs root.
+---
+--- a/drivers/media/platform/apple/avd/avd-av1.c	2026-10-28 02:25:43
++++ b/drivers/media/platform/apple/avd/avd-av1.c	2026-10-28 02:26:40
+@@ -330,6 +330,27 @@
+ 		 * (1 << WARP_PARAM_REDUCE_BITS);
+ 	*delta = AV1_DIV_ROUND_UP_POW2_SIGNED(*delta, WARP_PARAM_REDUCE_BITS)
+ 		* (1 << WARP_PARAM_REDUCE_BITS);
++}
++
++/*
++ * ref_frame_idx[] holds -1 for a slot the frame does not use (key frames,
++ * intra-only frames). Never index reference_frame_ts[] with it directly.
++ */
++static bool avd_av1_ref_idx_valid(int idx)
++{
++	return idx >= 0 && idx < V4L2_AV1_TOTAL_REFS_PER_FRAME;
++}
++
++/* Like avd_get_ref_buf(): an unused slot gives the destination buffer. */
++static struct avd_decoded_buffer *
++avd_av1_ref_buf(struct avd_ctx *ctx, struct avd_decoded_buffer *dst,
++		const struct v4l2_ctrl_av1_frame *frame, int idx)
++{
++	if (!avd_av1_ref_idx_valid(idx))
++		return dst;
++
++	return avd_get_ref_buf(ctx, &dst->base.vb,
++			       frame->reference_frame_ts[idx]);
+ }
+ 
+ static void set_refs(struct avd_ctx *ctx, struct avd_av1_run *run)
+@@ -358,10 +379,8 @@
+ 			ref = dst;
+ 		} else {
+ 			ref_idx = i + V4L2_AV1_REF_LAST_FRAME;
+-			ref = avd_get_ref_buf(
+-				ctx, &dst->base.vb,
+-				frame->reference_frame_ts
+-					[frame->ref_frame_idx[i]]);
++			ref = avd_av1_ref_buf(ctx, dst, frame,
++					      frame->ref_frame_idx[i]);
+ 		}
+ 		addr = vb2_dma_contig_plane_dma_addr(&ref->base.vb.vb2_buf, 0) +
+ 		       ref->comp.start_offset;
+@@ -446,11 +465,9 @@
+ 			       enum v4l2_av1_reference_frame ref_frame)
+ {
+ 	const struct v4l2_ctrl_av1_frame *frame = run->frame;
+-	struct avd_decoded_buffer *ref = avd_get_ref_buf(
+-		ctx, &dst->base.vb,
+-		frame->reference_frame_ts
+-			[frame->ref_frame_idx[ref_frame -
+-					      V4L2_AV1_REF_LAST_FRAME]]);
++	struct avd_decoded_buffer *ref = avd_av1_ref_buf(
++		ctx, dst, frame,
++		frame->ref_frame_idx[ref_frame - V4L2_AV1_REF_LAST_FRAME]);
+ 	int ref_mi_cols = DIV_ROUND_UP(ref->av1.width + 1, 8);
+ 	int ref_mi_rows = DIV_ROUND_UP(ref->av1.height + 1, 8);
+ 	bool intra_only = ((ref->av1.frame_type == V4L2_AV1_KEY_FRAME) ||
+@@ -477,8 +494,7 @@
+ 	int last_ref_idx = frame->ref_frame_idx[V4L2_AV1_REF_INTRA_FRAME];
+ 	if (seq->flags & (V4L2_AV1_SEQUENCE_FLAG_ENABLE_ORDER_HINT |
+ 			  V4L2_AV1_SEQUENCE_FLAG_ENABLE_REF_FRAME_MVS)) {
+-		ref = avd_get_ref_buf(ctx, &dst->base.vb,
+-				      frame->reference_frame_ts[last_ref_idx]);
++		ref = avd_av1_ref_buf(ctx, dst, frame, last_ref_idx);
+ 		if (dst != ref) {
+ 			use_last =
+ 				(ref->av1.order_hints[V4L2_AV1_REF_ALTREF_FRAME] !=
+@@ -545,9 +561,7 @@
+ 		} else {
+ 			ref_idx = frame->ref_frame_idx[selected_refs[i] -
+ 						       V4L2_AV1_REF_LAST_FRAME];
+-			ref = avd_get_ref_buf(
+-				ctx, &dst->base.vb,
+-				frame->reference_frame_ts[ref_idx]);
++			ref = avd_av1_ref_buf(ctx, dst, frame, ref_idx);
+ 
+ 			push(AV1_ORDER_HINT0(ref->av1.order_hints[3]) |
+ 				     AV1_ORDER_HINT1(ref->av1.order_hints[2]) |
+@@ -578,6 +592,9 @@
+ 	/* point to the first index where the frames equal */
+ 	for (i = 0; i < 6; i++) {
+ 		for (j = i + 1; j < 7; j++) {
++			if (!avd_av1_ref_idx_valid(frame->ref_frame_idx[i]) ||
++			    !avd_av1_ref_idx_valid(frame->ref_frame_idx[j]))
++				continue;
+ 			if (frame->reference_frame_ts[frame->ref_frame_idx[i]] ==
+ 			    frame->reference_frame_ts[frame->ref_frame_idx[j]]) {
+ 				ref_slots[j] = ref_slots[i];
+@@ -823,9 +840,7 @@
+ 		} else {
+ 			ref_idx = frame->ref_frame_idx[selected_refs[i] -
+ 						       V4L2_AV1_REF_LAST_FRAME];
+-			ref = avd_get_ref_buf(
+-				ctx, &dst->base.vb,
+-				frame->reference_frame_ts[ref_idx]);
++			ref = avd_av1_ref_buf(ctx, dst, frame, ref_idx);
+ 			ref_addr =
+ 				vb2_dma_contig_plane_dma_addr(
+ 					&ref->base.vb.vb2_buf, 0) +
+@@ -1067,11 +1082,9 @@
+ 					    av1_ctx->bufs.probs.cpu);
+ 		avd_av1_set_default_cdfs(av1_ctx->bufs.probs.cpu);
+ 	} else {
+-		ref = avd_get_ref_buf(
+-			ctx, &dst->base.vb,
+-			run->frame->reference_frame_ts
+-				[run->frame->ref_frame_idx
+-					 [run->frame->primary_ref_frame]]);
++		ref = avd_av1_ref_buf(
++			ctx, dst, run->frame,
++			run->frame->ref_frame_idx[run->frame->primary_ref_frame]);
+ 		memcpy(av1_ctx->bufs.probs.cpu,
+ 		       vb2_plane_vaddr(&ref->base.vb.vb2_buf, 0) +
+ 			       AVD_AV1_CDFS_OFFSET(
