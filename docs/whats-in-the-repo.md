@@ -48,7 +48,7 @@ Status 2026-10-27: enrol, match, reject and persistence across reboots work in t
 | Restart-loop test for the late touch (not run yet) | `tools/touchid/window/loopverify.sh` |
 | Plans and analyses | `docs/features/touchid.md`, `touchid-stage2-plan.md`, `touchid-stage3b-plan.md` |
 
-Module hashes (sha256, first 16): 3d `f4c21b0ae6baad1c`, 3e `e9533dec72cace21`, 3f `d7b1e23d711bdcca`; 3c starts `ec3308f82cf4`. The built modules stay on the M3 in `~/window/touchid/`.
+Module hashes (sha256, first 16): 3a `194b730a6287d3f6`, 3b `1138669b8cb6f46c`, 3c `ec3308f82cf4df33`, 3d `f4c21b0ae6baad1c`, 3e `e9533dec72cace21`, 3f `d7b1e23d711bdcca`. The built modules are on the M3 in `~/window/touchid/`, with a checked copy (modules, logs, build sources) in `../private-dumps/m3-collect-2026-10-27/`.
 
 ## Feature tools (installed on the M3)
 
@@ -107,8 +107,7 @@ Module hashes (sha256, first 16): 3d `f4c21b0ae6baad1c`, 3e `e9533dec72cace21`, 
 
 ## Only on the M3 (collect when it is online)
 
-- Built Touch ID modules `~/window/touchid/apple-sep-3*.ko` and their `.sha256` files, plus the test logs in `~/window/touchid/logs/`.
-- The kernel source tree with other sessions' uncommitted changes (`~/m3gpu/src/linux`), and `~/m3gpu/touchid-stage1/` (module build folders `mod3a` to `mod3f`, guard test harness).
+- The kernel source tree with other sessions' uncommitted changes (`~/m3gpu/src/linux`). The Touch ID build sources from `~/m3gpu/touchid-stage1/` are copied to `../private-dumps/m3-collect-2026-10-27/`.
 - The VA-API layer build in `~/.local`, and the AirDrop test folder `~/omdrop-test`.
 
 ## Not in the repository
