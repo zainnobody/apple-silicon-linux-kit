@@ -80,7 +80,7 @@ USB 3 speed of the T7 on `port3` (right) and `port1` (left rear) is still not me
 
 ## Final results, 2026-10-27 (from the ports session's last report to the coordinator)
 
-The session reported that it committed these results, but the commit is not in this copy of the kit. It may be in the kit copy on the M3. These numbers come from its report text, not from a log in this repo.
+Summary of the detailed sections the ports session added (merged into this copy on 2026-10-27 from its working copy).
 
 | Test | Result |
 |---|---|

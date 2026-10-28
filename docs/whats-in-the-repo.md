@@ -2,7 +2,7 @@
 
 Every change behind the tested M3 Pro (J516S) state, and where it is. Upstream sources: SiliconForest kernel `0e1f46661376`, SiliconForest Mesa `7515336`, SiliconForest m1n1 `aca1258` (unchanged).
 
-Last full review: 2026-10-27 19:50. Nothing is pushed to a remote. Feature status for each area: `docs/features/*.md` and the local board `../status/BOARD.html`.
+Last full review: 2026-10-27 22:40. Nothing is pushed to a remote. Some sessions work in an older copy of this kit and of ane-linux; their commits were merged into these copies on 2026-10-27 22:35. Feature status for each area: `docs/features/*.md` and the local board `../status/BOARD.html`.
 
 ## Kernel changes
 
@@ -110,7 +110,6 @@ Module hashes (sha256, first 16): 3d `f4c21b0ae6baad1c`, 3e `e9533dec72cace21`, 
 - Built Touch ID modules `~/window/touchid/apple-sep-3*.ko` and their `.sha256` files, plus the test logs in `~/window/touchid/logs/`.
 - The kernel source tree with other sessions' uncommitted changes (`~/m3gpu/src/linux`), and `~/m3gpu/touchid-stage1/` (module build folders `mod3a` to `mod3f`, guard test harness).
 - The VA-API layer build in `~/.local`, and the AirDrop test folder `~/omdrop-test`.
-- Any kit copy or clone on the M3 (the ports session reported a results commit that is not in this copy).
 
 ## Not in the repository
 
