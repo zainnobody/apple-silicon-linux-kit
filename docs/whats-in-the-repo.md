@@ -28,7 +28,7 @@ Kernel config: `m3-legacy/kernel/config-7.2.11-m3gpu+-installed` (installed imag
 | Change | Patch | Status on the M3 |
 |---|---|---|
 | AGX3 packer: retire a wide wait before the narrow f32 multiply (llama.cpp flash attention) | `patches/mesa-agx3-fmul-narrow-wait.patch` | Installed in `/opt/mesa-m3` (stage M, 2026-10-27) |
-| AGX3 packer: allow an in-place op with a multi-slot scoreboard wait (llama.cpp Q3_K mat-vec) | `patches/mesa-agx3-inplace-multislot-wait.patch` | Tested in a test prefix 2026-10-27 (q3_K 48/48, 0 GPU faults); not installed in `/opt/mesa-m3` yet |
+| AGX3 packer: allow an in-place op with a multi-slot scoreboard wait (llama.cpp Q3_K mat-vec) | `patches/mesa-agx3-inplace-multislot-wait.patch` | Installed in `/opt/mesa-m3` 2026-10-28 00:29 (q3_K 48/48, 0 GPU faults) |
 | A lost context does no GPU work instead of crashing (after a GPU fault the VM refuses all binds) | `patches/mesa-asahi-lost-context-noop.patch` | Tested 2026-10-27: not effective (moves the crash), not installed; see docs/gpu-fault-2026-10-26.md |
 
 The SiliconForest Mesa is for private use: build it yourself, do not share the binaries.
