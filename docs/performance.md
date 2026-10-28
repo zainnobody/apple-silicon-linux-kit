@@ -281,6 +281,20 @@ e) Clock probe (2026-10-27 12:50, normal boot, `tests/gpu-clock-probe.sh`, 2 ms 
 - The template has no DVFS word that clearly encodes 20 s (value 20 only at 0xb20, 0xb54 and HardwareDataA +0xf7c, units not known). The 50 % target test did not change the state-1 phase.
 - Next: find what starts the window (a new context, a new queue or a firmware message), and whether the driver can send it again. The firmware words to try in a test boot are the boost words (HardwareDataA +0x790 = 90 % minimum busy, +0x794 = step 50), or the base state (+0x7d8/+0x7e0 = 100, state 1).
 
+f) What starts the 20 s window (2026-10-27 22:30, on battery, no root; `tests/vk-stress.c` with the new `VK_STRESS_REPORT_S` and `VK_STRESS_PAUSE`, check every 10 frames):
+
+| Run | Frame rate per 2 s step |
+|---|---|
+| 50 s, 3 s pause at 28 s in the same process | 245-278 fps to 20 s, then 100-112 fps; after the pause 248-250 fps again to the end (20 s) |
+| 28 s, 1 s pause at 22 s | slow before the pause, 248-250 fps after it |
+| 28 s, 0.3 s pause at 22 s (started right after the run above) | slow already at 16 s; 100-122 fps after the pause |
+| 28 s, 0.1 s pause at 22 s (started right after) | 100-118 fps the whole run |
+
+- **The window is an idle reset, not a new client.** After the GPU has been idle for about 1 s, the firmware gives 20 s at the top clock, also inside the same process and GPU context. Gaps of 0.3 s or less do not reset it, and runs started back to back carry the slow state over (the earlier 4-run test had about 3 s between runs, so each got a new window).
+- So the firmware restarts its performance controller after a deep idle (probably the GPU power-down), starts it at the top state and holds it for 20 s. After that, the controller follows its utilization target and goes down to state 1 at the busy share of this pattern. The 20 s does not show as one word in the template; it can be a count of controller samples.
+- Effect: a load with a pause of 1 s or more at least every 20 s runs at full speed. A steady stop-and-go load (a CPU step between GPU steps, no long pauses) runs at state 1 after 20 s. The macOS 133 G figure must be checked against this: a macOS run of 60 s or more with `powermetrics` GPU frequency.
+- **tgt_util=50: closed.** The 50 % target changed neither the 20 s window nor the state-1 phase (d above). The parameter stays in the kernel with default 0, and nobody should set it. To change the state-1 phase, the next firmware words to try are the boost words (A+0x790 minimum busy 90 %, A+0x794 step 50) or the base state (A+0x7d8, A+0x7e0, A+0x81c: 100, state 1). Each needs a module parameter like `g15_perf_tgt_util`, a kernel build, an install and a test boot.
+
 ### GPU suite (2026-10-27 00:12, `tests/gpu-perf-suite.sh 60`, desktop idle)
 
 | Test | Result |

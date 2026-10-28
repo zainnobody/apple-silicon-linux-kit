@@ -5,10 +5,14 @@
 // Build with tests/build-tests.sh. Usage: vk-stress <seconds>   (needs vk-stress.spv in the
 // current folder, or VK_STRESS_SPV). VK_STRESS_CHECK_EVERY=n waits and checks every n-th frame
 // (default 10, as in metal-stress; 0 never waits, so the GPU never idles).
+// VK_STRESS_REPORT_S=n prints the frame rate of each n-second step (default 30).
+// VK_STRESS_PAUSE=a:b waits for the queue at a seconds and sleeps b seconds (one idle gap in the
+// same process and GPU context), then goes on; the pause does not count in the totals.
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include <vulkan/vulkan.h>
 
 #define W 1024
@@ -166,9 +170,22 @@ int main(int argc, char **argv)
 		CHECK(vkCreateFence(dev, &fci, NULL, &fence[i]));
 	const uint64_t timeout = 10ull * 1000 * 1000 * 1000;
 
-	long frames = 0, checks = 0, wrong = 0;
+	long frames = 0, checks = 0, wrong = 0, last_frames = 0;
 	double t0 = now(), last = t0, check_s = 0;
+	double report_s = getenv("VK_STRESS_REPORT_S") ? atof(getenv("VK_STRESS_REPORT_S")) : 30;
+	double pause_at = -1, pause_len = 0;
+	if (getenv("VK_STRESS_PAUSE"))
+		sscanf(getenv("VK_STRESS_PAUSE"), "%lf:%lf", &pause_at, &pause_len);
 	while (now() - t0 < seconds) {
+		if (pause_at >= 0 && now() - t0 >= pause_at) {
+			CHECK(vkQueueWaitIdle(queue));
+			printf("pause %.1f s at %.1f s (queue idle, same context)\n", pause_len, now() - t0);
+			fflush(stdout);
+			usleep((useconds_t)(pause_len * 1e6));
+			t0 += pause_len;
+			last += pause_len;
+			pause_at = -1;
+		}
 		unsigned seed = (unsigned)frames * 2654435761u;
 		int k = (int)(frames % RING);
 		CHECK(vkWaitForFences(dev, 1, &fence[k], VK_TRUE, timeout));
@@ -204,9 +221,12 @@ int main(int argc, char **argv)
 				printf("frame %ld: %ld wrong samples\n", frames, bad);
 			check_s += now() - c0;
 		}
-		if (now() - last >= 30) {
+		if (now() - last >= report_s) {
+			double step = now() - last;
 			last = now();
-			printf("%.0f s: %ld frames, %ld checks, %ld wrong\n", last - t0, frames, checks, wrong);
+			printf("%.0f s: %ld frames, %ld checks, %ld wrong, %.1f fps in this step\n", last - t0, frames, checks,
+			       wrong, (frames - last_frames) / step);
+			last_frames = frames;
 			fflush(stdout);
 		}
 	}
