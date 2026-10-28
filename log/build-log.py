@@ -41,6 +41,15 @@ REPORTS = [
     ("f-ports", "Feature: ports, wireless and storage", "docs/features/ports-wireless-storage.md", "USB-C, SD card, Wi-Fi, Bluetooth scan, SSD, AirDrop."),
     ("f-sleep", "Feature: sleep, lid and battery", "docs/features/sleep-lid-battery.md", "Suspend, lid events, battery, power."),
     ("f-usb4", "Feature: USB-C and USB4 gap", "docs/features/usbc-usb4-gap.md", "Why USB-C displays fail and the USB4 module fix."),
+    ("f-fans", "Feature: fans and heat", "docs/features/fans-heat.md", "Fan control unlock (Ftst), the fan curve service and its fail-safe."),
+    ("f-airdrop", "Feature: AirDrop", "docs/features/airdrop.md", "OpenDrop-based AirDrop, the root step and the tests left."),
+    ("f-video-encode", "Feature: video encode", "docs/features/video-encode.md", "Hardware video encoder (AVE) research."),
+    ("f-touchid", "Feature: Touch ID", "docs/features/touchid.md", "Secure Enclave and fingerprint sensor: stages 1 to 3f and the results."),
+    ("f-touchid-2", "Touch ID stage 2 plan", "docs/features/touchid-stage2-plan.md", "Test boot plan and window results."),
+    ("f-touchid-3b", "Touch ID stage 3b plan", "docs/features/touchid-stage3b-plan.md", "Enrol plan, xART guard, alarm check, stop rules."),
+    ("gpu-fault", "GPU fault 2026-10-26", "docs/gpu-fault-2026-10-26.md", "The KWin crash, the recovery race and the stage O fix."),
+    ("memory", "Memory bandwidth and PMP", "docs/memory-pmp-findings.md", "The memory floor patch and what it changed."),
+    ("whats-in", "What is in the repository", "docs/whats-in-the-repo.md", "Index of every driver, patch, tool and test, and where it is."),
 ]
 
 CODE_DIRS = ["config.sh", "config.local.example.sh", "machines", "build", "install", "system", "patches", "tests", "log/build-log.py"]
