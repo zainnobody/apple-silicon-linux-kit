@@ -87,8 +87,8 @@ echo "camera-test $(date +%F\ %T) kernel $(uname -r)"
 if [ -n "$PW" ]; then
 	DEV="pipewire:$PW"
 	export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
-	verdict DEVICE PASS "PipeWire source $PW"
 	if ! pw-dump 2>/dev/null | grep -q "\"node.name\": \"$PW\""; then verdict DEVICE FAIL "PipeWire source $PW not found (start tools/camera-clean.sh first)"; echo "RESULT FAIL"; exit 1; fi
+	verdict DEVICE PASS "PipeWire source $PW"
 	mkdir -p "$W/pw"
 	timeout $((SECS + 40)) gst-launch-1.0 -q pipewiresrc target-object="$PW" num-buffers=$((SECS * 30)) ! videoconvert ! video/x-raw,format=I420 ! \
 		jpegenc quality=95 ! multifilesink location="$W/pw/f%04d.jpg" >"$W/gst.txt" 2>&1
