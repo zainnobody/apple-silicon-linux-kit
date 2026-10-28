@@ -89,7 +89,7 @@ Module hashes (sha256, first 16): 3a `194b730a6287d3f6`, 3b `1138669b8cb6f46c`, 
 | Root-owned files on the M3 (`m3gpu-boot`, Mesa selector, sudoers) | `install/m3-installed/` |
 | The exact M3 copies of the build and stage scripts, the incremental kernel builds, the kernel configs | `m3-legacy/` |
 | macOS one-time boot without a password | `install/setup-macos-switch.sh` |
-| Load `apple_dart` before its consumers (late IOMMU probe warning), draft with undo | `install/dart-order/` (not installed) |
+| Load `apple_dart` before its consumers (late IOMMU probe warning), draft with undo | `install/dart-order/` (installed 2026-10-28 01:38, 0 late-probe warnings after the reboot) |
 
 ## Research
 
