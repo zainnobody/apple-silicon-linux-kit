@@ -78,6 +78,18 @@ Same hub dongle on `port3` (right side). The 1.9 GB NTFS flash drive is a USB 2 
 
 USB 3 speed of the T7 on `port3` (right) and `port1` (left rear) is still not measured. The T7 is not plugged in right now.
 
+## Final results, 2026-10-27 (from the ports session's last report to the coordinator)
+
+The session reported that it committed these results, but the commit is not in this copy of the kit. It may be in the kit copy on the M3. These numbers come from its report text, not from a log in this repo.
+
+| Test | Result |
+|---|---|
+| USB 3, Samsung T7, all three ports | PASS: 660 to 730 MB/s read |
+| SD slot (`mmc0`), old card | PASS: 46.6 MB/s read, 7.9 MB/s write (the card limits the speed) |
+| Thunderbolt host to host, this Mac to the M3 | PASS: 20 Gb/s link, ping 0.29 ms, 1018 MB/s M3 to Mac. `thunderbolt0` was already up; no module loaded by hand |
+
+Still open, needs the user: Thunderbolt at 40 Gb/s (needs a certified cable), a dock test, a fast SD card. The user uses all ports every day. Next steps 1 and 2 below are done.
+
 ## Notes
 
 - `lsusb -t` is empty because no USB device was plugged in during the tests. The root hubs appear only when a device attaches.

@@ -176,6 +176,35 @@ Details and per-part results: [touchid-stage2-plan.md](touchid-stage2-plan.md), 
 
 With the mailbox node enabled the driver attached: 12 endpoints, xART read through the xART manager endpoint (all status 0, no write attempt), key store open, `trusted` key source registered. The SEP random source returns only zeros (the driver rejects it; Touch ID does not need it). Sensor and Touch ID stay off until `/dev/sep-bio` is opened; with writes off a capture is refused by design. **Correction:** a libfprint driver for this SEP does exist in the same project (patch for libfprint 1.94.100, our version, plus Fedora packaging), so the userspace gap is smaller than the first research said. Stages, risks and the next step: [touchid-stage2-plan.md](touchid-stage2-plan.md), "Third test boot".
 
+## Stage 3 results (2026-10-27, test boots 14:44, 15:13 and 18:09)
+
+Patches: `patches/touchid/` (apply in order on the M3 tree `drivers/soc/apple/sep`). Scripts: `tools/touchid/window/` (deployed on the M3 as `~/window/`). Every step ran with the xART guard and the alarm check (`touchid-3b.sh alarm`); the alarm check was OK after every step.
+
+| Module | Patch added | sha256 (first 16) | Result |
+|---|---|---|---|
+| 3a | `sensor-probe.patch` | (see the stage 3a+ notes) | Sensor answers in SPI mode 1, revision 0x3352 |
+| 3b | `t6030-profile.patch`, `t6030-sepos13.patch` (13.5 key store) | | Keybag created; the level-1 guard refused a rewrite |
+| 3c | `guard-loaded-only.patch` (guard level 3) | `ec3308f82cf4` (12) | Load, keybag, enrol and verify PASS |
+| 3d | `sensor-poll-trace.patch` (polled state trace) | `f4c21b0ae6baad1c` | Data-ready IRQ works, persistence PASS |
+| 3e | `sensor-rearm.patch` (capture re-arm, modes 1 to 3) | `e9533dec72cace21` | Late touch FAIL in all 3 modes |
+| 3f | `sensor-rearm-settle.patch` (1.8 s settle, full restart mode) | `d7b1e23d711bdcca` | Built, not tested |
+
+**What works**
+- Enrol: PASS at 14:53 (36-stage enrolment reached done after about 5 captures). The stored finger is the user's right index. The label `left-thumb` was only a typing error.
+- Verify, clean retest at 15:01 (finger on the sensor before the start, finger confirmed by the user before each test): right index MATCH 2 of 2, left thumb NO MATCH 2 of 2.
+- Persistence: the identity survived two reboots (15:13 and 18:09): `restored 1 enrolled identity; enrolment survived reboot`, cross-boot unseal PASS.
+- Data-ready interrupt: `make-window-dtb.py --sensor-irq` adds AP GPIO 200, rising edge (IRQ 160, `apple-mesa-drdy`). No interrupt storm.
+
+**What does not work yet: the late touch**
+- A finger that arrives after the capture starts is never seen. This is the normal login case (prompt first, then touch).
+- Trace (3d): the first arm of a capture goes to state 17 at 8 ms. With the finger already on, state 19 follows at 23 ms and state 7 (frame, length 0x7200) at 105 ms. Without a finger, the raw status changes once at about 258 ms (`02218004 80808080`), then the sensor stops scanning.
+- 3e re-arm, finger held 3 to 5 s: mode 1 (idle then start, every 1 s), mode 2 (on each status change, about every 260 ms) and mode 3 (start only) all stayed in states 0 and 17. Every re-arm reported ok. The first start shows status word `0021000c`, a re-arm `06210004`.
+- Next: 3f (settle 1.8 s after idle, plus a full-restart mode), or a user-space loop of short verifies (each new verify powers the sensor on, and that first scan sees a finger). The loop script is ready (`~/window/loopverify.sh` on the M3) but has not run.
+
+**Backups (private, not in any repo):** `ibootsys-20261027-150622` (`45b0f6cb`) and `ibootsys-20261027-180807` (`8ef6c876`), each on the M3 under `/data/touchid-backup` and on the Mac under `private-dumps/touchid-backup`. Do not restore an older backup: anti-replay.
+
+**Not used for any login.** No PAM file uses fprintd, and the stock libfprint has no driver for this sensor.
+
 ## Sources (all read on 2026-10-26)
 
 - Asahi M3 feature support: <https://asahilinux.org/docs/platform/feature-support/m3/>

@@ -1,0 +1,60 @@
+--- a/drivers/soc/apple/sbio.rs	2026-10-27 14:35:21.948748285 -0700
++++ b/drivers/soc/apple/sbio.rs	2026-10-27 14:53:00.768718042 -0700
+@@ -2745,6 +2745,16 @@
+         if use_irq {
+             sensor::irq_arm();
+         }
++        // Diagnostic (sensor_trace=1): log the polled sensor state when it changes, a heartbeat
++        // every 2 s, and how the wait ended, so a missed touch can be told from a blind poll.
++        let trace = *module_parameters::sensor_trace.value() != 0;
++        let start_ns = crate::shim::monotonic_ns();
++        let mut traced: u32 = 0;
++        let mut last_state: Option<u8> = None;
++        let mut next_beat_ms: u64 = 0;
++        if trace {
++            dev_info!(self.dev, "sensor: capture wait starts, {}\n", if use_irq { "interrupt-driven" } else { "SPI polling" });
++        }
+ 
+         // Bound the wait by wall-clock time, not a fixed iteration count. The
+         // data-ready interrupt can wake early on a stray edge (the sensor
+@@ -2771,6 +2781,24 @@
+             if attempt == 0 || previous != Some(st.raw) {
+                 previous = Some(st.raw);
+             }
++            if trace && traced < 80 {
++                let t_ms = crate::shim::monotonic_ns().saturating_sub(start_ns) / 1_000_000;
++                let changed = last_state != Some(st.state);
++                if changed || t_ms >= next_beat_ms {
++                    traced += 1;
++                    last_state = Some(st.state);
++                    if t_ms >= next_beat_ms {
++                        next_beat_ms = t_ms + 2000;
++                    }
++                    let r = &st.raw;
++                    dev_info!(
++                        self.dev,
++                        "sensor: capture poll {} ms: state {}{} raw {:02x}{:02x}{:02x}{:02x} {:02x}{:02x}{:02x}{:02x} {:02x}{:02x}{:02x}{:02x} {:02x}{:02x}{:02x}{:02x}\n",
++                        t_ms, st.state, if changed { " (changed)" } else { "" },
++                        r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]
++                    );
++                }
++            }
+ 
+             if st.state == sensor::STATE_NEEDS_PATCH {
+                 return CaptureWait::Fault(st.state);
+@@ -2815,7 +2843,14 @@
+             }
+             attempt = attempt.saturating_add(1);
+         }
+-        let _ = sensor::status();
++        let last = sensor::status();
++        if trace {
++            let t_ms = crate::shim::monotonic_ns().saturating_sub(start_ns) / 1_000_000;
++            match last {
++                Ok(st) => dev_info!(self.dev, "sensor: capture wait timed out after {} ms, last state {}\n", t_ms, st.state),
++                Err(_) => dev_info!(self.dev, "sensor: capture wait timed out after {} ms, last status read failed\n", t_ms),
++            }
++        }
+         CaptureWait::Timeout
+     }
+ 

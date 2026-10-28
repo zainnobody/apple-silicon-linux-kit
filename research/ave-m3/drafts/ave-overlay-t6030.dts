@@ -1,0 +1,76 @@
+// SPDX-License-Identifier: GPL-2.0-only
+/*
+ * DRAFT, NOT LOADED, NOT COMPILED. Checked on 2026-10-27 against a read-only dump of the live 7.2.11-m3gpu+ tree. t6030 (M3 Pro, j516s) ave0.
+ * Modelled on upstream test/ave-overlay-t6000.dts (variant 8). Every value below
+ * comes from the macOS ADT of this machine (/arm-io/ave, /arm-io/dart-ave) with
+ * CPU physical = IODeviceMemory address. Open items are marked TODO and need a
+ * read-only look at the live Linux tree on the M3 (Stage 0b) before any use.
+ *
+ * Differences from the M1 Pro node that the ADT shows:
+ *  - reg[2] sve is 0x4000 (M1 Pro 0x8000); reg[3] is 0x7c54 bytes inside the
+ *    pmgr block (M1 Pro 0x24 bytes);
+ *  - the DART is dart,t8110 (not t6000), page size 16 KiB, streams 0, 12, 15
+ *    (M1 Pro: 0 and 1), bypass-12 and bypass-15, remap 1, one tunables set per
+ *    instance (dart-tunables-instance-0 and -1);
+ *  - ten power gates (M1 Pro: eleven), named in the ADT pmgr table:
+ *    VENC-SYS-V, VENC-SOC-VNOM, VENC-MEM-FAST, VENC_PIPE4, VENC_PIPE5,
+ *    VENC_ME0, VENC_ME1, VENC_DMA, VENC-SOC-VMAX, VENC-FAB-VMAX.
+ *    The last four VENC-*-V* ones are performance-vote pseudo domains.
+ */
+/dts-v1/;
+/plugin/;
+
+/ {
+	fragment@0 {
+		target-path = "/soc";
+
+		__overlay__ {
+			#address-cells = <2>;
+			#size-cells = <2>;
+
+			/* live tree: all 29 DARTs are "apple,t6030-dart", "apple,t8110-dart" */
+			dart_ave0_0: iommu@2cd040000 {	/* CPUDART */
+				compatible = "apple,t6030-dart", "apple,t8110-dart";
+				reg = <0x2 0xcd040000 0x0 0x4000>;
+				interrupt-parent = <0xa7e00013>;	/* AIC phandle in the live tree is 0x13: t6030-aic3 */
+				interrupts = <0 807 4>;	/* AIC3 uses 3 cells; ADT number used as is (checked on avd: 0x314 both) */
+				#iommu-cells = <1>;
+				/* power-domains = venc_sys sentinel (phandle 0x60 in the live tree) */
+			};
+
+			dart_ave0_1: iommu@2cd030000 {	/* DART */
+				compatible = "apple,t6030-dart", "apple,t8110-dart";
+				reg = <0x2 0xcd030000 0x0 0x4000>;
+				interrupt-parent = <0xa7e00013>;
+				interrupts = <0 807 4>;
+				#iommu-cells = <1>;
+			};
+
+			ave0: video-encoder@2cd100000 {
+				compatible = "apple,t6030-ave", "apple,ave";	/* row to be written */
+				reg = <0x2 0xcd100000 0x0 0x45c000>,	/* dpe */
+				      <0x2 0xcd800000 0x0 0x800000>,	/* asc */
+				      <0x2 0xcd050000 0x0 0x004000>,	/* sve */
+				      <0x3 0x507003d0 0x0 0x007c54>,	/* unk3, inside pmgr */
+				      <0x2 0xcc000000 0x0 0x1000000>,	/* axi2af */
+				      <0x2 0xcd040000 0x0 0x4000>,	/* cpudart */
+				      <0x2 0xcd044000 0x0 0x4000>,	/* dapf */
+				      <0x2 0xcd020000 0x0 0x4000>;	/* smmu */
+				reg-names = "dpe", "asc", "sve", "unk3", "axi2af",
+					    "cpudart", "dapf", "smmu";
+				interrupt-parent = <0xa7e00013>;
+				/* ADT order: 810 804 803 806 805 */
+				interrupts = <0 810 4>, <0 804 4>, <0 803 4>,
+					     <0 806 4>, <0 805 4>;
+				/* All six labels exist in the live tree: venc_sys (reg 0x3d0, phandle 0x60),
+				 * venc_dma (0x8000, 0x61, parent venc_sys), venc_pipe4 (0x8008) and
+				 * venc_pipe5 (0x8010) with no phandle, venc_me0 (0x8018, 0x62) and
+				 * venc_me1 (0x8020) with no phandle. Pipes and me0 hang under venc_dma;
+				 * me1 under me0. Same shape as t8112 (docs/90): the loader must find
+				 * the phandle-less ones by label or path. */
+				iommus = <&dart_ave0_0 0>, <&dart_ave0_0 12>, <&dart_ave0_0 15>,
+					 <&dart_ave0_1 0>, <&dart_ave0_1 12>, <&dart_ave0_1 15>;
+			};
+		};
+	};
+};

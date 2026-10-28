@@ -1,0 +1,192 @@
+--- a/drivers/soc/apple/xart_guard.rs	2026-10-27 00:32:55.583278802 -0700
++++ b/drivers/soc/apple/xart_guard.rs	2026-10-27 14:37:56.379626737 -0700
+@@ -48,6 +48,8 @@
+ const MAX_END: u64 = (MAX_ENTRIES * ENTRY_SIZE) as u64;
+ /// Refusals are logged individually up to this count, then only counted.
+ const LOGGED_REFUSALS: usize = 8;
++/// Level 3 remembers at most this many loaded records (the store has fewer slots).
++const MAX_LOADED: usize = 64;
+ 
+ /// What the guard does with one enclave write or delete.
+ #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+@@ -77,6 +79,16 @@
+     }
+ }
+ 
++/// Level 3 on top of [`decide`]: the rules of level 1 (roots allowed), except
++/// that a refused existing session record is allowed when the enclave loaded
++/// it this boot and the request is a rewrite, not a delete.
++pub(crate) fn decide_loaded_only(key: &Key, existed: bool, owned: bool, loaded: bool, write: bool) -> Verdict {
++    match decide(1, key, existed, owned) {
++        Verdict::Refuse if write && existed && loaded => Verdict::Allow,
++        verdict => verdict,
++    }
++}
++
+ /// SiliconForest: the level `xart_guard=-1` selects on every platform, in
+ /// place of the profile's. SiliconForest updates existing installs, whose
+ /// Linux records predate the list: a guarded boot refuses them like another
+@@ -94,12 +106,15 @@
+ 
+ /// The guard level for `xart_guard=param` on a platform whose profile
+ /// defaults to `platform`, or `None` for no guard. A negative value takes the
+-/// platform's level; a level above 2 is treated as 2, the strictest.
++/// platform's level; a level above 3 is treated as 3. Level 3 ("loaded only")
++/// is as level 1, but an existing session record that the enclave read after
++/// the store opened (it is loading it for this boot) may also be rewritten;
++/// every other existing session record stays protected.
+ pub(crate) fn level(param: i8, platform: u8) -> Option<u8> {
+     let level = u8::try_from(param).unwrap_or(platform);
+     match level {
+         0 => None,
+-        level => Some(level.min(2)),
++        level => Some(level.min(3)),
+     }
+ }
+ 
+@@ -170,6 +185,12 @@
+     owned: KVec<Key>,
+     existed: KVec<Key>,
+     refused: usize,
++    /// Level 3: the existing session records the enclave has read so far.
++    loaded: KVec<Key>,
++    /// Level 3: set at the first write request. Reads after it do
++    /// not add to `loaded`: only what was loaded at attach counts.
++    frozen: bool,
++    allowed: usize,
+ }
+ 
+ impl Guard {
+@@ -195,6 +216,9 @@
+             owned: KVec::new(),
+             existed: existing,
+             refused: 0,
++            loaded: KVec::new(),
++            frozen: false,
++            allowed: 0,
+         };
+         // A list created this boot (or by a crashed one) is only safe to
+         // adopt into once its name is durable: fsync() of the file alone
+@@ -222,8 +246,10 @@
+             .iter()
+             .filter(|k| k.kind > 2 && guard.owned.contains(k))
+             .count();
+-        let roots = if level >= 2 {
++        let roots = if level == 2 {
+             ", and so are the shared roots"
++        } else if level >= 3 {
++            ", except the ones the enclave loads at attach (rewrites only, decided as it asks)"
+         } else {
+             ""
+         };
+@@ -289,12 +315,64 @@
+         Ok(())
+     }
+ 
++    /// The enclave read this record (level 3 only). Counts only an existing
++    /// session record read before the first write request.
++    pub(crate) fn note_loaded(&mut self, key: &Key) {
++        if self.level < 3 || self.frozen || key.kind <= 2 || !self.existed.contains(key) {
++            return;
++        }
++        if self.loaded.contains(key) || self.loaded.len() >= MAX_LOADED {
++            return;
++        }
++        // An allocation failure only means the record stays protected.
++        let _ = self.loaded.push(*key, GFP_KERNEL);
++    }
++
+     /// Checks one enclave write (`write`) or delete before it reaches the
+     /// gigalocker. An error refuses the request.
+     pub(crate) fn check(&mut self, key: &Key, write: bool) -> Result<()> {
++        // Only a write ends the attach: the enclave also deletes records
++        // between its reads.
++        if write {
++            self.frozen = true;
++        }
+         let existed = self.existed.contains(key);
+         let owned = self.owned.contains(key);
+-        match decide(self.level, key, existed, owned) {
++        let verdict = if self.level >= 3 {
++            let loaded = self.loaded.contains(key);
++            let verdict = decide_loaded_only(key, existed, owned, loaded, write);
++            if verdict == Verdict::Allow && existed && !owned && key.kind > 2 {
++                self.allowed += 1;
++                if self.allowed <= LOGGED_REFUSALS {
++                    pr_info!(
++                        "xART guard (loaded only): allowed a rewrite of the kind-{} record {:02x}{:02x}{:02x}{:02x}, which the enclave loaded at attach this boot\n",
++                        key.kind,
++                        key.uuid[0],
++                        key.uuid[1],
++                        key.uuid[2],
++                        key.uuid[3]
++                    );
++                }
++            } else if verdict == Verdict::Refuse {
++                self.refused += 1;
++                if self.refused <= LOGGED_REFUSALS {
++                    pr_warn!(
++                        "xART guard (loaded only): refused to {} the kind-{} record {:02x}{:02x}{:02x}{:02x}: Linux did not create it and the enclave did not load it at attach this boot\n",
++                        if write { "rewrite" } else { "delete" },
++                        key.kind,
++                        key.uuid[0],
++                        key.uuid[1],
++                        key.uuid[2],
++                        key.uuid[3]
++                    );
++                }
++                return Err(EPERM);
++            }
++            verdict
++        } else {
++            decide(self.level, key, existed, owned)
++        };
++        match verdict {
+             Verdict::Allow => Ok(()),
+             Verdict::Adopt if !write => Ok(()),
+             Verdict::Adopt => self.adopt(key).inspect_err(|e| {
+@@ -708,6 +786,6 @@
+         assert_eq!(level(0, 1), None);
+         assert_eq!(level(1, 0), Some(1));
+         assert_eq!(level(2, 1), Some(2));
+-        assert_eq!(level(i8::MAX, 0), Some(2));
++        assert_eq!(level(i8::MAX, 0), Some(3));
+     }
+ }
+--- a/drivers/soc/apple/xart_store.rs	2026-10-27 00:32:55.583278802 -0700
++++ b/drivers/soc/apple/xart_store.rs	2026-10-27 14:36:52.599210844 -0700
+@@ -426,6 +426,13 @@
+         Ok(keys)
+     }
+ 
++    /// The enclave read this session record (guard level 3 only).
++    pub(crate) fn note_loaded(&mut self, key: &Key) {
++        if let Some(guard) = self.guard.as_mut() {
++            guard.note_loaded(key);
++        }
++    }
++
+     /// From now on, refuses the enclave's writes to records Linux did not
+     /// create. See [`crate::xart_guard`].
+     pub(crate) fn set_guard(&mut self, level: u8) -> Result<()> {
+--- a/drivers/soc/apple/sep.rs	2026-10-27 13:40:34.644702552 -0700
++++ b/drivers/soc/apple/sep.rs	2026-10-27 14:35:33.459950941 -0700
+@@ -2478,7 +2478,7 @@
+         },
+         xart_guard: i8 {
+             default: -1,
+-            description: "-1: off in SiliconForest (the upstream platform levels are not applied); 0: off; 1: refuse the enclave's writes and deletes of xART session records this Linux install did not create; 2: also refuse writes to the shared root records",
++            description: "-1: off in SiliconForest (the upstream platform levels are not applied); 0: off; 1: refuse the enclave's writes and deletes of xART session records this Linux install did not create; 2: also refuse writes to the shared root records; 3: as 1, but an existing session record the enclave loaded at attach this boot may be rewritten (each allowed or refused rewrite is logged)",
+         },
+         os_uuid_hi: u64 {
+             default: 0,
+--- a/drivers/soc/apple/xarm.rs	2026-10-27 00:32:55.583278802 -0700
++++ b/drivers/soc/apple/xarm.rs	2026-10-27 14:36:52.599359890 -0700
+@@ -167,6 +167,7 @@
+             let key = Key::new(session_type(&req.args), uuid_from(outbound));
+             match store.read(&key) {
+                 Ok(Some(value)) => {
++                    store.note_loaded(&key);
+                     if value.len() > inbound.len() {
+                         return Serviced {
+                             reply: Reply::fail(req, STATUS_FAILED),

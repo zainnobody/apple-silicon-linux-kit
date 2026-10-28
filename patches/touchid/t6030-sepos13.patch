@@ -1,0 +1,70 @@
+--- /tmp/p/profile.rs.orig	2026-10-27 14:09:46
++++ /tmp/p/profile.rs	2026-10-27 14:09:46
+@@ -447,6 +447,25 @@
+     ..T8112
+ };
+ 
++/// MacBook Pro 16-inch, M3 Pro (J516S) on system firmware 15.6 (iBoot 11881).
++/// The first stage 3b load (2026-10-27, variant-5 create inherited from T8112)
++/// got "CREATE_KEYBAG ... mailbox status -13, empty reply", the same answer the
++/// M2 Pro/Max enclaves on 26.0 and 26.2 give: an older sepOS that takes only
++/// the 13.5 key store. The J516S ADT carries `/defaults` `cpx-encryption-mode`
++/// = 2. Everything else is [`T6030`].
++pub(crate) const T6030_SEPOS13: PlatformProfile = PlatformProfile {
++    name: "T6030/J516s (13.5 key store)",
++    keybag_create: KeybagCreate {
++        variant: T8103.keybag_create.variant,
++        bag_type: T8103.keybag_create.bag_type,
++        arg: T8103.keybag_create.arg,
++    },
++    key_store: KeyStore::Sepos13 {
++        cpx_encryption_mode: 2,
++    },
++    ..T6030
++};
++
+ static_assert!(T8103.shmem_capacity == 0x30000);
+ static_assert!(T6020.shmem_capacity == 0x40000);
+ static_assert!(T8140.shmem_capacity == 0x40000);
+@@ -565,6 +584,32 @@
+     profile
+ }
+ 
++/// The J516S profile for the machine's system firmware, by the same rule as
++/// [`t6020_profile`]: an iBoot build before 26.3's takes the 13.5 key store;
++/// a missing or newer build keeps [`T6030`].
++fn t6030_profile() -> &'static PlatformProfile {
++    let iboot = chosen_string(c"asahi,iboot1-version");
++    let firmware = chosen_string(c"asahi,system-fw-version");
++    let os_firmware = chosen_string(c"asahi,os-fw-version");
++    let sepos13 = iboot
++        .as_deref()
++        .and_then(parse_iboot_build)
++        .is_some_and(|build| build < T6020_SEPOS13_BEFORE);
++    let profile = if sepos13 { &T6030_SEPOS13 } else { &T6030 };
++    pr_info_once!(
++        "M3 Pro on system firmware {} ({}), OS firmware {}: using {}\n",
++        shown(&firmware),
++        shown(&iboot),
++        shown(&os_firmware),
++        if sepos13 {
++            "the 13.5 key store"
++        } else {
++            "the variant-5 key store"
++        }
++    );
++    profile
++}
++
+ /// Select the profile for the running machine. An unsupported SoC is refused
+ /// rather than guessed at, so the driver cannot run a handshake with the wrong
+ /// geometry.
+@@ -604,7 +649,7 @@
+     }
+     // Only the J516S ADT was read: the other t6030 and t6031 boards stay refused.
+     if machine_has(b"apple,t6030") && machine_has(b"apple,j516s") {
+-        return Ok(&T6030);
++        return Ok(t6030_profile());
+     }
+     // Only the boards whose ADTs were read: the other T8122 Macs (J433, J434,
+     // J504) share the SoC but their sensor wiring is unchecked.

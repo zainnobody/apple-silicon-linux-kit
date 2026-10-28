@@ -1,0 +1,48 @@
+--- a/drivers/soc/apple/profile.rs	2026-10-26 23:55:05
++++ b/drivers/soc/apple/profile.rs	2026-10-26 23:55:20
+@@ -428,6 +428,25 @@
+     ..T8112
+ };
+ 
++/// MacBook Pro 16-inch, M3 Pro (J516S). STAGE 1 DRAFT, never run on hardware.
++/// Built from the J516S ADT (private) and the T8122 profile, which is the same
++/// M3 family: SEP aperture `0x100_0000_4000 + 0xffff0000` (BIT(40) alias),
++/// warm registration, the sensor on spi2 at `0x289108000`, 8 MHz, chip select 0.
++/// UNVERIFIED, needs a macOS trace before any enrol: the SPI mode, `keybag_create`,
++/// `key_store` and `shmem_capacity` for this firmware (os-fw 14.7, system-fw
++/// 15.6). `xart_guard` stays at the T8112 level (guarded): no Linux records
++/// exist on this machine, so nothing is refused that Linux wrote.
++pub(crate) const T6030: PlatformProfile = PlatformProfile {
++    name: "T6030/J516s",
++    sensor: SensorProfile {
++        controller_base: 0x2_8910_8000,
++        ..T8112.sensor
++    },
++    wide_dma_mask: true,
++    dart_window: &DART_HIGH_ALIAS,
++    ..T8112
++};
++
+ static_assert!(T8103.shmem_capacity == 0x30000);
+ static_assert!(T6020.shmem_capacity == 0x40000);
+ static_assert!(T8140.shmem_capacity == 0x40000);
+@@ -443,6 +462,8 @@
+ static_assert!(T8122.shmem_capacity == T8112.shmem_capacity);
+ static_assert!(T8122.sensor.controller_base == 0x2a1108000);
+ static_assert!(T8122.wide_dma_mask);
++static_assert!(T6030.sensor.controller_base == 0x289108000);
++static_assert!(T6030.shmem_capacity == T8112.shmem_capacity);
+ 
+ /// Whether the machine root declares `compatible`.
+ ///
+@@ -581,6 +602,10 @@
+     if machine_has(b"apple,t8112") {
+         return Ok(&T8112);
+     }
++    // Only the J516S ADT was read: the other t6030 and t6031 boards stay refused.
++    if machine_has(b"apple,t6030") && machine_has(b"apple,j516s") {
++        return Ok(&T6030);
++    }
+     // Only the boards whose ADTs were read: the other T8122 Macs (J433, J434,
+     // J504) share the SoC but their sensor wiring is unchecked.
+     if machine_has(b"apple,t8122") && (machine_has(b"apple,j613") || machine_has(b"apple,j615")) {

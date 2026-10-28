@@ -1,0 +1,108 @@
+--- a/drivers/soc/apple/sbio.rs	2026-10-27 15:30:29.101836486 -0700
++++ b/drivers/soc/apple/sbio.rs	2026-10-27 18:50:48.036198991 -0700
+@@ -2735,7 +2735,7 @@
+ 
+     // Restart the capture of a sensor that is armed and waits for a finger. Modes 1 and 2 send idle
+     // first and wait up to 50 ms for the idle state; mode 3 sends the start command alone.
+-    fn rearm_sensor(&self, mode: u32) -> bool {
++    fn rearm_sensor(&self, mode: u32, settle_ms: u32) -> bool {
+         if mode != 3 {
+             if sensor::idle().is_err() {
+                 return false;
+@@ -2748,10 +2748,32 @@
+                 }
+                 kernel::time::delay::fsleep(kernel::time::Delta::from_millis(5));
+             }
++            // The driver pauses 1.8 s between captures after idle (pace_between_captures and
++            // settle_before_capture); the first re-arm tests had no pause and saw no finger.
++            if mode == 4 {
++                sensor::power(false);
++            }
++            self.settle_wait(settle_ms);
++            if mode == 4 && !self.bring_sensor_online() {
++                return false;
++            }
+         }
+         sensor::start_capture().is_ok()
+     }
+ 
++    // Sleep in 50 ms steps so that a cancelled capture ends the wait early.
++    fn settle_wait(&self, ms: u32) {
++        let mut left = ms.min(5000);
++        while left > 0 {
++            if !bio::capture_is_live(&self.bio_session.lock(), self.capture_epoch.load(Relaxed)) {
++                return;
++            }
++            let step = left.min(50);
++            kernel::time::delay::fsleep(kernel::time::Delta::from_millis(i64::from(step)));
++            left -= step;
++        }
++    }
++
+     fn await_capture(&self) -> CaptureWait {
+         let mut previous: Option<[u8; sensor::STATUS_LEN]> = None;
+         let mut armed_reported = false;
+@@ -2867,16 +2889,18 @@
+                 let since = t_ms.saturating_sub(last_arm_ms);
+                 let due = match mode {
+                     1 | 3 => every > 0 && since >= every,
+-                    2 => since >= REARM_MIN_MS && armed_raw != Some(st.raw),
++                    2 | 4 => since >= REARM_MIN_MS && armed_raw != Some(st.raw),
+                     _ => false,
+                 };
+                 if due && rearms < REARM_MAX {
+                     rearms += 1;
+-                    let ok = self.rearm_sensor(mode);
+-                    last_arm_ms = t_ms;
++                    let settle = sensor::rearm_settle_ms();
++                    let ok = self.rearm_sensor(mode, settle);
++                    // The next interval counts from the end of this re-arm, which can take seconds.
++                    last_arm_ms = crate::shim::monotonic_ns().saturating_sub(start_ns) / 1_000_000;
+                     armed_raw = None;
+                     if trace && rearms <= 40 {
+-                        dev_info!(self.dev, "sensor: re-arm #{} at {} ms, mode {}, {}\n", rearms, t_ms, mode, if ok { "ok" } else { "FAILED" });
++                        dev_info!(self.dev, "sensor: re-arm #{} at {} ms, mode {}, settle {} ms, {}\n", rearms, t_ms, mode, settle, if ok { "ok" } else { "FAILED" });
+                     }
+                     if !ok {
+                         return CaptureWait::Fault(st.state);
+--- a/drivers/soc/apple/sensor.rs	2026-10-27 15:30:29.100558958 -0700
++++ b/drivers/soc/apple/sensor.rs	2026-10-27 18:50:48.034224142 -0700
+@@ -30,6 +30,13 @@
+     fn sep_sensor_firmware_name() -> *const c_char;
+     fn sep_sensor_rearm_ms() -> c_uint;
+     fn sep_sensor_rearm_mode() -> c_uint;
++    fn sep_sensor_rearm_settle_ms() -> c_uint;
++}
++
++/// Quiet time after idle before the next start (module parameter `sensor_rearm_settle_ms`).
++pub(crate) fn rearm_settle_ms() -> u32 {
++    // SAFETY: reads one unsigned int.
++    unsafe { sep_sensor_rearm_settle_ms() as u32 }
+ }
+ 
+ /// Re-arm interval in ms (module parameter `sensor_rearm_ms`, writable at run time).
+--- a/drivers/soc/apple/sensor_shim.c	2026-10-27 15:30:29.100247741 -0700
++++ b/drivers/soc/apple/sensor_shim.c	2026-10-27 18:50:48.033466037 -0700
+@@ -29,14 +29,18 @@
+ /* Re-arm of a capture that waits for a finger (diagnostic, runtime-writable).
+  * Mode 0 off; 1 every rearm_ms: idle, then start; 2 when the status changes
+  * while armed: idle, then start; 3 every rearm_ms: start only. */
+-static unsigned int sep_rearm_ms = 1000;
++static unsigned int sep_rearm_ms = 300;
+ module_param_named(sensor_rearm_ms, sep_rearm_ms, uint, 0644);
+-MODULE_PARM_DESC(sensor_rearm_ms, "Capture re-arm interval in ms for modes 1 and 3 (default 1000)");
+-static unsigned int sep_rearm_mode = 1;
++MODULE_PARM_DESC(sensor_rearm_ms, "Capture re-arm interval in ms for modes 1 and 3 (default 300)");
++static unsigned int sep_rearm_settle_ms = 1800;
++module_param_named(sensor_rearm_settle_ms, sep_rearm_settle_ms, uint, 0644);
++MODULE_PARM_DESC(sensor_rearm_settle_ms, "Quiet time in ms after idle and before the next start in re-arm modes 1, 2 and 4 (default 1800, the pause between captures)");
++static unsigned int sep_rearm_mode = 2;
+ module_param_named(sensor_rearm_mode, sep_rearm_mode, uint, 0644);
+-MODULE_PARM_DESC(sensor_rearm_mode, "Capture re-arm while waiting for a finger: 0 off, 1 timed idle+start, 2 on status change idle+start, 3 timed start only (default 1)");
++MODULE_PARM_DESC(sensor_rearm_mode, "Capture re-arm while waiting for a finger: 0 off, 1 timed idle+settle+start, 2 on status change idle+settle+start, 3 timed start only, 4 on status change: full restart (idle, power off, settle, bring-up, start) (default 2)");
+ unsigned int sep_sensor_rearm_ms(void) { return READ_ONCE(sep_rearm_ms); }
+ unsigned int sep_sensor_rearm_mode(void) { return READ_ONCE(sep_rearm_mode); }
++unsigned int sep_sensor_rearm_settle_ms(void) { return READ_ONCE(sep_rearm_settle_ms); }
+ static unsigned int sep_sensor_mode = ~0U;
+ module_param_named(sensor_spi_mode, sep_sensor_mode, uint, 0444);
+ MODULE_PARM_DESC(sensor_spi_mode,

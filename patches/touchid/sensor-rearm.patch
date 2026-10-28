@@ -1,0 +1,151 @@
+--- a/drivers/soc/apple/sbio.rs	2026-10-27 14:53:00.768718042 -0700
++++ b/drivers/soc/apple/sbio.rs	2026-10-27 15:30:29.101836486 -0700
+@@ -2733,6 +2733,25 @@
+         }
+     }
+ 
++    // Restart the capture of a sensor that is armed and waits for a finger. Modes 1 and 2 send idle
++    // first and wait up to 50 ms for the idle state; mode 3 sends the start command alone.
++    fn rearm_sensor(&self, mode: u32) -> bool {
++        if mode != 3 {
++            if sensor::idle().is_err() {
++                return false;
++            }
++            for _ in 0..10 {
++                match sensor::status() {
++                    Ok(st) if st.state == sensor::STATE_IDLE => break,
++                    Ok(_) => {}
++                    Err(_) => return false,
++                }
++                kernel::time::delay::fsleep(kernel::time::Delta::from_millis(5));
++            }
++        }
++        sensor::start_capture().is_ok()
++    }
++
+     fn await_capture(&self) -> CaptureWait {
+         let mut previous: Option<[u8; sensor::STATUS_LEN]> = None;
+         let mut armed_reported = false;
+@@ -2751,7 +2770,15 @@
+         let start_ns = crate::shim::monotonic_ns();
+         let mut traced: u32 = 0;
+         let mut last_state: Option<u8> = None;
++        let mut last_raw: Option<[u8; sensor::STATUS_LEN]> = None;
+         let mut next_beat_ms: u64 = 0;
++        // Re-arm: a finger that arrives after the sensor stopped scanning is never seen, so
++        // the wait may restart the capture (sensor_rearm_mode / sensor_rearm_ms, run-time writable).
++        const REARM_MIN_MS: u64 = 100;
++        const REARM_MAX: u32 = 1000;
++        let mut last_arm_ms: u64 = 0;
++        let mut armed_raw: Option<[u8; sensor::STATUS_LEN]> = None;
++        let mut rearms: u32 = 0;
+         if trace {
+             dev_info!(self.dev, "sensor: capture wait starts, {}\n", if use_irq { "interrupt-driven" } else { "SPI polling" });
+         }
+@@ -2781,12 +2808,14 @@
+             if attempt == 0 || previous != Some(st.raw) {
+                 previous = Some(st.raw);
+             }
+-            if trace && traced < 80 {
++            if trace && traced < 160 {
+                 let t_ms = crate::shim::monotonic_ns().saturating_sub(start_ns) / 1_000_000;
+                 let changed = last_state != Some(st.state);
+-                if changed || t_ms >= next_beat_ms {
++                let raw_changed = last_raw != Some(st.raw);
++                if changed || raw_changed || t_ms >= next_beat_ms {
+                     traced += 1;
+                     last_state = Some(st.state);
++                    last_raw = Some(st.raw);
+                     if t_ms >= next_beat_ms {
+                         next_beat_ms = t_ms + 2000;
+                     }
+@@ -2794,7 +2823,7 @@
+                     dev_info!(
+                         self.dev,
+                         "sensor: capture poll {} ms: state {}{} raw {:02x}{:02x}{:02x}{:02x} {:02x}{:02x}{:02x}{:02x} {:02x}{:02x}{:02x}{:02x} {:02x}{:02x}{:02x}{:02x}\n",
+-                        t_ms, st.state, if changed { " (changed)" } else { "" },
++                        t_ms, st.state, if changed { " (changed)" } else if raw_changed { " (raw changed)" } else { "" },
+                         r[0], r[1], r[2], r[3], r[4], r[5], r[6], r[7], r[8], r[9], r[10], r[11], r[12], r[13], r[14], r[15]
+                     );
+                 }
+@@ -2828,6 +2857,37 @@
+                 return CaptureWait::Ready(count);
+             }
+ 
++            if st.state == sensor::STATE_ARMED {
++                let t_ms = crate::shim::monotonic_ns().saturating_sub(start_ns) / 1_000_000;
++                if armed_raw.is_none() {
++                    armed_raw = Some(st.raw);
++                }
++                let mode = sensor::rearm_mode();
++                let every = u64::from(sensor::rearm_ms());
++                let since = t_ms.saturating_sub(last_arm_ms);
++                let due = match mode {
++                    1 | 3 => every > 0 && since >= every,
++                    2 => since >= REARM_MIN_MS && armed_raw != Some(st.raw),
++                    _ => false,
++                };
++                if due && rearms < REARM_MAX {
++                    rearms += 1;
++                    let ok = self.rearm_sensor(mode);
++                    last_arm_ms = t_ms;
++                    armed_raw = None;
++                    if trace && rearms <= 40 {
++                        dev_info!(self.dev, "sensor: re-arm #{} at {} ms, mode {}, {}\n", rearms, t_ms, mode, if ok { "ok" } else { "FAILED" });
++                    }
++                    if !ok {
++                        return CaptureWait::Fault(st.state);
++                    }
++                    if use_irq {
++                        sensor::irq_arm();
++                    }
++                    continue;
++                }
++            }
++
+             if crate::shim::monotonic_ns() >= deadline_ns {
+                 break;
+             }
+--- a/drivers/soc/apple/sensor.rs	2026-10-27 14:53:00.758296366 -0700
++++ b/drivers/soc/apple/sensor.rs	2026-10-27 15:30:29.100558958 -0700
+@@ -28,6 +28,20 @@
+     fn sep_sensor_irq_arm();
+     fn sep_sensor_irq_wait(timeout_ms: c_uint) -> c_int;
+     fn sep_sensor_firmware_name() -> *const c_char;
++    fn sep_sensor_rearm_ms() -> c_uint;
++    fn sep_sensor_rearm_mode() -> c_uint;
++}
++
++/// Re-arm interval in ms (module parameter `sensor_rearm_ms`, writable at run time).
++pub(crate) fn rearm_ms() -> u32 {
++    // SAFETY: reads one unsigned int.
++    unsafe { sep_sensor_rearm_ms() as u32 }
++}
++
++/// Re-arm mode (module parameter `sensor_rearm_mode`, writable at run time).
++pub(crate) fn rearm_mode() -> u32 {
++    // SAFETY: reads one unsigned int.
++    unsafe { sep_sensor_rearm_mode() as u32 }
+ }
+ 
+ /// The calibration blob's name from the board description, or `None` when the
+--- a/drivers/soc/apple/sensor_shim.c	2026-10-27 14:53:00.759296365 -0700
++++ b/drivers/soc/apple/sensor_shim.c	2026-10-27 15:30:29.100247741 -0700
+@@ -26,6 +26,17 @@
+ /* Use the board's device-tree mode (J313: 1, J414s: 2). */
+ #define SEP_SENSOR_HZ		8000000
+ #define SEP_SENSOR_BITS		8
++/* Re-arm of a capture that waits for a finger (diagnostic, runtime-writable).
++ * Mode 0 off; 1 every rearm_ms: idle, then start; 2 when the status changes
++ * while armed: idle, then start; 3 every rearm_ms: start only. */
++static unsigned int sep_rearm_ms = 1000;
++module_param_named(sensor_rearm_ms, sep_rearm_ms, uint, 0644);
++MODULE_PARM_DESC(sensor_rearm_ms, "Capture re-arm interval in ms for modes 1 and 3 (default 1000)");
++static unsigned int sep_rearm_mode = 1;
++module_param_named(sensor_rearm_mode, sep_rearm_mode, uint, 0644);
++MODULE_PARM_DESC(sensor_rearm_mode, "Capture re-arm while waiting for a finger: 0 off, 1 timed idle+start, 2 on status change idle+start, 3 timed start only (default 1)");
++unsigned int sep_sensor_rearm_ms(void) { return READ_ONCE(sep_rearm_ms); }
++unsigned int sep_sensor_rearm_mode(void) { return READ_ONCE(sep_rearm_mode); }
+ static unsigned int sep_sensor_mode = ~0U;
+ module_param_named(sensor_spi_mode, sep_sensor_mode, uint, 0444);
+ MODULE_PARM_DESC(sensor_spi_mode,
