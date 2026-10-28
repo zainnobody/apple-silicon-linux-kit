@@ -98,7 +98,7 @@ Still open, needs the user: Thunderbolt at 40 Gb/s (needs a certified cable), a 
 
 ## Next steps
 
-1. USB 3 speed of the T7 on `port3` (right), `port2` (left front) and `port1` (left rear). Waits for the user (see below). Port1 waits for the USB-C session release.
+1. USB 3 speed of the T7 on the two other ports (done once on `port2`: 722 MB/s read). Port1 waits for the USB-C session release.
 2. SD card test on the built-in slot (`mmc0`) and on the dongle card reader. Waits for the user to find an SD card.
 3. Thunderbolt device test. Waits for the user to plug in a device. The dock test is a separate task in `TASKS.md`.
 4. USB write speed on a mounted drive. Use `dd oflag=direct`. Buffered exFAT writes are slow on Linux. This is not a hardware fault.
@@ -114,6 +114,79 @@ Closed since the first version of this report: the USB-C data fix (`thunderbolt_
 - Find an SD card and insert it in the MacBook slot. Then in the dongle reader.
 - Plug in a Thunderbolt device if you have one.
 
-## M3 state at the last check, 2026-10-27 02:2x
+## T7 direct on a USB-C port, 2026-10-27 14:17 (my own test, read only)
 
-The M3 did not answer on SSH (port 22 timed out twice). Tailscale showed it offline, last seen 38 minutes earlier. I ran no extra tests. I did not reboot, suspend or reload any module.
+The user confirmed the T7 was on the left front port. Linux showed the partner on `port2`. The port map is correct.
+
+| Item | Result |
+|---|---|
+| Link | `PSSD T7 Shield`, 10000M (USB 3.2 Gen 2), driver `uas` |
+| Raw read, `dd iflag=direct`, 2 GB, two runs | 722 MB/s and 734 MB/s |
+| Raw read, 6.3 GB, later offset | 701 MB/s |
+| Write test | Not done. The drive holds user data. |
+
+The M3 had just booted (up 1 minute at the check). I did not cause that reboot. The T7 passes USB 3 on the left front port. The right port and the left rear port are still open.
+
+## T7 on the second port, 2026-10-27 14:23 (my own test, read only)
+
+The user said the T7 was on the left rear port, the one closest to MagSafe. Linux showed the partner on `port3`. This boot, `port2` is left front and `port3` is left rear. The earlier map (`port3` = right) fails. The right port needs one more test to find its number.
+
+| Item | Result |
+|---|---|
+| Link | `PSSD T7 Shield`, 10000M (USB 3.2 Gen 2), driver `uas` |
+| Raw read, `dd iflag=direct`, 2 GB, two runs | 699 MB/s and 660 MB/s |
+| Write test | Not done. The drive holds user data. |
+
+## SD card in the built-in slot, 2026-10-27 14:26 (my own test, read only)
+
+| Item | Result |
+|---|---|
+| Detect | Card found at insert: `mmc0: new UHS-I speed SDR50 SDHC card`, no errors in the kernel log |
+| Card | 29.7 GiB SDHC, vfat, one partition |
+| Link | 4-bit bus, 100 MHz, 1.8 V, mode SDR50 |
+| Raw read, `dd iflag=direct`, 400 MB, two runs | 46.6 MB/s and 46.5 MB/s (near the SDR50 limit of about 50 MB/s) |
+| Write | Not tested. Linux shows the card as read-only (`ro=1`). The card lock switch is the likely cause. |
+
+The built-in SD slot works for reading. The write test needs the lock switch moved, or another card.
+
+## T7 on the right port, 2026-10-27 14:27
+
+The user said the T7 was moved to the right port. Linux again showed the partner on `port2`. The T7 link is the same, 10000M. The right port number is still not known. Ask the user to confirm the side.
+
+## SD write test and T7 on the right port, 2026-10-27 14:33 (my own test)
+
+The user moved the lock switch and said the T7 is on the right port. The card reinserted as read-write (`ro=0`).
+
+| Item | Result |
+|---|---|
+| SD write, `dd oflag=direct`, 256 MB temp file on the card, deleted after | 7.9 MB/s |
+| SD read back, same file | 46.7 MB/s |
+| Kernel log during the test | No mmc or FAT errors |
+| T7 read on the right port, 250 MB runs | 532, 551 and 633 MB/s (one 2 GB run gave 697 MB/s, one gave 38.7 MB/s) |
+
+The SD slot reads and writes. The write speed of 7.9 MB/s fits an old card (made 08/2016). It is not a slot fault. A fast UHS-I card would show the slot limit.
+The one slow T7 run (38.7 MB/s) did not repeat in three more runs. Watch for it. The typec `port2` partner name appeared for both the left front and the right port, so the typec port number does not tell the side. Use the USB host controller instead.
+
+## Thunderbolt host to host, Mac to M3, 2026-10-27 14:40 (my own test)
+
+The user connected a cable from the M3 left rear port (`port3`) to a port on the Mac host. I loaded no module. The `thunderbolt0` interface was already up.
+
+| Item | Result |
+|---|---|
+| Link seen by Linux | `0-1` Apple Mac17,2 host found, 2 lanes, 10 Gb/s per lane |
+| Link seen by macOS | Thunderbolt/USB4 bus 3, connected, 20 Gb/s |
+| Network | Link-local addresses on both sides (`thunderbolt0` on the M3, `bridge0` on the Mac), no setup |
+| Ping, 10 packets | 0% loss, 0.19 to 0.44 ms (average 0.29 ms) |
+| Throughput M3 to Mac, 4 GB, `dd` into `nc` | 1018 MB/s (about 8 Gb/s) |
+| Throughput Mac to M3, 4 GB, Python sender, `nc` into `wc` | 450 MB/s |
+| `iperf3` | Not used. It is not installed on the Mac. |
+
+Thunderbolt and USB4 host to host work on the M3. The link trains at 20 Gb/s, not 40 Gb/s. The cable or the M3 port may set this limit (see `usbc-usb4-gap.md` section 9). The throughput numbers come from a simple single stream and use the CPU, so they are lower bounds. The Mac to M3 number is lower. The `nc | wc` receiver on the M3 likely sets it.
+
+## Open items and paused tests, 2026-10-27
+
+- **Thunderbolt at 40 Gb/s: not completely tested.** The user has no certified 40 Gb/s cable now. The link trained at 20 Gb/s with the cable in use. The test is paused until a certified Thunderbolt 4 cable is available. Repeat the host-to-host test then.
+- **Thunderbolt dock and display tunnels:** not tested. No dock is available now (see `usbc-usb4-gap.md` section 9).
+- **Daily port:** the user will use all USB-C ports on the M3. All three ports pass the USB 3 test with the T7 (left front, left rear, right).
+- **SD card speed limit:** the slot limit is not known. The test card is slow to write (7.9 MB/s). A fast UHS-I card would show it.
+
