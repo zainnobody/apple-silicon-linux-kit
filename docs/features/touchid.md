@@ -199,7 +199,20 @@ Patches: `patches/touchid/` (apply in order on the M3 tree `drivers/soc/apple/se
 - A finger that arrives after the capture starts is never seen. This is the normal login case (prompt first, then touch).
 - Trace (3d): the first arm of a capture goes to state 17 at 8 ms. With the finger already on, state 19 follows at 23 ms and state 7 (frame, length 0x7200) at 105 ms. Without a finger, the raw status changes once at about 258 ms (`02218004 80808080`), then the sensor stops scanning.
 - 3e re-arm, finger held 3 to 5 s: mode 1 (idle then start, every 1 s), mode 2 (on each status change, about every 260 ms) and mode 3 (start only) all stayed in states 0 and 17. Every re-arm reported ok. The first start shows status word `0021000c`, a re-arm `06210004`.
-- Next: 3f (settle 1.8 s after idle, plus a full-restart mode), or a user-space loop of short verifies (each new verify powers the sensor on, and that first scan sees a finger). The loop script is ready (`~/window/loopverify.sh` on the M3) but has not run.
+- Next: 3f (settle 1.8 s after idle, plus a full-restart mode), or a user-space loop of short verifies (each new verify powers the sensor on, and that first scan sees a finger).
+
+**Restart loop results (2026-10-28 00:55 to 00:59, same 3e test boot, re-arm mode 0, `loopverify.sh`)**
+
+| Run | Cycles | Finger | Result |
+|---|---|---|---|
+| 1 | 12 of 4 s | right index, touched late on request | MATCH in cycle 9. Cycles 1 to 7: no finger, state 17, scan stops at 263 ms. Cycle 8: state 19 at 1996 ms and a frame at 2081 ms, then the 4 s cancel came before the enclave answer. Cycle 9: finger on at the start, MATCH. |
+| 2 | 10 of 6 s | right index, touched late on request | MATCH in cycle 3. Cycles 1 and 2: no finger seen. Cycle 3: finger on at the start, frame at 106 ms, MATCH. Touch time not known. |
+| 3 | 10 of 6 s | right middle (not enrolled), on at the start | NO MATCH in cycle 1 (frame at 105 ms). No false accept. |
+
+- The loop catches a late touch in the next cycle, so a user-space retry loop is a working fallback (latency up to one cycle, about 6 s).
+- New: run 1 cycle 8 is the first late touch that the sensor detected (about 2.0 s after the capture start, after the 263 ms status change). So the detect window is not limited to about 260 ms. The earlier late touches came 3 s or more after the start. One event only: repeat with a known touch time.
+- Alarm check OK after every run. Journals: `~/window/loop-20261028-0055.*`, `-0057.*`, `-0059.*` on the M3.
+- Next: a loop with 8 s cycles to measure how late a touch can come in one cycle, then the 3f test boot (settle mode).
 
 **Backups (private, not in any repo):** `ibootsys-20261027-150622` (`45b0f6cb`) and `ibootsys-20261027-180807` (`8ef6c876`), each on the M3 under `/data/touchid-backup` and on the Mac under `private-dumps/touchid-backup`. Do not restore an older backup: anti-replay.
 

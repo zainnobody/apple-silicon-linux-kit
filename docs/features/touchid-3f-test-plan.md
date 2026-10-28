@@ -1,4 +1,6 @@
-# Touch ID 3f test plan: late-touch capture (written 2026-10-27, nothing here has been run)
+# Touch ID 3f test plan: late-touch capture (written 2026-10-27)
+
+2026-10-28: section 6 (the restart loop) ran in the 3e test boot: late touch MATCH 2 of 2, other finger NO MATCH 1 of 1. One cycle saw a touch about 2 s after the start. Results: `touchid.md`, "Restart loop results". Steps 1 to 10 (3f) have not run.
 
 Run this with the user present. The user touches the sensor on request. Everything else is typed by the person running the test.
 
