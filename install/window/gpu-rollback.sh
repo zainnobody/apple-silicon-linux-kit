@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# Rollback for gpu-boot.sh: clears a pending one-time boot and removes the tgt_util 50 entry.
+# Rollback for gpu-boot.sh: clears a pending one-time boot and removes the test entry (TAG, default tgt50).
 # Safe to run at any time, also after the test boot. Run with sudo.
 set -euo pipefail
 [ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
-for f in /boot/loader/entries/*-7.2.11-m3gpu+-tgt50.conf; do
+for f in /boot/loader/entries/*-7.2.11-m3gpu+-${TAG:-tgt50}.conf; do
 	[ -e "$f" ] || continue
 	grub2-editenv list | grep -q "^next_entry=$(basename "$f" .conf)$" && grub2-editenv - unset next_entry
 	rm -f "$f"; echo "removed $f"

@@ -1,0 +1,146 @@
+Kernel (SiliconForest 0e1f46661376 + the M3 tree patch), asahi-m3 G15, on top of
+patches/g15-perf-tgt-util.patch and patches/g15-recovery-drain-halt.patch: three module parameters for
+the firmware DVFS performance controller words, all default 0 = unchanged.
+  asahi.g15_perf_boost_min    HardwareDataA +0x790, boost minimum utilization, percent (template 90; 30..100)
+  asahi.g15_perf_boost_step   HardwareDataA +0x794, boost step, apple,perf-boost-ce-step (template 50; 10..100)
+  asahi.g15_perf_base_pstate  HardwareDataA +0x7d8/+0x7e0/+0x81c = 100 x base and +0x7d4 = (top - base) / 0.95
+                              as f32 (template base 1; 1..7)
+The offsets and the base-state formula are the ones g15/board/record.rs writes. Each override is refused
+(probe fails, the next boot is normal) unless its words hold the template values. The meaning of the
+boost words comes from their device-tree names; the unit of the step is not known.
+Built 2026-10-28 02:28 (image sha256 e576affa234a19d3f930bc288206e28ddb51fc7f9b69058bc4ebc3a480df5ed0,
+config the same as stage O); NOT TESTED YET. Plan: docs/gpu-boost-test-plan.md.
+
+--- a/drivers/gpu/drm/asahi-m3/asahi_core.rs
++++ b/drivers/gpu/drm/asahi-m3/asahi_core.rs
+@@ -139,6 +139,18 @@
+             default: 0,
+             description: "G15: firmware DVFS target utilization override, percent (HardwareDataA +0x788/+0x7ec, 30..95; 0: the template value 80)",
+         },
++        g15_perf_boost_min: u32 {
++            default: 0,
++            description: "G15: firmware DVFS boost minimum utilization override, percent (HardwareDataA +0x790, 30..100; 0: the template value 90)",
++        },
++        g15_perf_boost_step: u32 {
++            default: 0,
++            description: "G15: firmware DVFS boost step override (HardwareDataA +0x794, 10..100; 0: the template value 50)",
++        },
++        g15_perf_base_pstate: u32 {
++            default: 0,
++            description: "G15: firmware DVFS base pstate override (HardwareDataA +0x7d4/+0x7d8/+0x7e0/+0x81c, 1..7; 0: the template value 1)",
++        },
+         g15_idle_min_conf: u32 {
+             default: 500,
+             description: "G15: firmware idle minimum confidence, permille (Globals +0x7c4)",
+--- a/drivers/gpu/drm/asahi-m3/g15/fw/initdata.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/fw/initdata.rs
+@@ -140,6 +140,14 @@
+     /// and its fixed neighbours (6, 1 at +0x7a0; 95.0 at +0x7c8).
+     pub(crate) const PERF_TGT_UTIL: usize = HWDATA_A + 0x788;
+     pub(crate) const PERF_TGT_UTIL_2: usize = HWDATA_A + 0x7ec;
++    /// HardwareDataA perf boost minimum utilization (percent, template 90) and boost step
++    /// (template 50): the record writes apple,perf-boost-min-util and apple,perf-boost-ce-step here.
++    pub(crate) const PERF_BOOST_MIN: usize = HWDATA_A + 0x790;
++    pub(crate) const PERF_BOOST_STEP: usize = HWDATA_A + 0x794;
++    /// HardwareDataA perf base state words: 100 x the base pstate (template 100, state 1) at
++    /// +0x7d8, +0x7e0 and +0x81c, and (top - base) / 0.95 as a single at +0x7d4.
++    pub(crate) const PERF_BOOST_RANGE: usize = HWDATA_A + 0x7d4;
++    pub(crate) const PERF_BASE: [usize; 3] = [HWDATA_A + 0x7d8, HWDATA_A + 0x7e0, HWDATA_A + 0x81c];
+     /// HardwareDataA word holding the machine's maximum GPU power in mW (Globals +0x78 and
+     /// Power +0xd0 repeat it).
+     pub(crate) const MAX_POWER_A: usize = 0x6a4;
+--- a/drivers/gpu/drm/asahi-m3/g15/initdata.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/initdata.rs
+@@ -165,9 +165,61 @@
+         put32(&mut hw_img, hwdata::PERF_TGT_UTIL_2, tgt)?;
+         dev_info!(dev, "DVFS target utilization {} % from the module parameter (template 80 %)\n", tgt);
+     }
++    perf_overrides(dev, &mut hw_img)?;
+     Ok((hw_img, glob, pwr, max_khz))
+ }
+ 
++/// The boost and base-state module parameters. Each override is refused unless its words hold
++/// the template values, so a changed record layout cannot take a write at a wrong offset.
++fn perf_overrides(dev: &device::Device, hw_img: &mut [u8]) -> Result {
++    use super::board::words::{f32_div, f32_from_u32};
++    const F_0_95: u32 = 0x3f733333;
++    let top = board::DVFS_STATES as u32 - 1;
++    let range = |base: u32| f32_div(f32_from_u32(top - base), F_0_95).ok_or(EINVAL);
++    let boost_min = super::params::perf_boost_min();
++    let boost_step = super::params::perf_boost_step();
++    if boost_min != 0 || boost_step != 0 {
++        let (min, step) = (get32(hw_img, hwdata::PERF_BOOST_MIN)?, get32(hw_img, hwdata::PERF_BOOST_STEP)?);
++        if min != 90 || step != 50 {
++            dev_err!(dev, "DVFS boost: template {} / {} is not 90 / 50, override refused\n", min, step);
++            return Err(EINVAL);
++        }
++        if boost_min != 0 {
++            put32(hw_img, hwdata::PERF_BOOST_MIN, boost_min)?;
++        }
++        if boost_step != 0 {
++            put32(hw_img, hwdata::PERF_BOOST_STEP, boost_step)?;
++        }
++        dev_info!(
++            dev,
++            "DVFS boost minimum utilization {} %, step {} from the module parameters (template 90 %, 50)\n",
++            get32(hw_img, hwdata::PERF_BOOST_MIN)?,
++            get32(hw_img, hwdata::PERF_BOOST_STEP)?
++        );
++    }
++    let base = super::params::perf_base_pstate();
++    if base != 0 {
++        if base >= top {
++            dev_err!(dev, "DVFS base pstate {} is not below the top state {}, override refused\n", base, top);
++            return Err(EINVAL);
++        }
++        let mut ok = get32(hw_img, hwdata::PERF_BOOST_RANGE)? == range(1)?;
++        for off in hwdata::PERF_BASE {
++            ok &= get32(hw_img, off)? == 100;
++        }
++        if !ok {
++            dev_err!(dev, "DVFS base pstate: template words are not base state 1, override refused\n");
++            return Err(EINVAL);
++        }
++        put32(hw_img, hwdata::PERF_BOOST_RANGE, range(base)?)?;
++        for off in hwdata::PERF_BASE {
++            put32(hw_img, off, 100 * base)?;
++        }
++        dev_info!(dev, "DVFS base pstate {} from the module parameter (template 1)\n", base);
++    }
++    Ok(())
++}
++
+ /// HardwareDataA word holding the system counter at initdata creation.
+ const HWDATA_A_INIT_TIMESTAMP: usize = 0x424c;
+ 
+--- a/drivers/gpu/drm/asahi-m3/g15/params.rs
++++ b/drivers/gpu/drm/asahi-m3/g15/params.rs
+@@ -49,6 +49,28 @@
+     }
+ }
+ 
++/// Firmware DVFS boost minimum utilization override, percent (0: the template value, 90).
++pub(crate) fn perf_boost_min() -> u32 {
++    match *module_parameters::g15_perf_boost_min.value() {
++        0 => 0,
++        v => v.clamp(30, 100),
++    }
++}
++
++/// Firmware DVFS boost step override (0: the template value, 50).
++pub(crate) fn perf_boost_step() -> u32 {
++    match *module_parameters::g15_perf_boost_step.value() {
++        0 => 0,
++        v => v.clamp(10, 100),
++    }
++}
++
++/// Firmware DVFS base pstate override (0: the template value, 1). The caller limits it to the
++/// states below the top one.
++pub(crate) fn perf_base_pstate() -> u32 {
++    *module_parameters::g15_perf_base_pstate.value()
++}
++
+ /// Firmware idle minimum confidence, permille.
+ pub(crate) fn idle_min_conf() -> u32 {
+     (*module_parameters::g15_idle_min_conf.value()).clamp(1, 1000)
