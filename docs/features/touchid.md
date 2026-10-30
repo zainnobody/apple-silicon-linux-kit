@@ -244,3 +244,4 @@ Patches: `patches/touchid/` (apply in order on the M3 tree `drivers/soc/apple/se
 - Successor repository (page showed only a kernel README): <https://github.com/omacom/linux-aurora>
 - t2linux Touch ID guide (Intel T2 Macs only, not Apple Silicon): <https://wiki.t2linux.org/guides/touchid/>
 - Local: `docs/features/missing-drivers.md` row 5 and "The three most valuable fixes" item 3; `docs/whats-in-the-repo.md`; M3 kernel source files named above.
+- Install plan for the lock screen and login (boot, libfprint, PAM, one sudo window): `docs/features/touchid-integration-plan.md`; scripts `tools/touchid/integration/`; offline test `tests/touchid-integration-test.sh`

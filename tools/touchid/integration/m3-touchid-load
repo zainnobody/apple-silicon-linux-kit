@@ -1,0 +1,65 @@
+#!/bin/sh
+# Installed as /usr/local/sbin/m3-touchid-load by ti-install-units.sh and run by m3-touchid.service at boot.
+# Loads the Apple SEP driver once, waits until the enclave seals and unseals a trusted key, waits for /dev/sep-bio and
+# opens it once (that activates Touch ID: sensor bring-up and restore of the enrolled fingerprints). Never reloads
+# the module (it attaches once per boot). A failure is logged and ends the unit; nothing else depends on it.
+set -u
+CONF=/etc/m3-touchid.conf
+GUARD=3 SETTLE_MS=1800 REARM_MODE=2 REARM_MS=300 READY_TIMEOUT=120 DEVICE_TIMEOUT=60
+[ -r "$CONF" ] && . "$CONF"
+log() { echo "m3-touchid-load: $*" >&2; }
+up() { read -r u _ </proc/uptime; echo "${u%%.*}"; }
+
+[ ! -e /etc/m3-touchid.off ] || { log "/etc/m3-touchid.off exists: not loading"; exit 0; }
+grep -q 'm3.touchid=off' /proc/cmdline && { log "m3.touchid=off on the kernel command line: not loading"; exit 0; }
+for v in "$GUARD" "$SETTLE_MS" "$REARM_MODE" "$REARM_MS" "$READY_TIMEOUT" "$DEVICE_TIMEOUT"; do
+	case "$v" in ''|*[!0-9]*) log "bad number '$v' in $CONF"; exit 2;; esac
+done
+# The trusted-key probe needs its own keyring when started from a login shell or sudo.
+if [ "${M3_TOUCHID_SESSION:-0}" != 1 ]; then
+	exec keyctl session m3-touchid-load env M3_TOUCHID_SESSION=1 "$0" "$@"
+fi
+if grep -q '^apple_sep ' /proc/modules; then
+	log "apple_sep is already loaded; not loading again"
+else
+	modprobe apple_sep xart_writes=1 provision_keybag=1 xart_guard="$GUARD" \
+		sensor_rearm_mode="$REARM_MODE" sensor_rearm_ms="$REARM_MS" sensor_rearm_settle_ms="$SETTLE_MS" ||
+		{ log "modprobe apple_sep failed"; exit 1; }
+fi
+
+work=$(mktemp -d /run/m3-touchid-load.XXXXXX)
+trap 'rm -rf -- "$work"' EXIT HUP INT TERM
+start=$(up); deadline=$((start + READY_TIMEOUT)); ok=false
+while :; do
+	id=$(printf 'new 32' | keyctl padd trusted m3-touchid-check @s 2>/dev/null || true)
+	if [ -n "$id" ]; then
+		if keyctl pipe "$id" > "$work/sealed" 2>/dev/null; then
+			{ printf 'load '; tr -d '\n\r ' < "$work/sealed"; } > "$work/load"
+			lid=$(keyctl padd trusted m3-touchid-load-check @s < "$work/load" 2>/dev/null || true)
+			[ -n "$lid" ] && { keyctl revoke "$lid" >/dev/null 2>&1 || true; ok=true; }
+		fi
+		keyctl revoke "$id" >/dev/null 2>&1 || true
+	fi
+	[ "$ok" = true ] && break
+	[ "$(up)" -lt "$deadline" ] || break
+	sleep 0.2
+done
+[ "$ok" = true ] || { log "the enclave did not seal and unseal a trusted key within ${READY_TIMEOUT} s"; exit 1; }
+log "trusted keys work after $(($(up) - start)) s"
+
+deadline=$(($(up) + DEVICE_TIMEOUT))
+while [ ! -c /dev/sep-bio ] && [ "$(up)" -lt "$deadline" ]; do sleep 0.2; done
+[ -c /dev/sep-bio ] || { log "/dev/sep-bio did not appear within ${DEVICE_TIMEOUT} s"; exit 1; }
+# The node must carry the label that the fprintd policy rule expects (the udev default does; this repeats it).
+command -v restorecon >/dev/null 2>&1 && restorecon /dev/sep-bio >/dev/null 2>&1
+
+# The first open activates Touch ID. A busy answer means another opener is doing it; wait for it.
+start=$(up); deadline=$((start + DEVICE_TIMEOUT))
+while :; do
+	if err=$(LC_ALL=C sh -c 'exec 3<"$1"' sh /dev/sep-bio 2>&1); then
+		log "Touch ID is ready after $(($(up) - start)) s"; exit 0
+	fi
+	case "$err" in *[Bb]usy*) :;; *) log "could not open /dev/sep-bio: ${err##*: }"; exit 1;; esac
+	[ "$(up)" -lt "$deadline" ] || { log "/dev/sep-bio stayed busy for ${DEVICE_TIMEOUT} s"; exit 1; }
+	sleep 0.2
+done

@@ -1,0 +1,11 @@
+module m3touchid 1.0;
+
+# Lets the fprintd daemon use the Apple SEP biometric device node. The node keeps the default type
+# device_t (no custom label): the rule covers only open, read, write, ioctl and getattr on character devices.
+require {
+	type fprintd_t;
+	type device_t;
+	class chr_file { getattr open read write ioctl };
+}
+
+allow fprintd_t device_t:chr_file { getattr open read write ioctl };

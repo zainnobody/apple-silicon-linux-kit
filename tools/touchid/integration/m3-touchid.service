@@ -1,0 +1,18 @@
+[Unit]
+Description=Load the Apple SEP driver and bring up Touch ID
+Documentation=file:///usr/share/doc/m3-touchid/touchid-integration-plan.md
+After=local-fs.target
+# Normal boots have no SEP in the device tree: the unit is skipped. Off switches: the file, or m3.touchid=off on the kernel command line.
+ConditionPathExists=!/etc/m3-touchid.off
+ConditionKernelCommandLine=!m3.touchid=off
+ConditionPathExistsGlob=/proc/device-tree/soc/sep@*/iboot-manifest
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+TimeoutStartSec=300
+ExecCondition=/bin/sh -c 'modinfo apple_sep >/dev/null 2>&1'
+ExecStart=/usr/local/sbin/m3-touchid-load
+
+[Install]
+WantedBy=multi-user.target

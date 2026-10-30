@@ -1,0 +1,7 @@
+# /etc/m3-touchid.conf, read by m3-touchid-load at boot. Whole numbers only.
+GUARD=3             # xart_guard level: 3 = loaded-only (see the stage 3b plan, section 11)
+SETTLE_MS=1800      # quiet time after idle before the next capture start (tune with ti-settle-test.sh)
+REARM_MODE=2        # 0 off, 1 timed, 2 on status change (default), 3 start only, 4 full restart (experimental)
+REARM_MS=300        # interval for modes 1 and 3
+READY_TIMEOUT=120   # seconds to wait for the enclave key store
+DEVICE_TIMEOUT=60   # seconds to wait for /dev/sep-bio and for its first open
