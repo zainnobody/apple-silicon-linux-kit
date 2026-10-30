@@ -2,6 +2,9 @@
 # Make this machine visible to AirDrop for N seconds (default 600). Needs the polkit policy installed by airdrop-persist.sh root.
 secs=${1:-600}
 H=/usr/lib/omdrop/omdrop-discoverable
+# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon.
+ICON=emblem-shared
+[ -e "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg" ] && ICON=m3-airdrop
 
 # While awdl0 exists, a sleep or wake request can wedge the Wi-Fi firmware (docs/features/airdrop.md, Wi-Fi coexistence).
 # The guard blocks sleep and the suspend key. It is a transient user unit: it ends at reboot or logout.
@@ -17,11 +20,11 @@ guard() {
 if pkexec "$H" start "$secs"; then
 	guard
 	systemctl --user start airdrop-receiver.service
-	notify-send -a AirDrop -i emblem-shared "AirDrop is on" "Visible for $((secs / 60)) minutes. Set the iPhone or Mac to Everyone."
+	notify-send -a AirDrop -i "$ICON" "AirDrop is on" "This Mac is visible for $((secs / 60)) minutes. On the other device, set AirDrop to Everyone."
 else
 	rc=$?
 	# 5 = a window is already open and was extended
-	[ "$rc" = 5 ] && guard && notify-send -a AirDrop -i emblem-shared "AirDrop window extended" "Still visible." && exit 0
-	notify-send -a AirDrop -u critical "AirDrop did not start" "Exit code $rc. Check: journalctl -k | grep awdl"
+	[ "$rc" = 5 ] && guard && notify-send -a AirDrop -i "$ICON" "AirDrop is still on" "The visible time is longer now." && exit 0
+	notify-send -a AirDrop -i "$ICON" -u critical "AirDrop did not start" "Error code $rc. To see why, run: journalctl -k | grep awdl"
 	exit "$rc"
 fi

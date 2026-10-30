@@ -1,12 +1,15 @@
 #!/usr/bin/env bash
 # Close the AirDrop visibility window.
+# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon.
+ICON=emblem-shared
+[ -e "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg" ] && ICON=m3-airdrop
 systemctl --user stop airdrop-receiver.service
 if pkexec /usr/lib/omdrop/omdrop-discoverable stop; then
 	# awdl0 stays after a window, so the sleep guard stays too. Without awdl0 there is nothing to guard.
 	if ip link show awdl0 >/dev/null 2>&1; then
-		notify-send -a AirDrop -i emblem-shared "AirDrop is off" "No longer visible. Sleep stays blocked until the next reboot."
+		notify-send -a AirDrop -i "$ICON" "AirDrop is off" "This Mac is not visible now. Sleep stays blocked until the next restart."
 	else
 		systemctl --user stop airdrop-sleep-guard.service 2>/dev/null
-		notify-send -a AirDrop -i emblem-shared "AirDrop is off" "No longer visible."
+		notify-send -a AirDrop -i "$ICON" "AirDrop is off" "This Mac is not visible now."
 	fi
 fi

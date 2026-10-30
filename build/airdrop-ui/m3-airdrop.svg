@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <!-- Original flat icon for the AirDrop receiver and sender: a blue disc, a dot and two open arcs.
+       No gradient and no shadow. Not the Apple logo. -->
+  <circle cx="64" cy="64" r="60" fill="#0071e3"/>
+  <circle cx="64" cy="76" r="9" fill="#ffffff"/>
+  <path d="M42 62 A30 30 0 0 1 86 62" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round"/>
+  <path d="M28 52 A46 46 0 0 1 100 52" fill="none" stroke="#ffffff" stroke-width="9" stroke-linecap="round" opacity="0.8"/>
+</svg>

@@ -4,20 +4,23 @@
 [ $# -gt 0 ] || { echo "usage: airdrop-send FILE..." >&2; exit 2; }
 H=/usr/lib/omdrop/omdrop-discoverable
 S=/usr/lib/omdrop/send-to-peer
-note() { notify-send -a AirDrop -i emblem-shared "$1" "$2"; }
+# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon.
+ICON=emblem-shared
+[ -e "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg" ] && ICON=m3-airdrop
+note() { notify-send -a AirDrop -i "$ICON" "$1" "$2"; }
 "$H" status --json | grep -q '"visible":true' || airdrop-on 600 || exit 1
 # Lookup names; one row per device. The first field is the MAC, the rest is signal and name.
 rows=$("$S" --list --names 2>/dev/null | grep -E '^[[:space:]]*([0-9a-f]{2}:){5}[0-9a-f]{2}')
-[ -n "$rows" ] || { note "AirDrop: nobody found" "Open AirDrop on the other device and set it to Everyone."; exit 1; }
+[ -n "$rows" ] || { note "No device found" "Open AirDrop on the other device. Set it to Everyone."; exit 1; }
 args=()
 while IFS= read -r line; do
 	mac=$(echo "$line" | awk '{print $1}')
 	args+=("$mac" "$(echo "$line" | sed -E 's/^[[:space:]]*[^[:space:]]+[[:space:]]+//')")
 done <<< "$rows"
-mac=$(kdialog --title "Send via AirDrop" --menu "Send to which device?" "${args[@]}") || exit 0
+mac=$(kdialog --title "AirDrop" --icon "$ICON" --menu "Choose a device" "${args[@]}") || exit 0
 if out=$("$S" --mac "$mac" --wait 60 "$@" 2>&1); then
-	note "AirDrop: sent" "$# file(s) sent."
+	note "Sent" "$# file(s) sent."
 else
-	note "AirDrop: not sent" "$(echo "$out" | tail -2)"
+	note "Not sent" "$(echo "$out" | tail -2)"
 	exit 1
 fi
