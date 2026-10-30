@@ -119,26 +119,29 @@ The user chose: finish AirDrop, and add LocalSend. Router channel change: skippe
 
 ### LocalSend install (user install, no root)
 
-Read on 2026-10-30 from Flathub and GitHub. Nothing was downloaded to the M3.
+The user chose the small official GitHub build on 2026-10-30. Metadata was read from the GitHub API on the Mac. Nothing was downloaded yet.
 
 | Item | Value |
 |---|---|
-| Source | Flathub, app id `org.localsend.localsend_app`, stable 1.18.2, licence Apache-2.0, builds for `x86_64` and `aarch64` |
-| App size | about 23 MB download, 58 MB installed (the Flathub summary shows the `x86_64` build; the `aarch64` figure was not read) |
-| Runtime | `org.freedesktop.Platform` 26.08: about 283 MB download, 724 MB installed. `org.freedesktop.Platform.GL.default` 26.08: about 150 MB download, 470 MB installed. Same `x86_64` caveat. Each is skipped if the M3 already has it |
-| Worst case | about 456 MB download, about 1.2 GB on disk. M3 free space not checked (the M3 was offline) |
-| Sandbox | network, Wayland, GPU device, the Downloads folder only. Received files go to `~/Downloads` |
-| Command | `flatpak --user remote-add --if-not-exists flathub https://dl.flathub.org/repo/flathub.flatpakrepo`, then `flatpak --user install flathub org.localsend.localsend_app` |
-| Undo | `flatpak --user uninstall --delete-data org.localsend.localsend_app` |
-| Light alternative | the arm64 tarball `LocalSend-1.18.2-linux-arm-64.tar.gz` from the project's GitHub release, 32 MB, extract to `~/.local/opt`. No sandbox, no runtime download, but it needs system GTK3 libraries (not checked) |
-| Untested risk | the Flatpak runtime carries its own Mesa, which may not support the M3 GPU. A small app then runs with software drawing, or does not draw. Test after install. The tarball uses the system Mesa |
+| Source | `github.com/localsend/localsend`, release `v1.18.2` (tag commit `af0416be50770a97760f7070684bc667b759a15c`, published 2026-08-21, not a prerelease) |
+| File | `LocalSend-1.18.2-linux-arm-64.tar.gz` |
+| Size | 32354331 bytes |
+| sha256 | `dd61f74f1ce3f4e25aca41cd3ce650d6a99353d7baba81a8139807275b88e606` (the digest GitHub shows for the asset; the release publishes no separate checksum file) |
+| URL | `https://github.com/localsend/localsend/releases/download/v1.18.2/LocalSend-1.18.2-linux-arm-64.tar.gz` |
+| Installs to | `~/.local/opt/localsend-1.18.2`, link `~/.local/bin/localsend`, entry `~/.local/share/applications/localsend.desktop`. Received files: the app's own setting (default `~/Downloads` on Linux, to be confirmed) |
+| Script | `build/localsend-install.sh` with `fetch`, `list`, `install`, `status`, `undo`. It checks size and sha256 before it extracts, refuses unsafe paths, and runs `ldd` for missing libraries |
+| Undo | `build/localsend-install.sh undo` (removes the install, the entry, the tarball and the app settings) |
+| Not sandboxed | the app runs with your user rights. The graphics use the system Mesa |
+| Not checked | the tarball layout (the script looks for `localsend_app` up to two levels down), missing system libraries (`ldd` reports them), whether a tray icon needs an extra package, free space on the M3 (about 100 MB expected) |
+
+The Flatpak (about 456 MB worst case) is dropped.
 
 Firewall: LocalSend needs TCP and UDP 53317. The Wi-Fi interface is in zone `FedoraWorkstation`. The step queries the zone first. If 53317 is already open there, nothing is added. If it is closed, add TCP and UDP 53317 to that zone only (permanent), so the Tailscale interface and `awdl0` (zone `work`) are not changed. The zone ports were not re-read on 2026-10-30 because the M3 was offline.
 
 ### The user's list at the M3
 
 1. Run the one sudo window (below).
-2. Install the LocalSend app on the iPhone (App Store) and on the Mac if you want it there.
+2. Say yes to the 32 MB download, then run `localsend-install.sh fetch` and `install`. Install the LocalSend app on the iPhone (App Store) and on the Mac if you want it there.
 3. Press the suspend key on the console (test T6a).
 4. Click AirDrop on, run the file tests, click AirDrop off.
 5. Open LocalSend on the M3 and on the iPhone, on the same Wi-Fi, and send one file each way.
@@ -156,4 +159,4 @@ Only if a query prints `no`:
 sudo firewall-cmd --permanent --zone="$zone" --add-port=53317/tcp --add-port=53317/udp && sudo firewall-cmd --reload
 ```
 
-Undo: `sudo firewall-cmd --permanent --zone="$zone" --remove-port=53317/tcp --remove-port=53317/udp && sudo firewall-cmd --reload` and `sudo ~/omdrop-test/airdrop-persist.sh remove`. The Flatpak install needs no sudo.
+Undo: `sudo firewall-cmd --permanent --zone="$zone" --remove-port=53317/tcp --remove-port=53317/udp && sudo firewall-cmd --reload` and `sudo ~/omdrop-test/airdrop-persist.sh remove`. The LocalSend install needs no sudo.
