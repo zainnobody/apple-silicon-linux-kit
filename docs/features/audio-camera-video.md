@@ -114,6 +114,14 @@ Caveats: the noise number is a temporal difference, so a temporal denoiser lower
 
 Scripts: `tests/camera-test.sh` (PASS or FAIL per check, `--save-baseline`, `--compare`, `--dyn-fps`, `--size`, `--vf`, `--pw`), `tools/camera-clean.sh` (the virtual camera, foreground, no root, no module).
 
+## AV1 UBSAN fix tested on the M3 (2026-10-30 02:19)
+
+- Patch: `patches/avd-av1-ref-idx-bounds.patch` (an index of -1 in unused `ref_frame_idx[]` slots read 8 bytes before `reference_frame_ts[8]`). Applied to `~/m3gpu/src/linux`, module built as an external module against `~/m3gpu/build-linux` (vermagic `7.2.11-m3gpu+`), stripped, installed as `/lib/modules/7.2.11-m3gpu+/updates/apple-avd.ko`, `depmod -a`, reloaded. It loads as an out-of-tree module (taint O).
+- Clip: made on the M3, `testsrc2` 1920x1080, 30 fps, 10 s, SVT-AV1 preset 8, GOP 60 (7.6 MB, no download).
+- Patched module: VA-API (`vaav1dec`, GStreamer) against `libdav1d` NV12, **300 of 300 frames identical, 0 UBSAN lines**.
+- Control, same clip, original module (`insmod` of the in-tree file): **4 UBSAN lines**, at `avd-av1.c:452:4`, `481:36`, `581:33`, `582:33` (the lines from the report). Then the patched module was loaded again.
+- Undo: `sudo rm /lib/modules/7.2.11-m3gpu+/updates/apple-avd.ko && sudo depmod -a`, then reload `apple_avd` or reboot. A new kernel build from the kit tree should carry the patch instead.
+
 ## VA-API through GStreamer: H.264, VP9 and AV1 bit-identical (2026-10-27 13:30, battery 90% before and after)
 
 - Why `vah264dec` was missing: GStreamer's `va` plugin checks the driver vendor string and logs `Unsupported driver: v4l2-request`, so it registers no element. The plugin has an override: `GST_VA_ALL_DRIVERS=1`. With it, `vah264dec`, `vah265dec`, `vavp9dec` and `vaav1dec` appear ("VA-API ... Decoder in v4l2-request"). Environment for every test: `LIBVA_DRIVERS_PATH=$HOME/.local/lib64/dri LIBVA_DRIVER_NAME=v4l2_request GST_VA_ALL_DRIVERS=1`.
