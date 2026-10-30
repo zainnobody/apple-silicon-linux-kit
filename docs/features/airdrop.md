@@ -87,7 +87,7 @@ Windows stay manual until the polkit policy is installed. The policy applies onl
 | AirDrop off | `airdrop-off` + `.desktop` launcher | closes the window |
 | Send via AirDrop (Dolphin right-click) | `airdrop-send` + service menu | opens a window if needed, lists devices (`send-to-peer --list --names`), asks which one with kdialog, sends, notifies |
 
-All three need the root part (`/usr/lib/omdrop` and the polkit policy), so they work only after `sudo airdrop-persist.sh root`. They have not run on the M3 yet. The device picker parses `send-to-peer --list --names` by assuming the first field of each row is the MAC; this is untested. The picker lists every device it hears. The standing rule that nothing goes from the M3 to the user's own Mac is not enforced by the picker.
+All three need the root part (`/usr/lib/omdrop` and the polkit policy), so they work only after `sudo airdrop-persist.sh root`. AirDrop on also starts a sleep guard (transient user unit `airdrop-sleep-guard`, `systemd-inhibit --what=sleep:handle-suspend-key`). AirDrop off keeps it while `awdl0` exists. Set `AIRDROP_NO_GUARD=1` to skip it (control run for test T6b). Stop it with `systemctl --user stop airdrop-sleep-guard`. They have not run on the M3 yet. The device picker parses `send-to-peer --list --names` by assuming the first field of each row is the MAC; this is untested. The picker lists every device it hears. The standing rule that nothing goes from the M3 to the user's own Mac is not enforced by the picker.
 
 ## Wi-Fi coexistence (design, 2026-10-27)
 
@@ -205,3 +205,41 @@ Stop at the first failure, save `journalctl -k -b` to the notes folder, and do n
 | tests T6a, T6b, file tests | not run; need the user at the M3 (console, suspend key) |
 | AirDrop | OFF until T6a and T6b pass |
 | undo of the root part | `sudo airdrop-persist.sh remove` |
+
+## One session at the M3 (written 2026-10-30; nothing here has run)
+
+The user is at the M3 console. One sudo window. Everything else needs no root. No reboot. Stop at the first failure and keep the log.
+
+What changed in the scripts since the 13:25 install (repo only, not on the M3 yet):
+
+- `airdrop-persist.sh root` now also binds `awdl0` to firewalld zone `work` permanently, by name. `awdl0` is created on demand by `omdrop-discoverable start`, and the unit drop-in that bound it runs only for `awdl0.service`. Without the binding, `awdl0` lands in the default zone (FedoraWorkstation, which opens TCP and UDP 1025 to 65535). Whether firewalld applies a name binding to an interface that does not exist yet is expected, not verified: step 6 checks it.
+- `airdrop-on` starts the sleep guard. `airdrop-off` keeps it while `awdl0` exists.
+
+Preflight (read-only, over SSH, no sudo):
+
+```bash
+ip -br link show awdl0; iw dev; firewall-cmd --get-default-zone; firewall-cmd --get-zone-of-interface=wld0
+iw phy phy0 info | sed -n '/valid interface combinations/,/Device supports/p'
+rpm -q wpa_supplicant NetworkManager; nmcli device; systemctl --user is-enabled airdrop-receiver airdrop-notify
+```
+
+Expect: no `awdl0`; the combinations list shows how many station interfaces the chip allows (this answers the MCHAN question).
+
+| Step | Who | Command or action | Pass rule | Undo |
+|---|---|---|---|---|
+| 1 | Mac, no sudo | copy the new `airdrop-persist.sh`, `airdrop-notify.sh` and `airdrop-ui/` to `~/omdrop-test` on the M3; compare sha256 | checksums equal | delete the copies |
+| 2 | M3 console, no sudo | second terminal: `ping -i 5 -D $(ip route show default \| awk 'NR==1{print $3}') > ~/airdrop-ping.log &` and `journalctl -k -f \| grep -E "brcmf\|awdl\| -16\| -52"` | both run | stop both |
+| 3 | M3 console, **sudo window** | `sudo ~/omdrop-test/airdrop-persist.sh root` (safe to re-run) | prints "root part installed"; `sudo firewall-cmd --permanent --zone=work --query-interface=awdl0` prints `yes`; wld0 still connected | `sudo ~/omdrop-test/airdrop-persist.sh remove` |
+| 4 | M3 console, no sudo | `~/omdrop-test/airdrop-persist.sh user`, then `~/omdrop-test/airdrop-persist.sh ui` | "notify service enabled"; "buttons installed"; the receiver is not enabled | `systemctl --user disable --now airdrop-notify airdrop-receiver`; delete `~/.config/systemd/user/airdrop-*.service`, `~/.local/bin/airdrop-*`, the two `.desktop` files, the service menu |
+| 5 | M3 console | T0: 10 minutes idle (no `awdl0`) | no `brcmf` error; ping loss 0 | none |
+| 6 | M3 console | T6a: press the suspend key with the USB-C display attached, no `awdl0` | wld0 reconnects within 30 s; `p2p-dev-wld0` created with no `-16` and no `-52` | if the firmware wedges: console only, `sudo /usr/lib/omdrop/awdl-up --reload` or the user's reboot decision |
+| 7 | M3 console | T2: click "AirDrop on". While it runs: `firewall-cmd --get-zone-of-interface=awdl0` | prints `work`; ping loss under 5 percent; wld0 associated | click "AirDrop off" |
+| 8 | M3 console + iPhone + Mac | T3: five transfers (iPhone to M3 two times, Mac to M3 two times, M3 to iPhone once), notification shown each time | each file correct in `~/Downloads`; wld0 up after each | none |
+| 9 | M3 console | T4: click "AirDrop off", wait 10 minutes | receiver stopped; no firmware error; `awdl0` still exists; the guard is active (`systemctl --user is-active airdrop-sleep-guard`) | `systemctl --user stop airdrop-sleep-guard` |
+| 10 | M3 console | T6b control: open the window with `AIRDROP_NO_GUARD=1 airdrop-on` (no guard) in a boot that has no guard yet, close it, then press the suspend key | records whether `awdl0` alone changes the outcome of step 6 | reboot is the clean reset (the user decides; I do not reboot) |
+
+If step 10 fails and the first error is the P2P add: test `p2p_disabled=1` in `/etc/wpa_supplicant/wpa_supplicant.conf` (second sudo step). Copy the file to `/root/wpa_supplicant.conf.pre-p2p` first, then `sudo systemctl restart wpa_supplicant`. Undo: restore the copy and restart. Not part of the first window.
+
+What the sudo window changes: step 3 only. It adds one permanent firewalld binding, rewrites the same files as the 13:25 run, and reloads firewalld twice. Wi-Fi does not reconnect. The step is not expected to take Wi-Fi down, because it adds no interface and starts no suspend. That is reasoning, not a measurement.
+
+Stays off: AirDrop stays OFF (no window) until steps 6 and 10 are logged. Steps 7 to 9 run only after step 6 passes.

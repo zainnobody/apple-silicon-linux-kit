@@ -2,13 +2,26 @@
 # Make this machine visible to AirDrop for N seconds (default 600). Needs the polkit policy installed by airdrop-persist.sh root.
 secs=${1:-600}
 H=/usr/lib/omdrop/omdrop-discoverable
+
+# While awdl0 exists, a sleep or wake request can wedge the Wi-Fi firmware (docs/features/airdrop.md, Wi-Fi coexistence).
+# The guard blocks sleep and the suspend key. It is a transient user unit: it ends at reboot or logout.
+# awdl0 outlives the window, so airdrop-off does not release it while awdl0 exists. AIRDROP_NO_GUARD=1 skips it (test T6b control).
+guard() {
+	[ "${AIRDROP_NO_GUARD:-0}" = 1 ] && return 0
+	systemctl --user is-active --quiet airdrop-sleep-guard.service && return 0
+	systemd-run --user --quiet --collect --unit=airdrop-sleep-guard \
+		systemd-inhibit --what=sleep:handle-suspend-key --mode=block --who=AirDrop \
+		--why="awdl0 exists: a sleep cycle can wedge the Wi-Fi firmware" sleep infinity
+}
+
 if pkexec "$H" start "$secs"; then
+	guard
 	systemctl --user start airdrop-receiver.service
 	notify-send -a AirDrop -i emblem-shared "AirDrop is on" "Visible for $((secs / 60)) minutes. Set the iPhone or Mac to Everyone."
 else
 	rc=$?
 	# 5 = a window is already open and was extended
-	[ "$rc" = 5 ] && notify-send -a AirDrop -i emblem-shared "AirDrop window extended" "Still visible." && exit 0
+	[ "$rc" = 5 ] && guard && notify-send -a AirDrop -i emblem-shared "AirDrop window extended" "Still visible." && exit 0
 	notify-send -a AirDrop -u critical "AirDrop did not start" "Exit code $rc. Check: journalctl -k | grep awdl"
 	exit "$rc"
 fi

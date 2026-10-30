@@ -30,6 +30,10 @@ root)
 	restorecon -R "$LIB" /etc/systemd/system/awdl0.service /etc/systemd/system/awdl0.service.d 2>/dev/null || true
 	firewall-cmd --permanent --zone=work --add-port=8771/tcp
 	firewall-cmd --reload
+	# awdl0 is created on demand by omdrop-discoverable, not by awdl0.service, so the drop-in above does not run then.
+	# A permanent binding is by name: firewalld applies it when awdl0 appears. Without it awdl0 lands in the default zone.
+	firewall-cmd --permanent --zone=work --add-interface=awdl0 || echo "warn: permanent awdl0 binding failed"
+	firewall-cmd --reload
 	# reload drops runtime-only bindings: bind awdl0 again if it exists
 	ip link show awdl0 >/dev/null 2>&1 && firewall-cmd --zone=work --change-interface=awdl0
 	systemctl daemon-reload
@@ -91,6 +95,7 @@ remove)
 	rmdir /etc/systemd/system/awdl0.service.d 2>/dev/null || true
 	rm -rf "$LIB"
 	firewall-cmd --permanent --zone=work --remove-port=8771/tcp
+	firewall-cmd --permanent --zone=work --remove-interface=awdl0 || true
 	firewall-cmd --reload
 	systemctl daemon-reload
 	ok "root part removed"
