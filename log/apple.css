@@ -1,0 +1,53 @@
+/* Shared Apple-style tokens and base rules for BOARD.html, COMPARE.html and TEST-LOG.html.
+   Source of truth: status/apple.css. agx-linux-kit/log/apple.css is a copy (build.py warns when they differ).
+   Look: macOS Sonoma and Sequoia. Flat surfaces, hairline dividers, system type, one blue accent.
+   No blur, no translucency, no shadows, no glass. Contrast of every text and surface pair is checked in AA.
+   Fonts: the system font where it exists. SF Pro is only named, never shipped. Inter and Adwaita Sans cover Linux. */
+:root {
+  --bg: #f5f5f7; --surface: #ffffff; --fill: #f5f5f7; --ink: #1d1d1f; --muted: #6e6e73; --line: #d2d2d7;
+  --accent: #0071e3; --link: #0066cc; --focus: #0071e3;
+  --ok: #1d7a37; --ok-bg: #e3f4e8; --warn: #9a5200; --warn-bg: #fdeed9; --bad: #c4281c; --bad-bg: #fce8e6;
+  --track: #e5e5ea; --code-bg: #f5f5f7;
+  /* Names used by the older page rules */
+  --pass: var(--ok); --pass-bg: var(--ok-bg); --fail: var(--bad); --fail-bg: var(--bad-bg);
+  --wait: var(--muted); --wait-bg: var(--fill); --sel: var(--accent);
+  --f-body: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Adwaita Sans", "Cantarell", "Segoe UI", system-ui, sans-serif;
+  --f-display: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Inter", "Adwaita Sans", "Cantarell", "Segoe UI", system-ui, sans-serif;
+  --f-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, "Hack", "Adwaita Mono", Consolas, monospace;
+  --r-lg: 12px; --r-md: 8px; --r-sm: 6px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #1c1c1e; --surface: #2c2c2e; --fill: #1c1c1e; --ink: #f5f5f7; --muted: #a1a1a6; --line: #3a3a3c;
+    --accent: #0a6ad8; --link: #64a8ff; --focus: #64a8ff;
+    --ok: #32d74b; --ok-bg: #17301f; --warn: #ff9f0a; --warn-bg: #3a2c10; --bad: #ff6961; --bad-bg: #3d1d1b;
+    --track: #3a3a3c; --code-bg: #1c1c1e; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #1c1c1e; --surface: #2c2c2e; --fill: #1c1c1e; --ink: #f5f5f7; --muted: #a1a1a6; --line: #3a3a3c;
+  --accent: #0a6ad8; --link: #64a8ff; --focus: #64a8ff;
+  --ok: #32d74b; --ok-bg: #17301f; --warn: #ff9f0a; --warn-bg: #3a2c10; --bad: #ff6961; --bad-bg: #3d1d1b;
+  --track: #3a3a3c; --code-bg: #1c1c1e; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.47;
+  -webkit-font-smoothing: antialiased;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 56px;
+}
+h1, h2, h3 { font-family: var(--f-display); font-weight: 600; margin: 0; text-wrap: balance; line-height: 1.15; }
+h1 { font-size: clamp(1.75rem, 1.35rem + 1.7vw, 2.5rem); font-weight: 700; letter-spacing: -0.025em; }
+h2 { font-size: 1.3rem; }
+h3 { font-size: 1rem; }
+p { margin: 0; text-wrap: pretty; }
+a { color: var(--link); text-underline-offset: 2px; }
+code, kbd, samp { font-family: var(--f-mono); font-size: 0.88em; }
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+button { font-family: inherit; }
+@media (prefers-reduced-motion: no-preference) {
+  a, button { transition: background-color 0.12s ease, color 0.12s ease; }
+}

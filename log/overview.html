@@ -1,59 +1,16 @@
 <title>agx-linux-kit Test Log</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
-/* Layout: one reading column of engineering-log sections; the boot chain diagram is the focal visual. */
-:root {
-  --bg: #f6f7f6;
-  --surface: #ffffff;
-  --ink: #1b2120;
-  --muted: #59625f;
-  --line: #d9dedb;
-  --accent: #b4580f;      /* amber: "in progress / next" */
-  --pass: #1f7a4a;
-  --pass-bg: #e3f1e8;
-  --fail: #b3261e;
-  --fail-bg: #f8e3e1;
-  --wait: #6b6f75;
-  --wait-bg: #eceeef;
-  --warn-bg: #fbeedd;
-  --code-bg: #eef1ef;
-  --f-display: "IBM Plex Sans Condensed", "Arial Narrow", system-ui, sans-serif;
-  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, monospace;
-}
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    --bg: #131716; --surface: #1b201f; --ink: #e6ebe8; --muted: #9ba5a1; --line: #2e3533;
-    --accent: #f0a050; --pass: #6fcf97; --pass-bg: #17321f; --fail: #f2948c; --fail-bg: #3a1a18;
-    --wait: #a9aeb4; --wait-bg: #262b2e; --warn-bg: #3a2a16; --code-bg: #222826;
-    color-scheme: dark;
-  }
-}
-:root[data-theme="dark"] {
-  --bg: #131716; --surface: #1b201f; --ink: #e6ebe8; --muted: #9ba5a1; --line: #2e3533;
-  --accent: #f0a050; --pass: #6fcf97; --pass-bg: #17321f; --fail: #f2948c; --fail-bg: #3a1a18;
-  --wait: #a9aeb4; --wait-bg: #262b2e; --warn-bg: #3a2a16; --code-bg: #222826;
-  color-scheme: dark;
-}
-* { box-sizing: border-box; }
-body {
-  background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.55;
-  padding-left: max(16px, env(safe-area-inset-left, 0px));
-  padding-right: max(16px, env(safe-area-inset-right, 0px));
-  padding-block: 28px 56px;
-}
+/* Apple Sonoma look, flat: no blur, no translucency, no shadow. Tokens and base rules come from log/apple.css
+   (build-log.py puts them in at the marker below). Reading this as: a long engineering log for a technical owner,
+   in a flat Apple language, dial ENERGY 1 / RHYTHM 2 / MOTION 1.
+   Layout: one reading column of grouped sections. The boot chain diagram is the focal visual. Blue marks "now", link
+   and focus. Green, orange and red mark state, and every chip also has a word. */
+/* APPLE_BASE */
 .wrap { max-width: 900px; margin: 0 auto; display: grid; gap: 40px; }
-h1, h2, h3 { font-family: var(--f-display); font-weight: 600; text-wrap: balance; margin: 0; line-height: 1.2; }
-h1 { font-size: 2rem; }
-h2 { font-size: 1.35rem; }
-h3 { font-size: 1.05rem; }
-p { margin: 0; max-width: 68ch; }
-code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
-a { color: var(--accent); }
-a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 3px; }
+p { max-width: 68ch; }
 section { display: grid; gap: 14px; min-width: 0; }
-.kicker { font-size: 0.8rem; color: var(--muted); letter-spacing: 0.04em; }
+.kicker { font-size: 0.8rem; color: var(--muted); }
 
 /* Header */
 header { display: grid; gap: 10px; }
@@ -61,47 +18,42 @@ header { display: grid; gap: 10px; }
 .updated { color: var(--muted); font-size: 0.85rem; }
 
 /* State chips: semantic, never the accent */
-.chip { display: inline-block; font-size: 0.75rem; font-weight: 600; padding: 2px 8px; border-radius: 4px; white-space: nowrap; }
+.chip { display: inline-block; font-size: 0.75rem; font-weight: 600; line-height: 1.6; padding: 0 8px; border-radius: var(--r-sm); white-space: nowrap; }
 .chip.pass { color: var(--pass); background: var(--pass-bg); }
 .chip.fail { color: var(--fail); background: var(--fail-bg); }
-.chip.wait { color: var(--wait); background: var(--wait-bg); }
-.chip.next { color: var(--accent); background: var(--warn-bg); }
+.chip.wait { color: var(--wait); background: transparent; border: 1px solid var(--line); }
+.chip.next { color: var(--warn); background: var(--warn-bg); }
 
 /* Headline result */
-.result {
-  background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
-  padding: 18px 20px; display: grid; gap: 12px;
-}
+.result { background: var(--surface); border-radius: var(--r-lg); padding: 20px; display: grid; gap: 12px; }
 .result .big { font-family: var(--f-display); font-size: 1.5rem; font-weight: 600; }
-.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 10px 20px; }
+.facts { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px 20px; }
 .fact { display: grid; gap: 2px; min-width: 0; }
 .fact span:first-child { font-size: 0.78rem; color: var(--muted); }
 .fact span:last-child { font-weight: 500; overflow-wrap: anywhere; }
 
 /* GPU milestone meter */
 .meter { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; }
-.meter i { height: 10px; border-radius: 2px; background: var(--wait-bg); }
+.meter i { height: 8px; border-radius: 4px; background: var(--track); }
 .meter i.done { background: var(--pass); }
-.meter i.now { background: var(--accent); }
+.meter i.now { background: var(--warn); }
 .milestones { list-style: none; margin: 0; padding: 0; display: grid; gap: 0; }
-.milestones li {
-  display: grid; grid-template-columns: 84px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line);
-}
+.milestones li { display: grid; grid-template-columns: 84px 1fr; gap: 12px; padding: 10px 0; border-top: 1px solid var(--line); }
 .milestones li:first-child { border-top: 0; }
 .milestones .when { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); padding-top: 2px; }
 .milestones .what { display: grid; gap: 4px; min-width: 0; }
 .milestones .what b { font-weight: 600; }
 
 /* Boot chain diagram */
-.diagram { overflow-x: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px; }
+.diagram { overflow-x: auto; background: var(--surface); border-radius: var(--r-lg); padding: 16px; }
 .diagram svg { display: block; min-width: 760px; width: 100%; height: auto; }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 0.8rem; color: var(--muted); }
 
 /* Tables */
-.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+.table-wrap { overflow-x: auto; border-radius: var(--r-lg); background: var(--surface); padding: 4px 8px; }
 table { border-collapse: collapse; width: 100%; font-size: 0.9rem; }
-th, td { text-align: left; padding: 9px 12px; border-top: 1px solid var(--line); vertical-align: top; }
-thead th { border-top: 0; font-size: 0.78rem; color: var(--muted); font-weight: 600; background: var(--code-bg); }
+th, td { text-align: left; padding: 10px; border-top: 1px solid var(--line); vertical-align: top; }
+thead th { border-top: 0; font-size: 0.78rem; color: var(--muted); font-weight: 600; }
 td.mono, td code { font-variant-numeric: tabular-nums; }
 .stage-id { font-family: var(--f-display); font-weight: 600; font-size: 1.05rem; }
 
@@ -112,27 +64,21 @@ td.mono, td code { font-variant-numeric: tabular-nums; }
 .todo small { color: var(--muted); }
 
 .docs { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
-.doc { border-top: 2px solid var(--line); padding-top: 8px; display: grid; gap: 4px; min-width: 0; }
+.doc { border-top: 1px solid var(--line); padding-top: 8px; display: grid; gap: 4px; min-width: 0; }
 .doc code { overflow-wrap: anywhere; }
 .doc p { color: var(--muted); font-size: 0.88rem; }
 
 /* Rollback */
 .cmd { display: grid; gap: 8px; }
-.cmd pre {
-  margin: 0; background: var(--code-bg); border-radius: 6px; padding: 12px; overflow-x: auto;
-  font-family: var(--f-mono); font-size: 0.82rem; line-height: 1.5;
-}
-.cmd button {
-  justify-self: start; font: inherit; font-size: 0.85rem; font-weight: 500; color: var(--ink);
-  background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 8px 14px; min-height: 44px; cursor: pointer;
-}
-.cmd button:hover { border-color: var(--accent); }
+.cmd pre { margin: 0; background: var(--code-bg); border-radius: var(--r-md); padding: 12px; overflow-x: auto; font-family: var(--f-mono); font-size: 0.82rem; line-height: 1.5; }
+.cmd button { justify-self: start; font: inherit; font-size: 0.85rem; font-weight: 500; color: #fff; background: var(--accent); border: 0; border-radius: var(--r-md); padding: 8px 16px; min-height: 44px; cursor: pointer; }
+.cmd button:hover { filter: brightness(0.92); }
 .copy-msg { font-size: 0.82rem; color: var(--muted); min-height: 1.2em; }
 
 footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
 @media (max-width: 520px) {
-  h1 { font-size: 1.6rem; }
   .milestones li { grid-template-columns: 1fr; gap: 2px; }
+  .wrap { gap: 28px; }
 }
 </style>
 
@@ -159,7 +105,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
       <style>
         .q rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
         .q.done rect { stroke: var(--pass); }
-        .q.now rect { stroke: var(--accent); stroke-width: 2.5; }
+        .q.now rect { stroke: var(--warn); stroke-width: 2.5; }
         .q text { fill: var(--ink); font-family: var(--f-body); font-size: 12px; }
         .q text.t { font-weight: 600; font-size: 13px; }
         .q text.s { fill: var(--muted); font-size: 11px; }
@@ -256,7 +202,7 @@ footer { color: var(--muted); font-size: 0.8rem; display: grid; gap: 4px; }
       <style>
         .n rect { fill: var(--surface); stroke: var(--line); stroke-width: 1.5; }
         .n.ok rect { stroke: var(--pass); }
-        .n.new rect { stroke: var(--accent); stroke-width: 2; }
+        .n.new rect { stroke: var(--warn); stroke-width: 2; }
         .n text { fill: var(--ink); font-family: var(--f-body); font-size: 12px; }
         .n text.t { font-weight: 600; font-size: 13px; }
         .n text.s { fill: var(--muted); font-family: var(--f-mono); font-size: 10.5px; }

@@ -239,6 +239,9 @@ def md_to_html(md, prefix):
 def main():
     tracker = open(path_of("log/overview.html"), encoding="utf-8").read()
     style = re.search(r"<style>(.*?)</style>", tracker, re.S).group(1)
+    # Shared Apple-style tokens (copy of status/apple.css) go in at the marker.
+    base_css = open(path_of("log/apple.css"), encoding="utf-8").read().strip()
+    style = style.replace("/* APPLE_BASE */", base_css)
     script = re.search(r"<script>(.*?)</script>", tracker, re.S).group(1)
     wrap = re.search(r'<div class="wrap">(.*)</div>\s*<script>', tracker, re.S).group(1)
     # The overview's short file list is replaced by the full reports below.
@@ -282,15 +285,15 @@ def main():
     built = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
     extra_css = """
 .topnav { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg); border-bottom: 1px solid var(--line);
-  padding-block: 10px; display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 0.9rem; }
+  padding-block: 4px; display: flex; flex-wrap: wrap; gap: 0 6px; font-size: 0.9rem; }
 body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
-.topnav a { color: var(--ink); text-decoration: none; font-weight: 500; padding: 4px 0; }
-.topnav a:hover { color: var(--accent); }
+.topnav a { color: var(--ink); text-decoration: none; font-weight: 500; padding: 10px 8px; min-height: 44px; display: inline-flex; align-items: center; border-radius: var(--r-sm); }
+.topnav a:hover { color: var(--link); background: var(--surface); }
 .index { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px 20px; }
-.index li { display: grid; gap: 2px; border-top: 2px solid var(--line); padding-top: 8px; min-width: 0; }
+.index li { display: grid; gap: 2px; border-top: 1px solid var(--line); padding-top: 8px; min-width: 0; }
 .index small { color: var(--muted); }
 .index code { overflow-wrap: anywhere; }
-.doc-full { border-top: 3px solid var(--ink); padding-top: 14px; display: grid; gap: 12px; min-width: 0; scroll-margin-top: 60px; }
+.doc-full { background: var(--surface); border-radius: var(--r-lg); padding: 20px; display: grid; gap: 12px; min-width: 0; scroll-margin-top: 60px; }
 .doc-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 .doc-head .top { font-size: 0.85rem; }
 .doc-toc ul { margin: 0; padding-left: 18px; columns: 2 220px; font-size: 0.88rem; }
@@ -303,8 +306,10 @@ body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-a
 .md blockquote { margin: 0; padding: 8px 14px; border-left: 3px solid var(--line); color: var(--muted); }
 .md hr { border: 0; border-top: 1px solid var(--line); width: 100%; }
 .md td { overflow-wrap: anywhere; min-width: 90px; }
-.box { font-size: 0.72rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; background: var(--wait-bg); color: var(--wait); }
-pre.code { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 12px; overflow-x: auto; font-family: var(--f-mono); font-size: 0.8rem; line-height: 1.5; }
+.box { font-size: 0.72rem; font-weight: 600; padding: 1px 6px; border-radius: var(--r-sm); border: 1px solid var(--line); color: var(--wait); }
+.doc-full .md table { margin-block: 4px; }
+@media (max-width: 520px) { .doc-full { padding: 14px; } }
+pre.code { margin: 0; background: var(--code-bg); border-radius: var(--r-md); padding: 12px; overflow-x: auto; font-family: var(--f-mono); font-size: 0.8rem; line-height: 1.5; }
 .src { border-top: 1px solid var(--line); padding-block: 8px; scroll-margin-top: 60px; }
 .src summary { cursor: pointer; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; padding-block: 6px; }
 .src summary span { color: var(--muted); font-size: 0.88rem; }
@@ -321,7 +326,6 @@ pre.code { margin: 0; background: var(--code-bg); border-radius: 6px; padding: 1
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>agx-linux-kit Test Log</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>%(style)s
 %(extra)s</style>
 </head>
