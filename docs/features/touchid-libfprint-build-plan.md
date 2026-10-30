@@ -1,4 +1,4 @@
-# libfprint with the aurora driver: build plan for the next sudo window (written 2026-10-28, nothing here has been run)
+# libfprint with the aurora driver: build plan for the next sudo window (written 2026-10-28, run 2026-10-30, see the result below)
 
 Goal: build an RPM of libfprint 1.94.100 plus the aurora Apple SEP driver on the M3, under a private prefix (`/opt/aurora-sep`). Do not install it. The distro `libfprint` and `fprintd` stay as they are. This builds the userspace half only; it does not show that Touch ID works through fprintd.
 
@@ -85,5 +85,14 @@ The package must list only paths under `/opt/aurora-sep`. To look for the driver
 - AC is not online.
 - The `dnf` transaction removes or upgrades an installed package.
 - `rpm -K` does not say OK, or the version differs from the installed `libfprint`.
-- The patch check fails, meson rejects an option (the option names are the ones in the aurora README plus `udev_rules=false`, `udev_hwdb=false`), or `%check` fails.
+- The patch check fails, meson rejects an option (the option names are the ones in the aurora README plus `udev_rules=disabled`, `udev_hwdb=disabled` (feature options; `false` is refused, found 2026-10-30)), or `%check` fails.
 - Anything asks for sudo after step 3.
+
+## 10. Result (2026-10-30 02:12 to 02:21, sudo window, M3 on battery at 100 %)
+
+- Step 3: `dnf builddep` added 38 packages and upgraded `libbrotli` 1.2.0 to 1.2.1 (user approved the upgrade). All seven pkg-config names now resolve.
+- Step 4: `dnf download --source libfprint` gave `libfprint-1.94.100-1.fc44.src.rpm`, `rpm -K`: digests signatures OK, same version as the installed `libfprint`. (dnf as the user also offered to import the Tailscale repository key; the prompt got no answer, so nothing was imported.)
+- Step 5: tarball `libfprint-v1.94.100.tar.gz`, sha256 `edc90e02f330a7595ceaf37f2c6ec32ed43541347fe936d3273b0bb2524fd19c`; aurora patch sha256 matches; `git apply --check`: patch-fits.
+- Step 6: the first build stopped at meson: `udev_rules` and `udev_hwdb` are feature options, so `false` is refused. The spec now uses `disabled`. Second build: exit 0 in 16 s, meson tests Ok 5, Fail 0, Skipped 32.
+- Step 7: `libfprint-aurora-1.94.100-1.fc44.aarch64.rpm`, 354,984 bytes, sha256 `f6926eb82b8d26d2885c159a50bbddafc753cd5b025cbeca5e28779481aab378`, 19 files, 0 outside `/opt/aurora-sep`. The library has the `aurora_*` driver functions. `/opt/aurora-sep` does not exist and `libfprint` is unchanged: nothing installed.
+- The RPM stays on the M3 in `~/aurora-build/rpmbuild/RPMS/aarch64/`.

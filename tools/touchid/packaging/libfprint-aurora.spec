@@ -36,7 +36,7 @@ libfprint 1.94.100 plus the aurora driver for the Apple SEP biometric device (/d
 
 %build
 meson setup build --prefix=%{aurora_prefix} --libdir=lib64 -Ddrivers=default -Dintrospection=false \
-    -Dgtk-examples=false -Ddoc=false -Dinstalled-tests=false -Dudev_rules=false -Dudev_hwdb=false
+    -Dgtk-examples=false -Ddoc=false -Dinstalled-tests=false -Dudev_rules=disabled -Dudev_hwdb=disabled
 ninja -C build
 
 %check
