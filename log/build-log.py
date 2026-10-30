@@ -42,6 +42,7 @@ REPORTS = [
     ("f-sleep", "Feature: sleep, lid and battery", "docs/features/sleep-lid-battery.md", "Suspend, lid events, battery, power."),
     ("f-usb4", "Feature: USB-C and USB4 gap", "docs/features/usbc-usb4-gap.md", "Why USB-C displays fail and the USB4 module fix."),
     ("f-fans", "Feature: fans and heat", "docs/features/fans-heat.md", "Fan control unlock (Ftst), the fan curve service and its fail-safe."),
+    ("f-design", "Feature: desktop design", "docs/features/desktop-design.md", "Flat macOS-style desktop, status pages and AirDrop look."),
     ("f-airdrop", "Feature: AirDrop", "docs/features/airdrop.md", "OpenDrop-based AirDrop, the root step and the tests left."),
     ("f-video-encode", "Feature: video encode", "docs/features/video-encode.md", "Hardware video encoder (AVE) research."),
     ("f-touchid", "Feature: Touch ID", "docs/features/touchid.md", "Secure Enclave and fingerprint sensor: stages 1 to 3f and the results."),
