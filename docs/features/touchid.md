@@ -215,6 +215,17 @@ Patches: `patches/touchid/` (apply in order on the M3 tree `drivers/soc/apple/se
 - The loop catches a late touch in the next cycle, so a user-space retry loop is a working fallback (latency up to one cycle, about 6 s).
 - New: run 1 cycle 8 is the first late touch that the sensor detected (about 2.0 s after the capture start, after the 263 ms status change). So the detect window is not limited to about 260 ms. The earlier late touches came 3 s or more after the start. One event only: repeat with a known touch time.
 - Alarm check OK after every run. Journals: `~/window/loop-20261028-0055.*`, `-0057.*`, `-0059.*` on the M3.
+**3f test boot (2026-10-30 02:30, IRQ DTB, `apple-sep-3f.ko`, backup `ibootsys-20261030-022815` `e547b18e`, on the charger)**
+
+- Load and open PASS. The enrolled identity survived a third reboot and a full battery drain (2026-10-29). Cross-boot unseal PASS.
+- Control (finger on before the start, mode 2): MATCH, finger at 23 ms.
+- Touch-timing loop (mode 0, `loopverify.sh --marks`): 6 MATCH in 6 cycles in 16 s. The touch logger got no Enter presses (keyboard focus was not in its tab), so no touch times. Two detections came after the start: 181 ms and **866 ms** (off the poll grid, so interrupt-driven). With the 1996 ms detection of 2026-10-28, the sensor seems to detect a landing finger during about the first 2 s of a capture (hypothesis H2 of the 3f plan), not only 260 ms.
+- **3f late touch, mode 2, settle 1800 ms, right index: MATCH.** Re-arms every 2.1 s (#1 to #5, all ok). The finger was seen 15 ms after re-arm #5 at 10.5 s, frame at 98 ms. In mode 2 the sensor is armed about 0.26 s, then idle for the 1.8 s settle, so a finger held 2.1 s or more is caught at the next re-arm (latency up to about 2.1 s).
+- Right middle (not enrolled): NO MATCH. The finger was on at the start (23 ms), so this checked the reject case only. No false accept.
+- Repeat late touch, right index: no result in 25 s (12 re-arms, all ok). The answer to the touch prompt arrived about 1 min after the timeout, so the touch most likely came too late. Not valid.
+- Alarm check OK after every step. No interrupt storm, no guard refusal. Journals in `private-dumps/m3-collect-2026-10-30/`.
+- Next: more late-touch trials with the touch time logged on the M3 (focus in the logger tab), shorter settle values (1000, 600, 300 ms) to cut the latency, 3 more other-finger late trials.
+
 - A chat prompt is not a usable touch timer (run 4). For the window measurement, the loop must run longer (20 cycles or more) and log the touch time on the M3 itself, for example from the data-ready interrupt count.
 - Next: that measurement, then the 3f test boot (settle mode).
 
