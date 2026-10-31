@@ -73,7 +73,11 @@ preflight() {
 	[ -n "${TI_TEST:-}" ] || [ "$(uname -r)" = "$KREL" ] && pass "kernel $KREL" || fail "running kernel is $(uname -r), expected $KREL"
 	if [ -z "${TI_TEST:-}" ]; then
 		tr '\0' '\n' < /proc/device-tree/compatible | grep -qx 'apple,j516s' && pass "machine is a J516S" || fail "not a J516S"
-		[ "$(cat /sys/class/power_supply/macsmc-ac/online 2>/dev/null)" = 1 ] && pass "AC power is connected" || fail "connect the charger first"
+		if [ "$(cat /sys/class/power_supply/macsmc-ac/online 2>/dev/null)" = 1 ]; then pass "AC power is connected"
+		else
+			bat=$(cat /sys/class/power_supply/macsmc-battery/capacity 2>/dev/null || echo 0)
+			[ "${TI_ALLOW_BATTERY:-}" = 1 ] && [ "$bat" -ge 80 ] && pass "on battery at $bat % (TI_ALLOW_BATTERY=1)" || fail "connect the charger first (or TI_ALLOW_BATTERY=1 with the battery at 80 % or more, now $bat %)"
+		fi
 	fi
 	[ -f "$MODULE_SRC" ] && [ "$(sha "$MODULE_SRC")" = "$MODULE_SHA" ] && pass "module $(basename "$MODULE_SRC") hash is the tested one" || fail "module missing or hash differs: $MODULE_SRC"
 	[ -f "$RPM_SRC" ] && [ "$(sha "$RPM_SRC")" = "$RPM_SHA" ] && pass "libfprint-aurora RPM hash is the tested one" || fail "RPM missing or hash differs: $RPM_SRC"

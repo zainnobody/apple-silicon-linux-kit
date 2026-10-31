@@ -21,7 +21,12 @@ case "$CMD" in
 install)
 	SKIPB=0; PASS=()
 	for a in "$@"; do case "$a" in --skip-backup) SKIPB=1;; --no-pam-test) PASS+=("$a");; *) die "unknown option $a";; esac; done
-	[ "$(cat /sys/class/power_supply/macsmc-ac/online 2>/dev/null)" = 1 ] || die "connect the charger first"
+	# TI_ALLOW_BATTERY=1: the user accepted battery power (2026-10-31); still needs 80 % or more.
+	if [ "$(cat /sys/class/power_supply/macsmc-ac/online 2>/dev/null)" != 1 ]; then
+		bat=$(cat /sys/class/power_supply/macsmc-battery/capacity 2>/dev/null || echo 0)
+		[ "${TI_ALLOW_BATTERY:-}" = 1 ] && [ "$bat" -ge 80 ] || die "connect the charger first (or TI_ALLOW_BATTERY=1 with the battery at 80 % or more, now $bat %)"
+		say "WARNING: on battery at $bat % (TI_ALLOW_BATTERY=1)"
+	fi
 	[ -x "$WIN/touchid-boot.sh" ] && [ -x "$WIN/touchid-xart.sh" ] || die "$WIN/touchid-boot.sh or touchid-xart.sh missing (TI_WINDOW=$WIN)"
 	if [ $SKIPB = 0 ]; then say "1/3 xART backup (read-only toward the partition, about a minute)"; "$WIN/touchid-xart.sh" backup || die "xART backup failed"
 	else say "1/3 xART backup skipped on request"; fi
@@ -29,7 +34,7 @@ install)
 	out=$("$WIN/touchid-boot.sh" --dry --sensor-irq 2>&1); rc=$?; echo "$out" | tail -n 14
 	[ $rc = 0 ] && echo "$out" | grep -q 'DRY RUN done' || die "boot file dry run failed"
 	say "3/3 install (root)"
-	rt "$HERE/ti-install.sh" install "${PASS[@]}" ;;
+	rt env TI_ALLOW_BATTERY="${TI_ALLOW_BATTERY:-}" "$HERE/ti-install.sh" install "${PASS[@]}" ;;
 undo)
 	if [ -x "$INST" ]; then rt "$INST" undo "$@"; else rt "$HERE/ti-install.sh" undo "$@"; fi ;;
 status)
