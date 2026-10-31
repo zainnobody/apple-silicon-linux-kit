@@ -10,7 +10,7 @@ The scripts are in `tools/touchid/integration/`. The offline test is `tests/touc
 
 | Step | What it does | Undo |
 |---|---|---|
-| `module` | Copies `apple-sep-3f.ko` (hash pinned) to `/lib/modules/<krel>/extra/apple_sep.ko`, runs `depmod`, checks that `modinfo` finds it. | Removes the file, `depmod`. |
+| `module` | Copies `apple-sep-3f.ko` (hash pinned) to `/lib/modules/<krel>/updates/apple_sep.ko` (updates/ wins over the old test modules in `touchid-test/`; found 2026-10-31), runs `depmod`, checks that `modinfo` finds it. | Removes the file, `depmod`. |
 | `units` | Installs `/usr/local/sbin/m3-touchid-load`, `/etc/systemd/system/m3-touchid.service` (enabled, not started), `/etc/m3-touchid.conf` and a copy of the installer as `/usr/local/sbin/m3-touchid-install`. | Disables and removes them. The installer copy stays so the undo can run again. |
 | `selinux` | Installs the policy module `m3touchid` (fprintd may open the device node) and labels `/opt/aurora-sep` as `lib_t`. | `semodule -r`, `semanage fcontext -d`. |
 | `libfprint` | Installs the `libfprint-aurora` RPM (hash pinned, files only under `/opt/aurora-sep`). The distro `libfprint` is not touched. | `rpm -e` (only if this tool installed it). |

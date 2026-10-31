@@ -107,7 +107,7 @@ preflight() {
 
 # ---------------------------------------------------------------- steps
 apply_module() {
-	local dst="$R/lib/modules/$KREL/extra/apple_sep.ko" got
+	local dst="$R/lib/modules/$KREL/updates/apple_sep.ko" got
 	[ -d "$R/lib/modules/$KREL" ] || die "no /lib/modules/$KREL"
 	save_orig "$dst" module
 	atomic "$MODULE_SRC" "$dst" 0644 || return 1
@@ -119,7 +119,7 @@ apply_module() {
 	say "module installed: ${dst#"$R"} ($(sha "$dst" | cut -c1-8))"
 }
 undo_module() {
-	restore_orig "$R/lib/modules/$KREL/extra/apple_sep.ko" module
+	restore_orig "$R/lib/modules/$KREL/updates/apple_sep.ko" module
 	depmod -a "$KREL" || true
 	say "module removed (a loaded copy stays until the next boot)"
 }

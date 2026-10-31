@@ -56,7 +56,7 @@ for c in systemctl depmod restorecon semanage semodule semodule_package; do prin
 printf '#!/bin/sh\nfor a in "$@"; do case "$a" in -o) o=1;; *) [ "${o:-}" = 1 ] && : > "$a"; o=;; esac; done\nexit 0\n' > "$S/checkmodule"
 cat > "$S/modinfo" <<'SH'
 #!/bin/sh
-case "$*" in *filename*) echo "/lib/modules/7.2.11-m3gpu+/extra/apple_sep.ko";; *parm*) echo "sensor_rearm_mode:re-arm";; esac
+case "$*" in *filename*) echo "/lib/modules/7.2.11-m3gpu+/updates/apple_sep.ko";; *parm*) echo "sensor_rearm_mode:re-arm";; esac
 SH
 cat > "$S/rpm" <<SH
 #!/bin/sh
@@ -82,7 +82,7 @@ orig_lock=$(sha "$R/etc/pam.d/kde-fingerprint"); stagee=$TI_STAGEE_SHA; newsha=$
 
 # 2 install
 "$INSTALL" install >"$T/o2" 2>&1 && ok "install runs all steps" || { no "install"; cat "$T/o2"; }
-chk "module copied" test -f "$R/lib/modules/$KREL/extra/apple_sep.ko"
+chk "module copied" test -f "$R/lib/modules/$KREL/updates/apple_sep.ko"
 chk "unit, loader, conf, self copy installed" test -f "$R/etc/systemd/system/m3-touchid.service" -a -x "$R/usr/local/sbin/m3-touchid-load" -a -f "$R/etc/m3-touchid.conf" -a -x "$R/usr/local/sbin/m3-touchid-install"
 chk "fprintd drop-in installed" grep -q 'LD_LIBRARY_PATH=/opt/aurora-sep/lib64' "$R/etc/systemd/system/fprintd.service.d/aurora-private.conf"
 chk "libfprint RPM installed" test -f "$R/opt/aurora-sep/lib64/libfprint-2.so.2"
@@ -104,14 +104,14 @@ chk "no systemctl start or reboot was issued" test "$(grep -c -E 'systemctl (sta
 chk "boot.bin back to stageE" test "$(sha "$R/boot/efi/m1n1/boot.bin")" = "$stagee"
 chk "kde-fingerprint restored byte for byte" test "$(sha "$R/etc/pam.d/kde-fingerprint")" = "$orig_lock"
 chk "plasmalogin override removed" test ! -e "$R/etc/pam.d/plasmalogin"
-chk "module, units, drop-in, RPM removed" test ! -e "$R/lib/modules/$KREL/extra/apple_sep.ko" -a ! -e "$R/etc/systemd/system/m3-touchid.service" -a ! -e "$R/etc/systemd/system/fprintd.service.d/aurora-private.conf" -a ! -e "$R/opt/aurora-sep"
+chk "module, units, drop-in, RPM removed" test ! -e "$R/lib/modules/$KREL/updates/apple_sep.ko" -a ! -e "$R/etc/systemd/system/m3-touchid.service" -a ! -e "$R/etc/systemd/system/fprintd.service.d/aurora-private.conf" -a ! -e "$R/opt/aurora-sep"
 chk "SELinux module removal was called" grep -q 'semodule -r m3touchid' "$T/calls.log"
 
 # 5 failure injection: a boot file that is not stageE + merged dtb must stop at the last step and undo the rest
 cp "$TI_BOOT_NEW" "$T/bad.bin"; printf 'X' >> "$T/bad.bin"
 TI_BOOT_NEW="$T/bad.bin" "$INSTALL" install >"$T/o5" 2>&1 && no "install with a bad boot file should fail" || ok "install with a bad boot file fails"
 chk "bad boot file: boot.bin still stageE" test "$(sha "$R/boot/efi/m1n1/boot.bin")" = "$stagee"
-chk "bad boot file: earlier steps undone (kde-fingerprint original, no plasmalogin, no module)" test "$(sha "$R/etc/pam.d/kde-fingerprint")" = "$orig_lock" -a ! -e "$R/etc/pam.d/plasmalogin" -a ! -e "$R/lib/modules/$KREL/extra/apple_sep.ko"
+chk "bad boot file: earlier steps undone (kde-fingerprint original, no plasmalogin, no module)" test "$(sha "$R/etc/pam.d/kde-fingerprint")" = "$orig_lock" -a ! -e "$R/etc/pam.d/plasmalogin" -a ! -e "$R/lib/modules/$KREL/updates/apple_sep.ko"
 
 # 6 preflight refuses a changed fallback and a changed boot.bin
 cp "$R/boot/efi/m1n1/boot.bin" "$T/boot.bin.keep"; echo tamper >> "$R/boot/efi/m1n1/boot.bin"
