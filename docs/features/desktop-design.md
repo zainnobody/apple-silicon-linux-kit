@@ -1,6 +1,6 @@
 # Desktop design: a flat macOS look for the M3
 
-Status (2026-10-31): all three parts are done and tested on the M3, with the limits listed at the end.
+Status (2026-10-31): all three parts are done and tested on the M3. The user confirmed Meta+Space and the Overview swipe. Limits are listed at the end.
 Style: macOS Sonoma and Sequoia. Flat. No blur, no see-through panels, no glass, no shadow on the pages.
 
 ## Part 1: KDE Plasma desktop (Fedora Asahi Remix 44, Plasma 6.7.5, Wayland)
@@ -16,7 +16,7 @@ Pictures are in `docs/features/desktop-design/` (before and after, scaled to 172
 | Window style | Opaque WhiteSur decoration. Close, minimize and zoom on the left, title in the middle. | after-apps |
 | Top bar | 30 px bar: launcher, global menu (File, Edit, ...), tray, clock. The menu shows when an app has focus. | after-desktop, after-apps |
 | Dock | Floating, centred, icons only, Trash at the end. It joins the screen edge while a window is maximized. | after-desktop |
-| Search | Meta+Space is bound to KRunner (checked in kglobalaccel). KRunner opens in the middle of the screen. | after-krunner |
+| Search | Meta+Space opens KRunner in the middle of the screen (binding checked in kglobalaccel, key press confirmed by the user). | after-krunner |
 | Overview | Overview works (toggled over D-Bus, no crash). Blur is off and unloaded. | overview |
 | Dolphin | Details list, icon-only toolbar, menu in the top bar | before-apps, after-apps |
 | Konsole | Basic (light) and Pro (dark) looks, Hack 11 pt, block cursor | before-apps, after-apps, after-dark |
@@ -32,9 +32,8 @@ The blur effect needed `unloadEffect` over D-Bus, because a config reload did no
 
 Limits and open items:
 
-- Three-finger swipe for Overview is not tested. It needs a person on the trackpad. KWin binds its own swipe gesture to Overview.
-  Please try three and four fingers up once. Meta+W also opens Overview.
-- The Meta+Space key press itself is not tested (no key injection tool). The binding is registered.
+- The user tried Meta+Space and the swipe gesture on the M3 on 2026-10-31 and reported "Works". The user did not say how many fingers
+  the swipe needs. KWin binds its own swipe gesture to Overview. Meta+W also opens Overview.
 - The top bar and dock stay dark in light mode. The solid WhiteSur Plasma theme has a dark panel. A light bar needs a custom theme.
 - The Konsole toolbar stays on. Konsole ignored the hidden-toolbar setting. Use Settings, Show Toolbars, or leave it.
 - Apps started from a plain SSH shell lack the Qt platform theme and show wrong colours. `session-shot.sh` starts them with the session environment.
