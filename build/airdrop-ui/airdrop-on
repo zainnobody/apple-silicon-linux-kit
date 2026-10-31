@@ -2,9 +2,10 @@
 # Make this machine visible to AirDrop for N seconds (default 600). Needs the polkit policy installed by airdrop-persist.sh root.
 secs=${1:-600}
 H=/usr/lib/omdrop/omdrop-discoverable
-# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon.
+# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon. A file path works in every notification server.
 ICON=emblem-shared
-[ -e "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg" ] && ICON=m3-airdrop
+M3_ICON="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg"
+[ -e "$M3_ICON" ] && ICON=$M3_ICON
 
 # While awdl0 exists, a sleep or wake request can wedge the Wi-Fi firmware (docs/features/airdrop.md, Wi-Fi coexistence).
 # The guard blocks sleep and the suspend key. It is a transient user unit: it ends at reboot or logout.

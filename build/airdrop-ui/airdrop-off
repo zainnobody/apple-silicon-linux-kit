@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Close the AirDrop visibility window.
-# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon.
+# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon. A file path works in every notification server.
 ICON=emblem-shared
-[ -e "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg" ] && ICON=m3-airdrop
+M3_ICON="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg"
+[ -e "$M3_ICON" ] && ICON=$M3_ICON
 systemctl --user stop airdrop-receiver.service
 if pkexec /usr/lib/omdrop/omdrop-discoverable stop; then
 	# awdl0 stays after a window, so the sleep guard stays too. Without awdl0 there is nothing to guard.

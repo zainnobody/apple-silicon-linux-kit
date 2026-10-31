@@ -5,9 +5,10 @@ SRC=${AIRDROP_SRC:-$HOME/omdrop-test}
 OUT=${AIRDROP_OUT:-$HOME/Downloads}
 DBUS_SESSION_BUS_ADDRESS=${DBUS_SESSION_BUS_ADDRESS:-unix:path=/run/user/$(id -u)/bus}
 export DBUS_SESSION_BUS_ADDRESS
-# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon.
+# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon. A file path works in every notification server.
 ICON=emblem-shared
-[ -e "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg" ] && ICON=m3-airdrop
+M3_ICON="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg"
+[ -e "$M3_ICON" ] && ICON=$M3_ICON
 tail -n0 -F "$SRC/receiver.log" | while read -r line; do
 	case "$line" in
 	*'POST /Upload HTTP/1.1" 200'*)

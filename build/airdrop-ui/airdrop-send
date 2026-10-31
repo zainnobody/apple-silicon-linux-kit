@@ -4,9 +4,10 @@
 [ $# -gt 0 ] || { echo "usage: airdrop-send FILE..." >&2; exit 2; }
 H=/usr/lib/omdrop/omdrop-discoverable
 S=/usr/lib/omdrop/send-to-peer
-# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon.
+# Look: the flat AirDrop icon if installed (airdrop-ui/install-icon.sh), else the theme icon. A file path works in every notification server.
 ICON=emblem-shared
-[ -e "${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg" ] && ICON=m3-airdrop
+M3_ICON="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg"
+[ -e "$M3_ICON" ] && ICON=$M3_ICON
 note() { notify-send -a AirDrop -i "$ICON" "$1" "$2"; }
 "$H" status --json | grep -q '"visible":true' || airdrop-on 600 || exit 1
 # Lookup names; one row per device. The first field is the MAC, the rest is signal and name.
