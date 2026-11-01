@@ -99,7 +99,7 @@ Look only. The AirDrop session owns how AirDrop works.
 
 ## Part 5: lock screen
 
-Status 2026-11-01: installed. The user locked the M3 with the first version and said it looks good. Version 2 (below) was installed at 10:35.
+Status 2026-11-01: installed. The user locked the M3 with both versions and said they are good. Version 2 (below) was installed at 10:35.
 The screenshots come from test windows, because a real lock cannot be captured. `after-lockscreen.png` shows version 2 on the gradient wallpaper.
 
 | | Before (stock Breeze) | After (flat) |
@@ -181,4 +181,4 @@ The 100 ms lock screen fade and the QML opacity animations use no shader and no 
 - **Password field:** a solid white pill with dark text and a round white unlock button. A blue ring shows the focus. Fixed colours, because the greeter palette is dark in both modes.
 - **Fingerprint hint:** one line, "Fingerprint: rest your finger on the power key". The stock fingerprint line is empty now. Fingerprint errors still show in that place.
 - **Checks:** white text on the wallpaper has a contrast of 5.5:1 or more. The pill text `#1d1d1f` on white is above 15:1. The greeter log shows no QML error.
-- **Not tested:** a real lock with version 2. The test window cannot show the real fingerprint reader line.
+- **Real lock:** the user locked the M3 with version 2 on 2026-11-01 and said it is good. The test window cannot show the real fingerprint reader line, so that line was not captured.
