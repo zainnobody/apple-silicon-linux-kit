@@ -172,5 +172,5 @@ Limit: the Documents, Downloads, Music, Pictures and Videos folders in the Dolph
 
 **Motion.** Stage `85-motion.sh` sets the Plasma animation factor to 0.75 (about 25 percent faster than the default). It loads no new effect.
 The light effects that stay on: window open and close (scale), minimize (squash), maximize, desktop slide, popups (slide and fade). Blur, contrast, wobbly windows and magic lamp stay off.
-Modes: `85-motion.sh light|default|off`. Cost measured on the M3: the KWin memory use changed from 220240 KB to 220272 KB (32 KB). The M3 idle load average stayed near 0.1.
+Modes: `85-motion.sh light|default|off`. Cost measured on the M3: the KWin memory use was 220240 KB before, 220272 KB right after (32 KB more) and 220496 KB after the later icon changes (about 0.1 percent more). The idle load average stayed near 0.1.
 The 100 ms lock screen fade and the QML opacity animations use no shader and no blur.
