@@ -148,4 +148,4 @@ The user asked for no Apple icons and nothing that can cause a copyright or trad
 | Files on the M3 | WhiteSur icon and cursor folders and downloads | Removed (about 200 MB) |
 
 Kept: WhiteSur-kde colours, window decoration and Plasma theme (flat shapes, no Apple logo or name found). Details in `distro-pack/desktop/README.md`, section "Licences and Apple material".
-Older screenshots in `desktop-design/` (before-*, after-*) show WhiteSur icons. They need new captures.
+Older screenshots in `desktop-design/` (before-*, after-*) show WhiteSur icons. They need new captures. The new capture is `after-breeze-icons.png` (Breeze icons, gradient wallpaper, scale 2).
