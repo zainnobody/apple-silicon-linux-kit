@@ -103,7 +103,11 @@ chk "no systemctl start or reboot was issued" test "$(grep -c -E 'systemctl (sta
 
 # 3b relogin: an older login file (one fingerprint line, 10 s) becomes the current flow
 sed -i.bak -e '/pam_unix.so nodelay/d' -e 's/timeout=5/timeout=10/' "$R/etc/pam.d/plasmalogin" && rm -f "$R/etc/pam.d/plasmalogin.bak"
-"$R/usr/local/sbin/m3-touchid-install" relogin >"$T/o3b" 2>&1 && ok "relogin runs" || { no "relogin"; cat "$T/o3b"; }
+old_login=$(sha "$R/etc/pam.d/plasmalogin")
+"$R/usr/local/sbin/m3-touchid-install" relogin >"$T/o3a" 2>&1 && no "relogin without the test helper must stop" || ok "relogin without the test helper stops"
+chk "relogin without the test helper leaves the login file unchanged" test "$(sha "$R/etc/pam.d/plasmalogin")" = "$old_login"
+mkdir -p "$U/window/integration" && cp "$INT/pam-auth-test.py" "$U/window/integration/"
+"$R/usr/local/sbin/m3-touchid-install" relogin >"$T/o3b" 2>&1 && ok "relogin runs (installed copy finds the helper in the window folder)" || { no "relogin"; cat "$T/o3b"; }
 chk "relogin: password-first line back, finger wait 5 s" test "$(grep -c -e 'pam_unix.so nodelay' -e 'pam_fprintd.so max-tries=2 timeout=5' "$R/etc/pam.d/plasmalogin")" = 2
 chk "relogin: vendor lines kept" test "$(grep -v -e pam_fprintd -e 'pam_unix.so nodelay' "$R/etc/pam.d/plasmalogin" | cksum)" = "$(cksum < "$R/usr/lib/pam.d/plasmalogin")"
 

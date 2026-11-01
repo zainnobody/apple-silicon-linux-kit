@@ -43,6 +43,8 @@ BOOT_NEW="${TI_BOOT_NEW:-$UHOME/window/touchid/dry/expected-boot.bin.sep}"
 BOOT_DTB="${TI_BOOT_DTB:-$UHOME/window/touchid/work/merged.dtb}"
 BACKUPS="${TOUCHID_BACKUP_DIR:-/data/touchid-backup}"
 PAMTEST="$HERE/pam-auth-test.py"
+# The installed copy in /usr/local/sbin has no helper beside it: use the one in the user's window folder.
+[ -f "$PAMTEST" ] || PAMTEST="${UHOME:-/home/${SUDO_USER:-nobody}}/window/integration/pam-auth-test.py"
 
 say() { echo "[ti] $*"; }
 die() { echo "[ti] STOP: $*" >&2; exit 1; }
@@ -288,6 +290,7 @@ do_relogin() {
 	local keep
 	need_root
 	is_done pam-login || die "pam-login is not applied; use install"
+	[ -f "$PAMTEST" ] || die "password test helper not found ($PAMTEST); nothing changed"
 	keep=$(mktemp) && cp -p "$pam_login_file" "$keep" || die "cannot copy $pam_login_file"
 	put_back() { atomic "$keep" "$pam_login_file" 0644; relabel "$pam_login_file"; rm -f "$keep"; }
 	apply_pam_login || { put_back; die "re-apply failed; the previous file is back"; }
