@@ -1,4 +1,4 @@
-# Touch ID install plan: boot, libfprint, lock screen and login (written 2026-10-30, nothing here has run on the M3)
+# Touch ID install plan: boot, libfprint, lock screen and login (written 2026-10-30; installed on the M3 on 2026-10-31, results in touchid.md "Install and daily use")
 
 Decision (2026-10-30): no more Touch ID experiments. The 3f mode 2 result is enough: a late touch matches, another finger does not, and the identity survives reboots. This plan is an install only. It needs one sudo window with the M3 on the charger, and one reboot. Sudo stays password-only. Settle tuning and more trials are optional later work (section 9).
 

@@ -2,7 +2,7 @@
 
 Every change behind the tested M3 Pro (J516S) state, and where it is. Upstream sources: SiliconForest kernel `0e1f46661376`, SiliconForest Mesa `7515336`, SiliconForest m1n1 `aca1258` (unchanged).
 
-Last full review: 2026-10-27 22:40. Nothing is pushed to a remote. Some sessions work in an older copy of this kit and of ane-linux; their commits were merged into these copies on 2026-10-27 22:35. Feature status for each area: `docs/features/*.md` and the local board `../status/BOARD.html`.
+Last full review: 2026-11-01 (Touch ID install, power key, other repos). Before: 2026-10-27 22:40. Nothing is pushed to a remote. Some sessions work in an older copy of this kit and of ane-linux; their commits were merged into these copies on 2026-10-27 22:35. Feature status for each area: `docs/features/*.md` and the local board `../status/BOARD.html`.
 
 ## Kernel changes
 
@@ -35,7 +35,7 @@ The SiliconForest Mesa is for private use: build it yourself, do not share the b
 
 ## Touch ID (Secure Enclave and fingerprint sensor)
 
-Status 2026-10-27: enrol, match, reject and persistence across reboots work in test boots. A touch that comes after the check starts is not seen yet. Not used for any login. Full results: `docs/features/touchid.md`, "Stage 3 results".
+Status 2026-10-31: installed on the M3 for the KDE lock screen. The right index finger is enrolled through fprintd; it unlocks the lock screen, and another finger is refused. Sudo stays password-only. The tuned login screen flow is committed but not installed yet. Full results: `docs/features/touchid.md`, "Stage 3 results" and "Install and daily use".
 
 | What | Where |
 |---|---|
@@ -48,6 +48,7 @@ Status 2026-10-27: enrol, match, reject and persistence across reboots work in t
 | `/dev/sep-bio` client (info, list, enrol, verify, cancel) | `tools/touchid/sepbio.py` (same file in `window/`) |
 | Restart-loop test for the late touch (not run yet) | `tools/touchid/window/loopverify.sh` |
 | Plans and analyses | `docs/features/touchid.md`, `touchid-stage2-plan.md`, `touchid-stage3b-plan.md` |
+| Install for daily use (8 steps with undo, verify, enrol, `relogin`), the private libfprint RPM spec, and the offline test | `tools/touchid/integration/`, `tools/touchid/packaging/libfprint-aurora.spec`, `tests/touchid-integration-test.sh`; plan `docs/features/touchid-integration-plan.md` |
 
 Module hashes (sha256, first 16): 3a `194b730a6287d3f6`, 3b `1138669b8cb6f46c`, 3c `ec3308f82cf4df33`, 3d `f4c21b0ae6baad1c`, 3e `e9533dec72cace21`, 3f `d7b1e23d711bdcca`. The built modules are on the M3 in `~/window/touchid/`, with a checked copy (modules, logs, build sources) in `../private-dumps/m3-collect-2026-10-27/`.
 
@@ -89,6 +90,7 @@ Module hashes (sha256, first 16): 3a `194b730a6287d3f6`, 3b `1138669b8cb6f46c`, 
 | Root-owned files on the M3 (`m3gpu-boot`, Mesa selector, sudoers) | `install/m3-installed/` |
 | The exact M3 copies of the build and stage scripts, the incremental kernel builds, the kernel configs | `m3-legacy/` |
 | macOS one-time boot without a password | `install/setup-macos-switch.sh` |
+| Power key: a short press never powers off, a hold of about 5 s does (the Touch ID sensor is the power key) | `install/power-key/50-m3-power-key.conf` (installed 2026-10-31; KDE part: `PowerButtonAction=32` in `~/.config/powerdevilrc`) |
 | Load `apple_dart` before its consumers (late IOMMU probe warning), draft with undo | `install/dart-order/` (installed 2026-10-28 01:38, 0 late-probe warnings after the reboot) |
 
 ## Research
@@ -103,8 +105,8 @@ Module hashes (sha256, first 16): 3a `194b730a6287d3f6`, 3b `1138669b8cb6f46c`, 
 
 | Repo | What |
 |---|---|
-| `../ane-linux` | Neural Engine: T6030 ANE node, probe-only power test driver, LLM baseline, stage 2 window results |
-| `../distro-pack` | `agx` tool: these drivers for Debian, Ubuntu, Kali, Fedora and Arch (dry runs) |
+| `../ane-linux` | Neural Engine: T6030 ANE node, probe-only power test driver, LLM baseline, stage 2 window results, the llama.cpp `iq2_s` mat-vec fix for Honeykrisp (`llm/llama-vk-honeykrisp-iq2s-matvec-cols.patch`) |
+| `../distro-pack` | `agx` tool: these drivers for Debian, Ubuntu, Kali, Fedora and Arch (the Fedora kernel RPM is built; `STATUS.md`), and `desktop/`: the Apple-style KDE stages, input settings and the flat lock screen |
 | `..` (parent) | `status/` board and compare pages, `RUNBOOK.md`, `docs/` (partition resize, reboot plan) |
 
 ## Only on the M3 (collect when it is online)

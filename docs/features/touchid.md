@@ -233,6 +233,34 @@ Patches: `patches/touchid/` (apply in order on the M3 tree `drivers/soc/apple/se
 
 **Not used for any login.** No PAM file uses fprintd, and the stock libfprint has no driver for this sensor.
 
+## Install and daily use (2026-10-31)
+
+Touch ID is installed on the M3 for the KDE lock screen. Sudo stays password-only. Scripts: `tools/touchid/integration/`. Plan: `touchid-integration-plan.md`.
+
+**Install.** The third run applied all 8 steps at 17:37, and the PAM password test passed. The new boot file is stageS (`e702ebcf`). Run 1 stopped at the module step and undid itself: `modinfo` found the old test copy first, so the module now goes to `updates/`. Run 2 lost its SSH session at the password prompt; `ti-run.sh undo` removed its steps before run 3. The user accepted battery power for the install (`TI_ALLOW_BATTERY=1`, 80 % or more).
+
+**Verify after the reboot (17:42).** All checks passed except two script bugs, both fixed and tested offline:
+
+- `xart_guard` has no sysfs entry, so the check reads the kernel line `xART guard level 3` instead (2024b41).
+- With `pipefail`, `journalctl | grep -q` failed with SIGPIPE; the check now reads the log into a variable first (64e8b32).
+
+**xART alarm and its cause.** The alarm check failed against the 16:36 backup. Two slots changed: a macOS session record moved to a new slot with a new revision, and the root record was rewritten. 146 APFS metadata blocks outside the `.gl` file also changed. The driver did not do this: it was not loaded in the two boots before, and the new revision was already there when it attached. The user had opened the startup options at about 17:20, and that recovery system writes xART through APFS. A plain reboot without the driver changed nothing. A fresh backup (`ibootsys-20261031-181815`, taken in a boot with `/etc/m3-touchid.off`) made the alarm check pass, IDENTICAL.
+
+Rule: after the startup options, Recovery or macOS, take a new xART backup in a boot without the driver (`touch /etc/m3-touchid.off`, reboot, `touchid-xart.sh backup`, remove the file, reboot) before the next alarm check.
+
+**Enrol (18:35).** Polkit refuses enrol and verify to an SSH session, so `ti-run.sh enroll` now runs `fprintd-enroll` and `fprintd-verify` through sudo (999cb83). The old test identity was deleted first; the alarm check was OK after the delete. The right index finger enrolled (every stage passed), `fprintd-verify` gave `verify-match`, and the alarm check was OK after the enrol.
+
+**Lock screen (hand tests).** 18:54: the right index finger unlocked the locked screen. 18:55: another finger was refused, then the right index unlocked. Use: lock with Meta+L, then rest the finger on the key for about 2 s without pressing it. The lock screen checks the finger and the password field at the same time.
+
+**Power key.** The sensor is the power key. At 18:36 a press opened the KDE logout screen and the user was logged out. At 18:44 a short press at the login screen powered the M3 off (Fedora default). Fix, applied on the M3:
+
+- `install/power-key/50-m3-power-key.conf` as `/etc/systemd/logind.conf.d/`: a short press does nothing, a hold of about 5 s powers off.
+- KDE `~/.config/powerdevilrc`: `PowerButtonAction=32` (lock the screen) for AC, battery and low battery.
+
+**Login screen.** As installed, the login screen asks for the finger first and waits up to 10 s before it checks a typed password. The user found that slow. The tuned flow is committed (e7635ec, dd5d629): a typed password logs in at once, and Enter with an empty field asks for the finger for up to 5 s. It is not on the M3 yet: `sudo m3-touchid-install relogin` must run in a sudo window, with the password test.
+
+**Still open.** Install the login flow and test both ways. Copy the new xART backup to the Mac (the copy timed out on cafe Wi-Fi). A login with the finger does not open KWallet.
+
 ## Sources (all read on 2026-10-26)
 
 - Asahi M3 feature support: <https://asahilinux.org/docs/platform/feature-support/m3/>
