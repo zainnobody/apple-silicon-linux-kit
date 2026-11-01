@@ -257,9 +257,14 @@ Rule: after the startup options, Recovery or macOS, take a new xART backup in a 
 - `install/power-key/50-m3-power-key.conf` as `/etc/systemd/logind.conf.d/`: a short press does nothing, a hold of about 5 s powers off.
 - KDE `~/.config/powerdevilrc`: `PowerButtonAction=32` (lock the screen) for AC, battery and low battery.
 
-**Login screen.** As installed, the login screen asks for the finger first and waits up to 10 s before it checks a typed password. The user found that slow. The tuned flow is committed (e7635ec, dd5d629): a typed password logs in at once, and Enter with an empty field asks for the finger for up to 5 s. It is not on the M3 yet: `sudo m3-touchid-install relogin` must run in a sudo window, with the password test.
+**Login screen.** As first installed, the login screen asked for the finger first and waited up to 10 s before it checked a typed password. The user found that slow. The tuned flow (e7635ec, dd5d629) was installed on 2026-11-01 with `sudo m3-touchid-install relogin`: a typed password logs in at once, and Enter with an empty field asks for the finger for up to 5 s. Results:
 
-**Still open.** Install the login flow and test both ways. Copy the new xART backup to the Mac (the copy timed out on cafe Wi-Fi). A login with the finger does not open KWallet.
+- Password test (`pam-auth-test.py`): the right password ACCEPTED in 0.1 s, a wrong one REFUSED, for `kde` and `plasmalogin`. Verify and the alarm check passed.
+- Empty password, run as a local system service (`systemd-run`): `pam_unix` refused at once, the reader asked for the right index finger, and with no touch the check timed out after 5 s. Total 6.9 s, REFUSED.
+- Over SSH the finger step skips itself: `pam_fprintd` refuses remote sessions (`sd_session_is_remote`). Test it from a local session or a system service.
+- Not yet confirmed: a finger match at the login screen, and that the greeter sends an empty field on Enter. A 3-minute test loop got no touch.
+
+**Still open.** Log out and test the finger at the login screen. Copy the new xART backup to the Mac (the copy timed out on cafe Wi-Fi). A login with the finger does not open KWallet.
 
 ## Sources (all read on 2026-10-26)
 
