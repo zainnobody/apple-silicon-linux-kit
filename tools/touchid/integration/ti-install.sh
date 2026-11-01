@@ -339,12 +339,13 @@ do_verify() {
 	ls /proc/device-tree/soc/sep@*/iboot-manifest >/dev/null 2>&1 && ok "boot has the Secure Enclave device nodes (stageS)" || no "no sep node in the device tree: this boot used stageE or stock"
 	grep -q '^apple_sep ' /proc/modules && ok "apple_sep is loaded" || no "apple_sep is not loaded (see: journalctl -u m3-touchid)"
 	# xart_guard has no sysfs entry (permission 0), so the kernel log is the proof of the level.
-	journalctl -k -b --no-pager 2>/dev/null | grep -q 'apple_sep: xART guard level 3:' && ok "xART guard level 3 (kernel log)" || no "kernel log has no 'xART guard level 3' line"
+	# Read the log first: with pipefail, grep -q ends the pipe early and journalctl fails with SIGPIPE.
+	out=$(journalctl -k -b --no-pager 2>/dev/null); grep -q 'apple_sep: xART guard level 3:' <<<"$out" && ok "xART guard level 3 (kernel log)" || no "kernel log has no 'xART guard level 3' line"
 	for v in sensor_rearm_mode=2 sensor_rearm_settle_ms=1800; do
 		[ "$(cat "/sys/module/apple_sep/parameters/${v%%=*}" 2>/dev/null)" = "${v#*=}" ] && ok "parameter $v" || no "parameter ${v%%=*} is '$(cat "/sys/module/apple_sep/parameters/${v%%=*}" 2>/dev/null)', expected ${v#*=}"
 	done
 	[ "$(systemctl is-active m3-touchid.service 2>/dev/null)" = active ] && ok "m3-touchid.service is active" || no "m3-touchid.service is not active"
-	journalctl -u m3-touchid.service -b --no-pager 2>/dev/null | grep -q 'Touch ID is ready' && ok "journal: Touch ID is ready" || no "journal has no 'Touch ID is ready' line"
+	out=$(journalctl -u m3-touchid.service -b --no-pager 2>/dev/null); grep -q 'Touch ID is ready' <<<"$out" && ok "journal: Touch ID is ready" || no "journal has no 'Touch ID is ready' line"
 	[ -c /dev/sep-bio ] && ok "/dev/sep-bio exists" || no "/dev/sep-bio missing"
 	if [ -x "$R/usr/bin/fprintd-list" ] && [ -n "$u" ]; then
 		out=$(timeout 30 fprintd-list "$u" 2>&1) && echo "$out" | grep -q 'found 1 devices' && ok "fprintd sees the reader" || no "fprintd-list: $(echo "$out" | head -n2 | tr '\n' ' ')"
