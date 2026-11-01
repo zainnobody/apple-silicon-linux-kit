@@ -99,13 +99,13 @@ Look only. The AirDrop session owns how AirDrop works.
 
 ## Part 5: lock screen
 
-Status 2026-11-01: installed 10:14 (backup `20261101-101432-80-lockscreen-install`). The user locked the M3 with it and said it looks good.
-The screenshots below come from test windows, because a real lock cannot be captured. The wallpaper in the screenshots is the flat colour. The installed wallpaper is the gradient (see below).
+Status 2026-11-01: installed. The user locked the M3 with the first version and said it looks good. Version 2 (below) was installed at 10:35.
+The screenshots come from test windows, because a real lock cannot be captured. `after-lockscreen.png` shows version 2 on the gradient wallpaper.
 
 | | Before (stock Breeze) | After (flat) |
 |---|---|---|
 | Screenshot | `desktop-design/before-lockscreen.png` | `desktop-design/after-lockscreen.png` |
-| Wallpaper | Blurred picture (blur radius 50) | One flat colour, `#0b3d91` |
+| Wallpaper | Blurred picture (blur radius 50) | The flat gradient wallpaper of the desktop |
 | Clock | Shadow behind the digits | No shadow |
 | Fingerprint | No hint | Hint: "Touch ID: rest your finger on the power key" |
 | Fade in and out | Wallpaper blur and colour shader | Opacity only, 100 ms or less |
@@ -148,7 +148,7 @@ The user asked for no Apple icons and nothing that can cause a copyright or trad
 | Files on the M3 | WhiteSur icon and cursor folders and downloads | Removed (about 200 MB) |
 
 Kept: WhiteSur-kde colours, window decoration and Plasma theme (flat shapes, no Apple logo or name found). Details in `distro-pack/desktop/README.md`, section "Licences and Apple material".
-Older screenshots in `desktop-design/` (before-*, after-*) show WhiteSur icons. They need new captures. The new capture is `after-breeze-icons.png` (Breeze icons, gradient wallpaper, scale 2).
+The after-* captures, `overview.png` and `after-lockscreen.png` were taken again on 2026-11-01 with the new icons, gradient wallpaper and scale 2. The before-* captures show the stock Fedora desktop.
 
 ## Part 7: own icons and light motion (2026-11-01)
 
@@ -167,10 +167,18 @@ The SVG sources are in `distro-pack/desktop/icons/m3-flat/`. Each icon is a roun
 | Launcher (top bar) | white | four rounded squares |
 
 All other icons come from KDE Breeze (`Inherits`). The theme sets `FollowsColorScheme=true`, so symbolic icons keep the panel text colour. Firefox keeps its own logo.
-Captures: `desktop-design/after-m3flat-dock.png` and `after-m3flat-icons.png`.
+Captures: `desktop-design/after-m3flat-dock.png` and `after-apps.png`.
 Limit: the Documents, Downloads, Music, Pictures and Videos folders in the Dolphin side bar all show the same flat folder.
 
 **Motion.** Stage `85-motion.sh` sets the Plasma animation factor to 0.75 (about 25 percent faster than the default). It loads no new effect.
 The light effects that stay on: window open and close (scale), minimize (squash), maximize, desktop slide, popups (slide and fade). Blur, contrast, wobbly windows and magic lamp stay off.
 Modes: `85-motion.sh light|default|off`. Cost measured on the M3: the KWin memory use was 220240 KB before, 220272 KB right after (32 KB more) and 220496 KB after the later icon changes (about 0.1 percent more). The idle load average stayed near 0.1.
 The 100 ms lock screen fade and the QML opacity animations use no shader and no blur.
+
+### Lock screen version 2 (2026-11-01 10:35)
+
+- **Clock:** the date above, a large medium-weight time below (`FlatClock.qml`). No shadow.
+- **Password field:** a solid white pill with dark text and a round white unlock button. A blue ring shows the focus. Fixed colours, because the greeter palette is dark in both modes.
+- **Fingerprint hint:** one line, "Fingerprint: rest your finger on the power key". The stock fingerprint line is empty now. Fingerprint errors still show in that place.
+- **Checks:** white text on the wallpaper has a contrast of 5.5:1 or more. The pill text `#1d1d1f` on white is above 15:1. The greeter log shows no QML error.
+- **Not tested:** a real lock with version 2. The test window cannot show the real fingerprint reader line.
