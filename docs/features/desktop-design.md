@@ -39,6 +39,38 @@ Limits and open items:
 - Apps started from a plain SSH shell lack the Qt platform theme and show wrong colours. `session-shot.sh` starts them with the session environment.
 - Dolphin has no column view. Cmd to Ctrl key remap needs root (keyd or kinto). The login screen is not changed.
 
+## Part 4: input like macOS (prepared 2026-10-31, not applied yet)
+
+The user asked for a pointer, scroll and keyboard feel like macOS. The M3 was not touched while this was written.
+Stage 70 (`distro-pack/desktop/70-input.sh`) and the tuning tool `m3-input` apply it after the next reboot, when the coordinator says the M3 is back.
+
+Reference values were read on a Mac with an M5 chip (macOS 26.7, all defaults) with `ioreg -c IOHIDSystem` on 2026-10-31:
+
+| macOS default | Value | Linux setting |
+|---|---|---|
+| Delay until key repeat | 500 ms | `RepeatDelay=500` in kcminputrc |
+| Key repeat interval | 83 ms (12 per second) | `RepeatRate=12` |
+| Double-click time | 500 ms | `DoubleClickInterval=500`, and double click to open files (`SingleClick=false`) |
+| Tracking speed | 0.6875 of the slider, accelerated | adaptive profile, `PointerAcceleration=0.6` (the value already on the M3) |
+| Tap to click | off on a Mac, but the user wants it | `TapToClick=true`, tap and drag off, drag lock off |
+| Secondary click | two-finger click or tap | click method "click finger", two-finger tap is a right click |
+| Scroll direction | natural | `NaturalScroll=true` for the trackpad. A mouse stays off. |
+| Scroll speed | accelerated | `ScrollFactor=1.5` as a start. This is a feel setting. Tune it: `m3-input scroll 1.2`. |
+| Palm rejection | on | `DisableWhileTyping=true` |
+| Mouse | adaptive | `m3-input mouse` sets natural scrolling off and speed 0.3 for each mouse found |
+
+Cursor size stays at the current value. The WhiteSur cursor at size 24 already looks like the macOS pointer at this screen scale.
+
+Not verified yet (the M3 was off limits): the exact key names in kcminputrc and the KWin D-Bus property names come from the KWin libinput code.
+After the reboot, run `m3-input status` first. It reads the live values and shows a mismatch at once. The existing key
+`[Libinput][1452][851][Apple MTP multi-touch] PointerAcceleration=0.6` shows the group name is right.
+
+Options that need the user, root or both:
+
+- Cmd key as Ctrl (copy, paste, save): needs the keyd package and a root file. Draft: `distro-pack/desktop/root-options/keyd-cmd-as-ctrl.conf`. Not tested.
+- Two-finger swipe between pages: KDE has no system setting. Each app decides (Firefox and Chromium have their own options).
+- Three-finger drag (a Mac accessibility option) is off, as on a Mac by default.
+
 ## Part 2: status pages
 
 `status/BOARD.html`, `status/COMPARE.html` and `agx-linux-kit/TEST-LOG.html` use one flat Apple style.
