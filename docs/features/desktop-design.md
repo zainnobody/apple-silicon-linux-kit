@@ -39,10 +39,11 @@ Limits and open items:
 - Apps started from a plain SSH shell lack the Qt platform theme and show wrong colours. `session-shot.sh` starts them with the session environment.
 - Dolphin has no column view. Cmd to Ctrl key remap needs root (keyd or kinto). The login screen is not changed.
 
-## Part 4: input like macOS (prepared 2026-10-31, not applied yet)
+## Part 4: input like macOS (applied 2026-10-31 17:01)
 
-The user asked for a pointer, scroll and keyboard feel like macOS. The M3 was not touched while this was written.
-Stage 70 (`distro-pack/desktop/70-input.sh`) and the tuning tool `m3-input` apply it after the next reboot, when the coordinator says the M3 is back.
+The user asked for a pointer, scroll and keyboard feel like macOS. Stage 70 (`distro-pack/desktop/70-input.sh`) wrote the settings to
+`~/.config/kcminputrc` and `~/.config/kdeglobals`, so they survive a reboot. The tool `m3-input` shows and tunes the live values.
+Backup and undo: `~/desktop-design-backups/20261031-170155-70-input` (tarball and `-undo.sh`).
 
 Reference values were read on a Mac with an M5 chip (macOS 26.7, all defaults) with `ioreg -c IOHIDSystem` on 2026-10-31:
 
@@ -61,9 +62,10 @@ Reference values were read on a Mac with an M5 chip (macOS 26.7, all defaults) w
 
 Cursor size stays at the current value. The WhiteSur cursor at size 24 already looks like the macOS pointer at this screen scale.
 
-Not verified yet (the M3 was off limits): the exact key names in kcminputrc and the KWin D-Bus property names come from the KWin libinput code.
-After the reboot, run `m3-input status` first. It reads the live values and shows a mismatch at once. The existing key
-`[Libinput][1452][851][Apple MTP multi-touch] PointerAcceleration=0.6` shows the group name is right.
+Checked on the M3 (2026-10-31 17:02): all 14 touchpad properties exist in KWin D-Bus and take the values above. KWin reloaded the
+config file by itself after the write (tap to click and scroll factor changed without a restart), so the key names are right and the
+values persist. Key repeat 500 ms and 12 per second are in the file. The key press feel and the scroll feel are not measured. They
+need a person at the keyboard and trackpad. The scroll factor 1.5 is a first guess.
 
 Options that need the user, root or both:
 
