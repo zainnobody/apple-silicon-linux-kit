@@ -262,9 +262,11 @@ Rule: after the startup options, Recovery or macOS, take a new xART backup in a 
 - Password test (`pam-auth-test.py`): the right password ACCEPTED in 0.1 s, a wrong one REFUSED, for `kde` and `plasmalogin`. Verify and the alarm check passed.
 - Empty password, run as a local system service (`systemd-run`): `pam_unix` refused at once, the reader asked for the right index finger, and with no touch the check timed out after 5 s. Total 6.9 s, REFUSED.
 - Over SSH the finger step skips itself: `pam_fprintd` refuses remote sessions (`sd_session_is_remote`). Test it from a local session or a system service.
-- Not yet confirmed: a finger match at the login screen, and that the greeter sends an empty field on Enter. A 3-minute test loop got no touch.
+- Finger match through the login service, run as a local system service with an empty password: 2026-11-01 09:08:36, ACCEPTED in 1.8 s (two earlier tries timed out with no touch). The alarm check was OK after it.
+- Not yet confirmed: that the real greeter sends an empty field when the user presses Enter (a logout test at the M3).
+- While a test holds the reader, the lock screen cannot use it. After such a test, unlock once with the password if the finger does not work.
 
-**Still open.** Log out and test the finger at the login screen. Copy the new xART backup to the Mac (the copy timed out on cafe Wi-Fi). A login with the finger does not open KWallet.
+**Still open.** One logout test at the M3 (empty field, Enter, finger). Copy the new xART backup to the Mac (the copy timed out on cafe Wi-Fi). A login with the finger does not open KWallet.
 
 ## Sources (all read on 2026-10-26)
 
