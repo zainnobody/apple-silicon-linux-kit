@@ -96,3 +96,30 @@ Look only. The AirDrop session owns how AirDrop works.
   The scripts pass the icon as a file path (a name did not resolve in the notification). They use the old theme icon when the file is missing.
 - Tested on the M3: a banner with the new text and icon (`after-airdrop-notice.png`). The AirDrop scripts themselves were not run, because
   they need the root part that the AirDrop session owns. They pass `bash -n`.
+
+## Part 5: lock screen
+
+Status 2026-11-01: built and checked in test windows. Not installed yet. No real lock was done with it.
+
+| | Before (stock Breeze) | After (flat) |
+|---|---|---|
+| Screenshot | `desktop-design/before-lockscreen.png` | `desktop-design/after-lockscreen.png` |
+| Wallpaper | Blurred picture (blur radius 50) | One flat colour, `#0b3d91` |
+| Clock | Shadow behind the digits | No shadow |
+| Fingerprint | No hint | Hint: "Touch ID: rest your finger on the power key" |
+| Fade in and out | Wallpaper blur and colour shader | Opacity only, 100 ms or less |
+
+Text contrast: light text `#eff0f1` on `#0b3d91` is 8.8:1. The limit for normal text is 4.5:1.
+
+- **How it works.** In Plasma 6.7 the lock screen QML is part of the shell package `org.kde.plasma.desktop`. Script `distro-pack/desktop/80-lockscreen.sh install`
+  puts a user copy of that package in `~/.local/share/plasma/shells`. Only the `lockscreen` folder differs. Plasma takes the user copy first.
+- **Changes in the QML.** The `Qt5Compat.GraphicalEffects` import, the blur wallpaper fader and the clock shadow are gone. A new `FlatFader.qml` shows the wallpaper as it is.
+  The hint label sits under the password field.
+- **What it does not touch.** PAM (`kde`, `kde-fingerprint`), fprintd, the apple_sep module, powerdevil and logind stay as they are.
+  Fingerprint unlock still runs in parallel through PAM. The hint is only text.
+- **Safety.** Every change makes a backup in `~/desktop-design-backups/`. A guard script in `~/.config/plasma-workspace/env` removes the copy at login when
+  the system shell package has changed (a Plasma update). If the QML does not load, Plasma uses its built-in locker. `80-lockscreen.sh remove` restores the stock lock screen.
+- **How it was tested.** `80-lockscreen.sh test stock|flat` runs `kscreenlocker_greet --testing` in a window, with `PLASMA_DEFAULT_SHELL` set to a test package.
+  The test package keeps the password prompt on screen. This Plasma version has no `--theme` option. A locked session gives blank screenshots, so the session must be unlocked.
+- **Login screen.** The Plasma Login Manager is not changed. `distro-pack/desktop/root-options/plasmalogin-flat.sh` sets the same flat colour. It needs root. It is a draft and is not tested.
+  The login greeter QML is compiled into the program, so the pack cannot restyle more than the wallpaper.
