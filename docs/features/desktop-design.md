@@ -140,7 +140,7 @@ The user asked for no Apple icons and nothing that can cause a copyright or trad
 
 | Item | Before | After |
 |---|---|---|
-| Icon theme | WhiteSur icons (copy Apple icons) | KDE Breeze (`breeze`, `breeze-dark`) |
+| Icon theme | WhiteSur icons (copy Apple icons) | M3 Flat (own drawings, see Part 7) on top of KDE Breeze |
 | Cursor | WhiteSur cursors (copy the macOS pointer) | `breeze_cursors` |
 | Konsole profiles | "Apple Basic", "Apple Pro" | "M3 Light", "M3 Dark" |
 | Lock screen hint | "Touch ID: ..." | "Fingerprint: ..." |
@@ -149,3 +149,28 @@ The user asked for no Apple icons and nothing that can cause a copyright or trad
 
 Kept: WhiteSur-kde colours, window decoration and Plasma theme (flat shapes, no Apple logo or name found). Details in `distro-pack/desktop/README.md`, section "Licences and Apple material".
 Older screenshots in `desktop-design/` (before-*, after-*) show WhiteSur icons. They need new captures. The new capture is `after-breeze-icons.png` (Breeze icons, gradient wallpaper, scale 2).
+
+## Part 7: own icons and light motion (2026-11-01)
+
+**Icons.** The user asked for new, unique icons. Stage `86-icons.sh` installs the theme M3 Flat (`m3-flat`, and `m3-flat-dark`).
+The SVG sources are in `distro-pack/desktop/icons/m3-flat/`. Each icon is a rounded square in one flat colour with a simple white shape. There are no gradients and no shadows.
+
+| Icon | Colour | Shape |
+|---|---|---|
+| Files (Dolphin) | blue | two-layer folder |
+| Terminal (Konsole) | deep teal | mint prompt chevron and cursor bar |
+| Settings | slate | three sliders |
+| Software (Discover) | orange | bag with two dots |
+| Screenshot (Spectacle) | violet | four corner marks and a dot |
+| Trash | light grey | bin, with paper when full |
+| Folder | two blues | flat folder (also for `inode-directory`) |
+| Launcher (top bar) | white | four rounded squares |
+
+All other icons come from KDE Breeze (`Inherits`). The theme sets `FollowsColorScheme=true`, so symbolic icons keep the panel text colour. Firefox keeps its own logo.
+Captures: `desktop-design/after-m3flat-dock.png` and `after-m3flat-icons.png`.
+Limit: the Documents, Downloads, Music, Pictures and Videos folders in the Dolphin side bar all show the same flat folder.
+
+**Motion.** Stage `85-motion.sh` sets the Plasma animation factor to 0.75 (about 25 percent faster than the default). It loads no new effect.
+The light effects that stay on: window open and close (scale), minimize (squash), maximize, desktop slide, popups (slide and fade). Blur, contrast, wobbly windows and magic lamp stay off.
+Modes: `85-motion.sh light|default|off`. Cost measured on the M3: the KWin memory use changed from 220240 KB to 220272 KB (32 KB). The M3 idle load average stayed near 0.1.
+The 100 ms lock screen fade and the QML opacity animations use no shader and no blur.
