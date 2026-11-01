@@ -241,7 +241,7 @@ print("[ti] proof OK: new boot file = stageE with only the J516S dtb replaced (%
 PY
 	new_sha=$(sha "$BOOT_NEW")
 	mkdir -p "$STATE"
-	printf 'BASE_SHA=%s\nS_SHA=%s\nWHEN=%s\n' "$STAGEE_SHA" "$new_sha" "$(date '+%F %T')" > "$STATE/bootbin.env"
+	printf "BASE_SHA=%s\nS_SHA=%s\nWHEN='%s'\n" "$STAGEE_SHA" "$new_sha" "$(date '+%F %T')" > "$STATE/bootbin.env"
 	cp -f "$BOOT_NEW" "$ESP/boot.bin.stageS.new" && sync && mv -f "$ESP/boot.bin.stageS.new" "$ESP/boot.bin.stageS" && sync || return 1
 	[ "$(sha "$ESP/boot.bin.stageS")" = "$new_sha" ] || { echo "[ti] boot.bin.stageS hash wrong after the copy" >&2; return 1; }
 	cp -f "$ESP/boot.bin.stageS" "$ESP/boot.bin.new" && sync && mv -f "$ESP/boot.bin.new" "$ESP/boot.bin" && sync || return 1
@@ -253,7 +253,7 @@ undo_bootbin() {
 	cur=$(sha "$ESP/boot.bin")
 	[ "$cur" = "$STAGEE_SHA" ] && { say "boot.bin is already stageE"; return 0; }
 	# Only switch back when boot.bin is the file this tool installed. Another choice (stageD, stock) is not ours to change.
-	if [ -f "$STATE/bootbin.env" ]; then . "$STATE/bootbin.env"; fi
+	S_SHA=$(sed -n 's/^S_SHA=//p' "$STATE/bootbin.env" 2>/dev/null)
 	[ -n "${S_SHA:-}" ] && [ "$cur" = "$S_SHA" ] || { say "boot.bin is neither stageE nor the file this tool installed; leaving it (check: m3gpu-default status)"; return 0; }
 	cp -f "$ESP/boot.bin.stageE" "$ESP/boot.bin.new" && sync && mv -f "$ESP/boot.bin.new" "$ESP/boot.bin" && sync || return 1
 	[ "$(sha "$ESP/boot.bin")" = "$STAGEE_SHA" ] || die "boot.bin hash wrong after the switch back"
@@ -338,7 +338,9 @@ do_verify() {
 	[ "$(uname -r)" = "$KREL" ] && ok "kernel $KREL" || no "kernel is $(uname -r)"
 	ls /proc/device-tree/soc/sep@*/iboot-manifest >/dev/null 2>&1 && ok "boot has the Secure Enclave device nodes (stageS)" || no "no sep node in the device tree: this boot used stageE or stock"
 	grep -q '^apple_sep ' /proc/modules && ok "apple_sep is loaded" || no "apple_sep is not loaded (see: journalctl -u m3-touchid)"
-	for v in xart_guard=3 sensor_rearm_mode=2 sensor_rearm_settle_ms=1800; do
+	# xart_guard has no sysfs entry (permission 0), so the kernel log is the proof of the level.
+	journalctl -k -b --no-pager 2>/dev/null | grep -q 'apple_sep: xART guard level 3:' && ok "xART guard level 3 (kernel log)" || no "kernel log has no 'xART guard level 3' line"
+	for v in sensor_rearm_mode=2 sensor_rearm_settle_ms=1800; do
 		[ "$(cat "/sys/module/apple_sep/parameters/${v%%=*}" 2>/dev/null)" = "${v#*=}" ] && ok "parameter $v" || no "parameter ${v%%=*} is '$(cat "/sys/module/apple_sep/parameters/${v%%=*}" 2>/dev/null)', expected ${v#*=}"
 	done
 	[ "$(systemctl is-active m3-touchid.service 2>/dev/null)" = active ] && ok "m3-touchid.service is active" || no "m3-touchid.service is not active"
@@ -356,7 +358,7 @@ do_verify() {
 	if [ -f "$STATE/pam-untouched.sha" ]; then
 		while read -r s h; do [ "$(sha "$(readlink -f "$R/etc/pam.d/$s")")" = "$h" ] && ok "pam.d/$s unchanged" || no "pam.d/$s differs from the install time"; done < "$STATE/pam-untouched.sha"
 	fi
-	if [ -f "$STATE/bootbin.env" ]; then . "$STATE/bootbin.env"; [ "$(sha "$ESP/boot.bin")" = "$S_SHA" ] && ok "boot.bin is stageS" || no "boot.bin is not stageS (did m3gpu-default gpu run?)"; fi
+	if [ -f "$STATE/bootbin.env" ]; then S_SHA=$(sed -n 's/^S_SHA=//p' "$STATE/bootbin.env"); [ "$(sha "$ESP/boot.bin")" = "$S_SHA" ] && ok "boot.bin is stageS" || no "boot.bin is not stageS (did m3gpu-default gpu run?)"; fi
 	[ $bad = 0 ] && say "VERIFY PASS (still to do by hand: password login after the reboot, lock screen with finger and password, alarm check)" || say "VERIFY FAILED: see the lines above"
 	return $bad
 }

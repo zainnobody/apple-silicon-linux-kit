@@ -66,7 +66,7 @@ The user reboots once (`systemctl reboot`). The boot uses `boot.bin.stageS`. Aft
 cd ~/window/integration && ./ti-run.sh verify
 ```
 
-`verify` checks: the kernel, the Secure Enclave nodes in the device tree, `apple_sep` loaded with `xart_guard=3`, `sensor_rearm_mode=2`, `sensor_rearm_settle_ms=1800`, `m3-touchid.service` active with the line `Touch ID is ready`, `/dev/sep-bio`, `fprintd-list` sees one reader, the fprintd unit has the private library path, no SELinux denial for fprintd, the PAM files, the files that must stay unchanged, `boot.bin` is stageS. Then it runs the alarm check (`touchid-3b.sh alarm`, partition against the newest backup). PASS lines: `VERIFY PASS` and `ALARM CHECK OK`.
+`verify` checks: the kernel, the Secure Enclave nodes in the device tree, `apple_sep` loaded, the kernel log line `xART guard level 3` (the parameter has no sysfs entry), `sensor_rearm_mode=2`, `sensor_rearm_settle_ms=1800`, `m3-touchid.service` active with the line `Touch ID is ready`, `/dev/sep-bio`, `fprintd-list` sees one reader, the fprintd unit has the private library path, no SELinux denial for fprintd, the PAM files, the files that must stay unchanged, `boot.bin` is stageS. Then it runs the alarm check (`touchid-3b.sh alarm`, partition against the newest backup). PASS lines: `VERIFY PASS` and `ALARM CHECK OK`.
 
 Checks by hand (the coordinator's list):
 
