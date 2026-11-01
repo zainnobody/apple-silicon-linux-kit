@@ -8,6 +8,7 @@
 #   sudo ./ti-install.sh install [--no-pam-test]   all steps in order; any failure undoes the steps of this run
 #   sudo m3-touchid-install undo [STEP ...]        undo all steps (or only the named ones), newest first
 #   sudo m3-touchid-install relogin               re-apply only the login screen step, with the password test
+#   sudo m3-touchid-install settle MS             capture rest time (300 to 3000 ms), live and in /etc/m3-touchid.conf
 #   sudo m3-touchid-install status | verify
 #
 # Steps in order: module units selinux libfprint dropin pam-lock pam-login bootbin
@@ -299,6 +300,21 @@ do_relogin() {
 	say "Login screen updated: a typed password logs in at once; Enter with an empty password field asks for the finger (up to 5 s)."
 }
 
+# Capture rest time: how long the sensor rests between two arms while it waits for a finger (mode 2).
+# Shorter is faster for a late finger; too short and the sensor misses it (3e: no rest, no detection).
+do_settle() {
+	local ms="${1:-}" p="$R/sys/module/apple_sep/parameters/sensor_rearm_settle_ms" conf="$R/etc/m3-touchid.conf" t
+	need_root
+	case "$ms" in ''|*[!0-9]*) die "usage: m3-touchid-install settle MS (300 to 3000)";; esac
+	[ "$ms" -ge 300 ] && [ "$ms" -le 3000 ] || die "settle must be 300 to 3000 ms"
+	[ -f "$conf" ] || die "$conf missing (the units step is not applied)"
+	t=$(mktemp) || return 1
+	sed "s/^SETTLE_MS=[0-9]*/SETTLE_MS=$ms/" "$conf" > "$t" && grep -Eq "^SETTLE_MS=$ms([^0-9]|$)" "$t" || { rm -f "$t"; die "no SETTLE_MS line in $conf"; }
+	if [ -w "$p" ]; then echo "$ms" > "$p" || { rm -f "$t"; die "cannot write $p"; }; else say "apple_sep is not loaded: the new value starts at the next boot"; fi
+	atomic "$t" "$conf" 0644; rm -f "$t"; relabel "$conf"; log "settle set to $ms ms"
+	say "capture rest time is now $ms ms (live and in $conf). Back to the tested value: m3-touchid-install settle 1800"
+}
+
 do_install() {
 	local nopam=0 s applied=() i
 	for a in "$@"; do case "$a" in --no-pam-test) nopam=1;; *) die "unknown option $a";; esac; done
@@ -362,7 +378,8 @@ do_verify() {
 	# xart_guard has no sysfs entry (permission 0), so the kernel log is the proof of the level.
 	# Read the log first: with pipefail, grep -q ends the pipe early and journalctl fails with SIGPIPE.
 	out=$(journalctl -k -b --no-pager 2>/dev/null); grep -q 'apple_sep: xART guard level 3:' <<<"$out" && ok "xART guard level 3 (kernel log)" || no "kernel log has no 'xART guard level 3' line"
-	for v in sensor_rearm_mode=2 sensor_rearm_settle_ms=1800; do
+	local want_settle; want_settle=$(sed -n 's/^SETTLE_MS=\([0-9]*\).*/\1/p' "$R/etc/m3-touchid.conf" 2>/dev/null); want_settle=${want_settle:-1800}
+	for v in sensor_rearm_mode=2 "sensor_rearm_settle_ms=$want_settle"; do
 		[ "$(cat "/sys/module/apple_sep/parameters/${v%%=*}" 2>/dev/null)" = "${v#*=}" ] && ok "parameter $v" || no "parameter ${v%%=*} is '$(cat "/sys/module/apple_sep/parameters/${v%%=*}" 2>/dev/null)', expected ${v#*=}"
 	done
 	[ "$(systemctl is-active m3-touchid.service 2>/dev/null)" = active ] && ok "m3-touchid.service is active" || no "m3-touchid.service is not active"
@@ -390,6 +407,7 @@ case "$CMD" in
 	preflight) need_root; preflight && say "PREFLIGHT PASS" || { echo "[ti] PREFLIGHT FAILED" >&2; exit 1; } ;;
 	install) do_install "$@" ;;
 	relogin) do_relogin ;;
+	settle) do_settle "$@" ;;
 	undo) do_undo "$@" ;;
 	status) do_status ;;
 	verify) do_verify ;;

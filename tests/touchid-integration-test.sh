@@ -111,6 +111,14 @@ mkdir -p "$U/window/integration" && cp "$INT/pam-auth-test.py" "$U/window/integr
 chk "relogin: password-first line back, finger wait 5 s" test "$(grep -c -e 'pam_unix.so nodelay' -e 'pam_fprintd.so max-tries=2 timeout=5' "$R/etc/pam.d/plasmalogin")" = 2
 chk "relogin: vendor lines kept" test "$(grep -v -e pam_fprintd -e 'pam_unix.so nodelay' "$R/etc/pam.d/plasmalogin" | cksum)" = "$(cksum < "$R/usr/lib/pam.d/plasmalogin")"
 
+# 3c settle: config changes, bad values refused
+"$R/usr/local/sbin/m3-touchid-install" settle 600 >"$T/o3c" 2>&1 && ok "settle 600 runs" || { no "settle 600"; cat "$T/o3c"; }
+chk "settle: config says SETTLE_MS=600" grep -q '^SETTLE_MS=600 ' "$R/etc/m3-touchid.conf"
+"$R/usr/local/sbin/m3-touchid-install" settle 50 >/dev/null 2>&1 && no "settle 50 must be refused" || ok "settle 50 refused"
+"$R/usr/local/sbin/m3-touchid-install" settle 6x >/dev/null 2>&1 && no "settle 6x must be refused" || ok "settle 6x refused"
+chk "settle: refused values leave 600" grep -q '^SETTLE_MS=600 ' "$R/etc/m3-touchid.conf"
+"$R/usr/local/sbin/m3-touchid-install" settle 1800 >/dev/null 2>&1 && ok "settle back to 1800" || no "settle 1800"
+
 # 4 undo all
 "$R/usr/local/sbin/m3-touchid-install" undo >"$T/o4" 2>&1 && ok "undo all runs" || { no "undo"; cat "$T/o4"; }
 chk "boot.bin back to stageE" test "$(sha "$R/boot/efi/m1n1/boot.bin")" = "$stagee"
