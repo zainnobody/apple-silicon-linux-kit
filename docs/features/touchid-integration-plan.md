@@ -16,7 +16,7 @@ The scripts are in `tools/touchid/integration/`. The offline test is `tests/touc
 | `libfprint` | Installs the `libfprint-aurora` RPM (hash pinned, files only under `/opt/aurora-sep`). The distro `libfprint` is not touched. | `rpm -e` (only if this tool installed it). |
 | `dropin` | `/etc/systemd/system/fprintd.service.d/aurora-private.conf`: `LD_LIBRARY_PATH`, `DeviceAllow=/dev/sep-bio rw`, start after `m3-touchid.service`, `--no-timeout`. | Removes the file. |
 | `pam-lock` | Replaces `/etc/pam.d/kde-fingerprint` (the original is saved). The lock screen service `kde` (password) is not changed. | Restores the saved file. |
-| `pam-login` | Creates `/etc/pam.d/plasmalogin` from the vendor file, with one added line before the password stack: `-auth sufficient pam_fprintd.so max-tries=2 timeout=10`. | Removes the override. |
+| `pam-login` | Creates `/etc/pam.d/plasmalogin` from the vendor file, with two added lines before the password stack: `auth [success=1 default=ignore] pam_unix.so nodelay`, then `-auth sufficient pam_fprintd.so max-tries=2 timeout=5`. A typed password logs in at once; Enter with an empty password field asks for the finger. `m3-touchid-install relogin` re-applies only this step. | Removes the override. |
 | `bootbin` | Writes `boot.bin.stageS` (stageE with only the J516S device tree replaced by the Secure Enclave and sensor device tree) and makes it `boot.bin`. `boot.bin.stageE` stays as the fallback. | Copies `boot.bin.stageE` back to `boot.bin`. Works without a working Touch ID. |
 
 Never edited: `system-auth`, `password-auth`, `login`, `sudo`, `sshd`, and the authselect profile. The password path of the lock screen and of the login screen is the same stack as before. A fingerprint line that finds no reader, no enrolled finger, no match or a timeout falls through to the password.
@@ -100,7 +100,7 @@ It stops fprintd, lists the identities, asks the user to type `DELETE`, runs `se
 
 - Hold the finger on the sensor. With mode 2 the sensor detects a touch in about the first 2 s of each arm cycle. A late touch can need a second try.
 - A fingerprint cannot unlock KWallet. After a finger login, the first application that asks for a stored secret asks for the wallet password.
-- With an enrolled finger, the login screen waits for the finger up to 10 s before it shows the password prompt. Change `timeout=10` in `/etc/pam.d/plasmalogin` to change it.
+- Login screen flow (tuned 2026-10-31): a typed password logs in at once, with no finger wait. Enter with an empty password field asks for the finger for up to 5 s (rest it on the key). Before this change, every login waited up to 10 s for a finger first. The lock screen checks the finger and the password at the same time.
 - Suspend and resume with Touch ID loaded have not been tested. Use the password after a resume if the finger does not work.
 - Each boot with the driver writes xART records (the guard allows only the rewrites that the alarm check knows). The alarm check must say OK after the first boot.
 - Few trials exist. With no false accept in n trials, the upper limit of the false accept rate is only about 3 in n (rule of three). That is why sudo stays password-only and the password is always accepted. Stop rule after the install: if a wrong finger ever unlocks the lock screen or the login screen, run `sudo m3-touchid-install undo pam-lock pam-login` at once and report it.

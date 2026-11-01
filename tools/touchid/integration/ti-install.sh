@@ -7,6 +7,7 @@
 #   sudo ./ti-install.sh preflight                 checks only, changes nothing
 #   sudo ./ti-install.sh install [--no-pam-test]   all steps in order; any failure undoes the steps of this run
 #   sudo m3-touchid-install undo [STEP ...]        undo all steps (or only the named ones), newest first
+#   sudo m3-touchid-install relogin               re-apply only the login screen step, with the password test
 #   sudo m3-touchid-install status | verify
 #
 # Steps in order: module units selinux libfprint dropin pam-lock pam-login bootbin
@@ -30,7 +31,10 @@ MODULE_SHA="${TI_MODULE_SHA:-d7b1e23d711bdcca107655537b869e07653f7445f67f95aa794
 RPM_SHA="${TI_RPM_SHA:-f6926eb82b8d26d2885c159a50bbddafc753cd5b025cbeca5e28779481aab378}"          # libfprint-aurora-1.94.100-1.fc44
 STAGEE_SHA="${TI_STAGEE_SHA:-f3197272d588f4b0a037c5f81f0cfb2c36dfc6c7398a4205910ed8b9cbaa0725}"    # boot.bin.stageE
 BASE_DTB_PFX="${TI_BASE_DTB_PFX:-18baac96}"   # stock t6030-j516s.dtb
-PAM_LOGIN_LINE='-auth       sufficient    pam_fprintd.so max-tries=2 timeout=10'
+# Login flow (2026-10-31, tuned for the user): a typed password logs in at once (pam_unix passes, the finger line is
+# skipped); Enter with an empty password field fails pam_unix without delay and asks for the finger for up to 5 s.
+PAM_LOGIN_PW_LINE='auth        [success=1 default=ignore] pam_unix.so nodelay'
+PAM_LOGIN_LINE='-auth       sufficient    pam_fprintd.so max-tries=2 timeout=5'
 
 UHOME="${TI_UHOME:-/home/${SUDO_USER:-nobody}}"
 MODULE_SRC="${TI_MODULE:-$UHOME/window/touchid/apple-sep-3f.ko}"
@@ -199,9 +203,9 @@ apply_pam_lock() {
 undo_pam_lock() { restore_orig "$pam_lock_file" pam-lock; say "PAM: kde-fingerprint restored"; }
 
 pam_login_file="$R/etc/pam.d/plasmalogin"
-make_login_pam() { # vendor file in, override on stdout: one line before the first password-auth substack
-	awk -v line="$PAM_LOGIN_LINE" '
-		!done && $1 == "auth" && $2 == "substack" && $3 == "password-auth" { print line; done = 1 }
+make_login_pam() { # vendor file in, override on stdout: two lines before the first password-auth substack
+	awk -v pw="$PAM_LOGIN_PW_LINE" -v line="$PAM_LOGIN_LINE" '
+		!done && $1 == "auth" && $2 == "substack" && $3 == "password-auth" { print pw; print line; done = 1 }
 		{ print }
 		END { if (!done) exit 3 }' "$1"
 }
@@ -209,12 +213,12 @@ apply_pam_login() {
 	local vendor="$R/usr/lib/pam.d/plasmalogin" t
 	t=$(mktemp) || return 1
 	make_login_pam "$vendor" > "$t" || { rm -f "$t"; echo "[ti] vendor plasmalogin has no 'auth substack password-auth' line" >&2; return 1; }
-	grep -c -F -e "$PAM_LOGIN_LINE" "$t" | grep -qx 1 || { rm -f "$t"; return 1; }
+	grep -c -F -e "$PAM_LOGIN_LINE" "$t" | grep -qx 1 && grep -c -F -e "$PAM_LOGIN_PW_LINE" "$t" | grep -qx 1 || { rm -f "$t"; return 1; }
 	save_orig "$pam_login_file" pam-login
 	atomic "$t" "$pam_login_file" 0644; local rc=$?
 	rm -f "$t"; [ $rc = 0 ] || return 1
 	relabel "$pam_login_file"
-	say "PAM: /etc/pam.d/plasmalogin installed (fingerprint first, then the unchanged password stack)"
+	say "PAM: /etc/pam.d/plasmalogin installed (typed password logs in at once; empty password field asks for the finger; then the unchanged password stack)"
 }
 undo_pam_login() { restore_orig "$pam_login_file" pam-login; say "PAM: plasmalogin override removed"; }
 
@@ -277,6 +281,20 @@ pam_test() {
 step_fn() { echo "${1//-/_}"; }
 run_apply() { local fn; fn="apply_$(step_fn "$1")"; "$fn"; }
 run_undo() { local fn; fn="undo_$(step_fn "$1")"; "$fn"; }
+
+# Re-apply only the login screen step (after a change of the PAM_LOGIN lines), with the password test.
+# A failed apply or test puts the previous file back.
+do_relogin() {
+	local keep
+	need_root
+	is_done pam-login || die "pam-login is not applied; use install"
+	keep=$(mktemp) && cp -p "$pam_login_file" "$keep" || die "cannot copy $pam_login_file"
+	put_back() { atomic "$keep" "$pam_login_file" 0644; relabel "$pam_login_file"; rm -f "$keep"; }
+	apply_pam_login || { put_back; die "re-apply failed; the previous file is back"; }
+	pam_test || { put_back; die "password test failed; the previous file is back"; }
+	rm -f "$keep"; done_mark pam-login; log "pam-login re-applied"
+	say "Login screen updated: a typed password logs in at once; Enter with an empty password field asks for the finger (up to 5 s)."
+}
 
 do_install() {
 	local nopam=0 s applied=() i
@@ -355,7 +373,7 @@ do_verify() {
 	out=$(ausearch -m avc,user_avc -ts boot 2>/dev/null | grep -E 'fprintd|sep-bio' || true)
 	[ -z "$out" ] && ok "no SELinux denial for fprintd or sep-bio since boot" || { no "SELinux denials:"; echo "$out" | tail -n 8; }
 	grep -q '^-auth.*pam_fprintd.so' "$pam_lock_file" 2>/dev/null && ok "kde-fingerprint has the fingerprint line" || no "kde-fingerprint has no fingerprint line"
-	grep -qF -e "$PAM_LOGIN_LINE" "$pam_login_file" 2>/dev/null && ok "plasmalogin has the fingerprint line" || no "plasmalogin override missing"
+	grep -qF -e "$PAM_LOGIN_LINE" "$pam_login_file" 2>/dev/null && grep -qF -e "$PAM_LOGIN_PW_LINE" "$pam_login_file" 2>/dev/null && ok "plasmalogin has the fingerprint line" || no "plasmalogin override missing"
 	if [ -f "$STATE/pam-untouched.sha" ]; then
 		while read -r s h; do [ "$(sha "$(readlink -f "$R/etc/pam.d/$s")")" = "$h" ] && ok "pam.d/$s unchanged" || no "pam.d/$s differs from the install time"; done < "$STATE/pam-untouched.sha"
 	fi
@@ -368,6 +386,7 @@ CMD="${1:-}"; shift || true
 case "$CMD" in
 	preflight) need_root; preflight && say "PREFLIGHT PASS" || { echo "[ti] PREFLIGHT FAILED" >&2; exit 1; } ;;
 	install) do_install "$@" ;;
+	relogin) do_relogin ;;
 	undo) do_undo "$@" ;;
 	status) do_status ;;
 	verify) do_verify ;;

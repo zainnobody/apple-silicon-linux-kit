@@ -88,8 +88,10 @@ chk "fprintd drop-in installed" grep -q 'LD_LIBRARY_PATH=/opt/aurora-sep/lib64' 
 chk "libfprint RPM installed" test -f "$R/opt/aurora-sep/lib64/libfprint-2.so.2"
 chk "kde-fingerprint has the fingerprint line" grep -q '^-auth       required      pam_fprintd.so$' "$R/etc/pam.d/kde-fingerprint"
 chk "plasmalogin: one fingerprint line" test "$(grep -c pam_fprintd "$R/etc/pam.d/plasmalogin")" = 1
-chk "plasmalogin: fingerprint line sits between selinux_permit and the password substack" test "$(grep -n -e pam_selinux_permit -e pam_fprintd -e 'substack' "$R/etc/pam.d/plasmalogin" | cut -d: -f1 | tr '\n' ' ')" = "1 2 3 "
-chk "plasmalogin keeps every vendor line" test "$(grep -v pam_fprintd "$R/etc/pam.d/plasmalogin" | cksum)" = "$(cksum < "$R/usr/lib/pam.d/plasmalogin")"
+chk "plasmalogin: one password-first line" test "$(grep -c 'pam_unix.so nodelay' "$R/etc/pam.d/plasmalogin")" = 1
+chk "plasmalogin: order is selinux_permit, password-first, fingerprint, password substack" test "$(grep -n -e pam_selinux_permit -e 'pam_unix.so nodelay' -e pam_fprintd -e 'substack' "$R/etc/pam.d/plasmalogin" | cut -d: -f1 | tr '\n' ' ')" = "1 2 3 4 "
+chk "plasmalogin: the password-first line skips exactly the fingerprint line" grep -q '^auth *\[success=1 default=ignore\] pam_unix.so nodelay$' "$R/etc/pam.d/plasmalogin"
+chk "plasmalogin keeps every vendor line" test "$(grep -v -e pam_fprintd -e 'pam_unix.so nodelay' "$R/etc/pam.d/plasmalogin" | cksum)" = "$(cksum < "$R/usr/lib/pam.d/plasmalogin")"
 chk "boot.bin is the new file" test "$(sha "$R/boot/efi/m1n1/boot.bin")" = "$newsha"
 chk "boot.bin.stageE untouched" test "$(sha "$R/boot/efi/m1n1/boot.bin.stageE")" = "$stagee"
 chk "sudo, system-auth, password-auth, login, sshd never edited" test "$(cat "$R/etc/pam.d/sudo" "$R/etc/pam.d/system-auth" "$R/etc/pam.d/password-auth" "$R/etc/pam.d/login" "$R/etc/pam.d/sshd" | cksum)" = "$(for f in sudo system-auth password-auth login sshd; do echo "pam $f"; done | cksum)"
@@ -98,6 +100,12 @@ chk "no systemctl start or reboot was issued" test "$(grep -c -E 'systemctl (sta
 
 # 3 install again (idempotent)
 "$INSTALL" install >"$T/o3" 2>&1 && ok "second install run passes" || { no "second install"; cat "$T/o3"; }
+
+# 3b relogin: an older login file (one fingerprint line, 10 s) becomes the current flow
+sed -i.bak -e '/pam_unix.so nodelay/d' -e 's/timeout=5/timeout=10/' "$R/etc/pam.d/plasmalogin" && rm -f "$R/etc/pam.d/plasmalogin.bak"
+"$R/usr/local/sbin/m3-touchid-install" relogin >"$T/o3b" 2>&1 && ok "relogin runs" || { no "relogin"; cat "$T/o3b"; }
+chk "relogin: password-first line back, finger wait 5 s" test "$(grep -c -e 'pam_unix.so nodelay' -e 'pam_fprintd.so max-tries=2 timeout=5' "$R/etc/pam.d/plasmalogin")" = 2
+chk "relogin: vendor lines kept" test "$(grep -v -e pam_fprintd -e 'pam_unix.so nodelay' "$R/etc/pam.d/plasmalogin" | cksum)" = "$(cksum < "$R/usr/lib/pam.d/plasmalogin")"
 
 # 4 undo all
 "$R/usr/local/sbin/m3-touchid-install" undo >"$T/o4" 2>&1 && ok "undo all runs" || { no "undo"; cat "$T/o4"; }
