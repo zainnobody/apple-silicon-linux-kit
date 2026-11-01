@@ -8,9 +8,9 @@ systemctl --user stop airdrop-receiver.service
 if pkexec /usr/lib/omdrop/omdrop-discoverable stop; then
 	# awdl0 stays after a window, so the sleep guard stays too. Without awdl0 there is nothing to guard.
 	if ip link show awdl0 >/dev/null 2>&1; then
-		notify-send -a AirDrop -i "$ICON" "AirDrop is off" "This Mac is not visible now. Sleep stays blocked until the next restart."
+		notify-send -a "Share nearby" -i "$ICON" "Sharing is off" "This Mac is not visible now. Sleep stays blocked until the next restart."
 	else
 		systemctl --user stop airdrop-sleep-guard.service 2>/dev/null
-		notify-send -a AirDrop -i "$ICON" "AirDrop is off" "This Mac is not visible now."
+		notify-send -a "Share nearby" -i "$ICON" "Sharing is off" "This Mac is not visible now."
 	fi
 fi

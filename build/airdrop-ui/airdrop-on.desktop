@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=AirDrop on (10 min)
+Name=Share nearby on (10 min)
 Comment=Become visible to nearby Apple devices
 Exec=airdrop-on 600
 Icon=emblem-shared

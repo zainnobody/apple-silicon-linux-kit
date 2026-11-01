@@ -8,7 +8,7 @@ S=/usr/lib/omdrop/send-to-peer
 ICON=emblem-shared
 M3_ICON="${XDG_DATA_HOME:-$HOME/.local/share}/icons/hicolor/scalable/apps/m3-airdrop.svg"
 [ -e "$M3_ICON" ] && ICON=$M3_ICON
-note() { notify-send -a AirDrop -i "$ICON" "$1" "$2"; }
+note() { notify-send -a "Share nearby" -i "$ICON" "$1" "$2"; }
 "$H" status --json | grep -q '"visible":true' || airdrop-on 600 || exit 1
 # Lookup names; one row per device. The first field is the MAC, the rest is signal and name.
 rows=$("$S" --list --names 2>/dev/null | grep -E '^[[:space:]]*([0-9a-f]{2}:){5}[0-9a-f]{2}')
@@ -18,7 +18,7 @@ while IFS= read -r line; do
 	mac=$(echo "$line" | awk '{print $1}')
 	args+=("$mac" "$(echo "$line" | sed -E 's/^[[:space:]]*[^[:space:]]+[[:space:]]+//')")
 done <<< "$rows"
-mac=$(kdialog --title "AirDrop" --icon "$ICON" --menu "Choose a device" "${args[@]}") || exit 0
+mac=$(kdialog --title "Share nearby" --icon "$ICON" --menu "Choose a device" "${args[@]}") || exit 0
 if out=$("$S" --mac "$mac" --wait 60 "$@" 2>&1); then
 	note "Sent" "$# file(s) sent."
 else

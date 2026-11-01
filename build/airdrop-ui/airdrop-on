@@ -14,18 +14,18 @@ guard() {
 	[ "${AIRDROP_NO_GUARD:-0}" = 1 ] && return 0
 	systemctl --user is-active --quiet airdrop-sleep-guard.service && return 0
 	systemd-run --user --quiet --collect --unit=airdrop-sleep-guard \
-		systemd-inhibit --what=sleep:handle-suspend-key --mode=block --who=AirDrop \
+		systemd-inhibit --what=sleep:handle-suspend-key --mode=block --who="nearby sharing" \
 		--why="awdl0 exists: a sleep cycle can wedge the Wi-Fi firmware" sleep infinity
 }
 
 if pkexec "$H" start "$secs"; then
 	guard
 	systemctl --user start airdrop-receiver.service
-	notify-send -a AirDrop -i "$ICON" "AirDrop is on" "This Mac is visible for $((secs / 60)) minutes. On the other device, set AirDrop to Everyone."
+	notify-send -a "Share nearby" -i "$ICON" "Sharing is on" "This Mac is visible for $((secs / 60)) minutes. On the other device, set AirDrop to Everyone."
 else
 	rc=$?
 	# 5 = a window is already open and was extended
-	[ "$rc" = 5 ] && guard && notify-send -a AirDrop -i "$ICON" "AirDrop is still on" "The visible time is longer now." && exit 0
-	notify-send -a AirDrop -i "$ICON" -u critical "AirDrop did not start" "Error code $rc. To see why, run: journalctl -k | grep awdl"
+	[ "$rc" = 5 ] && guard && notify-send -a "Share nearby" -i "$ICON" "Sharing is still on" "The visible time is longer now." && exit 0
+	notify-send -a "Share nearby" -i "$ICON" -u critical "Sharing did not start" "Error code $rc. To see why, run: journalctl -k | grep awdl"
 	exit "$rc"
 fi

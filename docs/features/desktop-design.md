@@ -11,7 +11,7 @@ Pictures are in `docs/features/desktop-design/` (before and after, scaled to 172
 | Item | Result | Picture |
 |---|---|---|
 | Backups | One dated tarball and one undo script per stage in `~/desktop-design-backups/` on the M3 | none |
-| Themes | WhiteSur-kde `cf4df59c`, WhiteSur-icon-theme `73d8040d`, WhiteSur-cursors `e190baf6` (GPL-3.0, the user approved the download). Only flat parts are installed. No upstream script was run. | none |
+| Themes | WhiteSur-kde `cf4df59c`, icons and cursors are KDE Breeze since 2026-11-01 (the WhiteSur icon and cursor sets copy Apple art, so they are removed) (GPL-3.0, the user approved the download). Only flat parts are installed. No upstream script was run. | none |
 | Fonts | Adwaita Sans (Inter-based) and Hack. Both are on Fedora already. No download. | all |
 | Window style | Opaque WhiteSur decoration. Close, minimize and zoom on the left, title in the middle. | after-apps |
 | Top bar | 30 px bar: launcher, global menu (File, Edit, ...), tray, clock. The menu shows when an app has focus. | after-desktop, after-apps |
@@ -19,7 +19,7 @@ Pictures are in `docs/features/desktop-design/` (before and after, scaled to 172
 | Search | Meta+Space opens KRunner in the middle of the screen (binding checked in kglobalaccel, key press confirmed by the user). | after-krunner |
 | Overview | Overview works (toggled over D-Bus, no crash). Blur is off and unloaded. | overview |
 | Dolphin | Details list, icon-only toolbar, menu in the top bar | before-apps, after-apps |
-| Konsole | Basic (light) and Pro (dark) looks, Hack 11 pt, block cursor | before-apps, after-apps, after-dark |
+| Konsole | M3 Light and M3 Dark looks, Hack 11 pt, block cursor | before-apps, after-apps, after-dark |
 | Notifications | Banners at the top right. AirDrop banner with the flat icon. | after-airdrop-notice |
 | Light and dark | `m3-appearance light` or `m3-appearance dark`. Both work. Apps need a restart to change. | after-dark |
 
@@ -60,7 +60,7 @@ Reference values were read on a Mac with an M5 chip (macOS 26.7, all defaults) w
 | Palm rejection | on | `DisableWhileTyping=true` |
 | Mouse | adaptive | `m3-input mouse` sets natural scrolling off and speed 0.3 for each mouse found |
 
-Cursor size stays at the current value. The WhiteSur cursor at size 24 already looks like the macOS pointer at this screen scale.
+Cursor size stays at the current value. The Breeze cursor replaced the WhiteSur cursor on 2026-11-01 (the WhiteSur cursor copies the macOS pointer).
 
 Checked on the M3 (2026-10-31 17:02): all 14 touchpad properties exist in KWin D-Bus and take the values above. KWin reloaded the
 config file by itself after the write (tap to click and scroll factor changed without a restart), so the key names are right and the
@@ -92,7 +92,7 @@ Look only. The AirDrop session owns how AirDrop works.
 
 - Notification text is short and plain: "AirDrop is on", "AirDrop is off", "File received", "Sent", "Not sent", "No device found".
 - The device picker has the title "AirDrop" and the text "Choose a device".
-- New flat icon `build/airdrop-ui/m3-airdrop.svg` (own drawing, not the Apple logo). Install it with `build/airdrop-ui/install-icon.sh`.
+- New flat icon `build/airdrop-ui/m3-airdrop.svg` (own drawing, two overlapping rings; it does not copy the AirDrop glyph or the Apple logo). The UI says "Share nearby" since 2026-11-01. Install it with `build/airdrop-ui/install-icon.sh`.
   The scripts pass the icon as a file path (a name did not resolve in the notification). They use the old theme icon when the file is missing.
 - Tested on the M3: a banner with the new text and icon (`after-airdrop-notice.png`). The AirDrop scripts themselves were not run, because
   they need the root part that the AirDrop session owns. They pass `bash -n`.
@@ -133,3 +133,19 @@ Text contrast: light text `#eff0f1` on `#0b3d91` is 8.8:1. The limit for normal 
   White text on it has a contrast of 5.5:1 or more. The old wallpaper is in the backup `20261101-101526-90-fit16`.
 - **Dock.** Height 68 (was 56). The top bar stays at 30.
 - **Not captured.** No screenshot of the gradient lock screen exists, because the session was locked at the time of the last test.
+
+## Part 6: no Apple artwork (2026-11-01)
+
+The user asked for no Apple icons and nothing that can cause a copyright or trademark claim. This is not legal advice.
+
+| Item | Before | After |
+|---|---|---|
+| Icon theme | WhiteSur icons (copy Apple icons) | KDE Breeze (`breeze`, `breeze-dark`) |
+| Cursor | WhiteSur cursors (copy the macOS pointer) | `breeze_cursors` |
+| Konsole profiles | "Apple Basic", "Apple Pro" | "M3 Light", "M3 Dark" |
+| Lock screen hint | "Touch ID: ..." | "Fingerprint: ..." |
+| Sharing UI | "AirDrop" titles, a radar-like icon | "Share nearby", two overlapping rings |
+| Files on the M3 | WhiteSur icon and cursor folders and downloads | Removed (about 200 MB) |
+
+Kept: WhiteSur-kde colours, window decoration and Plasma theme (flat shapes, no Apple logo or name found). Details in `distro-pack/desktop/README.md`, section "Licences and Apple material".
+Older screenshots in `desktop-design/` (before-*, after-*) show WhiteSur icons. They need new captures.

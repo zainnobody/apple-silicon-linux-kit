@@ -5,6 +5,6 @@ Actions=airdropSend;
 X-KDE-Priority=TopLevel
 
 [Desktop Action airdropSend]
-Name=Send via AirDrop
+Name=Share nearby
 Icon=emblem-shared
 Exec=airdrop-send %F

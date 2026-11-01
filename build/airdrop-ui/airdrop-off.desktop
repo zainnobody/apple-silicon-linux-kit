@@ -1,6 +1,6 @@
 [Desktop Entry]
 Type=Application
-Name=AirDrop off
+Name=Share nearby off
 Comment=Stop being visible
 Exec=airdrop-off
 Icon=emblem-unshared
