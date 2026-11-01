@@ -99,7 +99,8 @@ Look only. The AirDrop session owns how AirDrop works.
 
 ## Part 5: lock screen
 
-Status 2026-11-01: built and checked in test windows. Not installed yet. No real lock was done with it.
+Status 2026-11-01: installed 10:14 (backup `20261101-101432-80-lockscreen-install`). The user locked the M3 with it and said it looks good.
+The screenshots below come from test windows, because a real lock cannot be captured. The wallpaper in the screenshots is the flat colour. The installed wallpaper is the gradient (see below).
 
 | | Before (stock Breeze) | After (flat) |
 |---|---|---|
@@ -123,3 +124,12 @@ Text contrast: light text `#eff0f1` on `#0b3d91` is 8.8:1. The limit for normal 
   The test package keeps the password prompt on screen. This Plasma version has no `--theme` option. A locked session gives blank screenshots, so the session must be unlocked.
 - **Login screen.** The Plasma Login Manager is not changed. `distro-pack/desktop/root-options/plasmalogin-flat.sh` sets the same flat colour. It needs root. It is a draft and is not tested.
   The login greeter QML is compiled into the program, so the pack cannot restyle more than the wallpaper.
+
+### Fit to the 16 inch panel (stage 90, applied 2026-11-01 10:15)
+
+- **Scale.** The panel is 3456x2160. The scale was 2.7, which gave a 1280x800 layout. It is now 2, a 1728x1080 layout, the same size as the macOS default.
+  Fonts stay at 10 pt, which is 13 px, the macOS system size. Undo: `kscreen-doctor output.eDP-1.scale.2.7`.
+- **Wallpaper.** One smooth blue gradient with dither, made by `distro-pack/desktop/assets/make-wallpaper.py`. It is on the desktop and on the lock screen.
+  White text on it has a contrast of 5.5:1 or more. The old wallpaper is in the backup `20261101-101526-90-fit16`.
+- **Dock.** Height 68 (was 56). The top bar stays at 30.
+- **Not captured.** No screenshot of the gradient lock screen exists, because the session was locked at the time of the last test.
