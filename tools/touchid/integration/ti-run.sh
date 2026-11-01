@@ -62,8 +62,9 @@ enroll)
 	rt timeout 60 python3 -I "$WIN/touchid/sepbio.py" delete-all --yes || die "delete failed"
 	rt systemctl start fprintd.service
 	say "enrol $FINGER through fprintd: touch and lift as asked (at most 3 tries; stop after 3 failures)"
-	fprintd-enroll -f "$FINGER" "$USER" || die "enrol failed; the password still works everywhere"
+	# Through sudo: polkit refuses enrol and verify to an SSH session (not the active local seat).
+	rt fprintd-enroll -f "$FINGER" "$USER" || die "enrol failed; the password still works everywhere"
 	say "verify through fprintd: touch the sensor"
-	fprintd-verify "$USER" ;;
+	rt fprintd-verify "$USER" ;;
 *) sed -n '2,11p' "$0"; exit 2 ;;
 esac
