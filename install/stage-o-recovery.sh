@@ -7,10 +7,11 @@
 # Undo: cp -a <backup>/boot files back to /boot, rsync -a --delete <backup>/modules/ to the modules
 #       folder, depmod -a 7.2.11-m3gpu+, dracut -f; or roll back the snapper snapshot.
 set -euo pipefail
+. "$(dirname "$0")/lib.sh"
 [ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
 KREL=7.2.11-m3gpu+
-STAGE=/home/user/m3gpu/out/kernel-$KREL-recovery
-WANT=c6224575f2a72dd2fa140ea6a7c93dff6b052b6dea2dc61bf82f9c8654d2ca91
+STAGE=$OUT/kernel-$KREL-recovery
+WANT="${AGX_IMAGE_SHA:-c6224575f2a72dd2fa140ea6a7c93dff6b052b6dea2dc61bf82f9c8654d2ca91}"
 MODS=/usr/lib/modules/$KREL
 BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-recovery"
 

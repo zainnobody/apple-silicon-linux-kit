@@ -5,12 +5,12 @@
 # the installed files first. Does not touch boot.bin, DTBs, Mesa or the default GRUB entry.
 # Does not reboot. Run with sudo.
 set -euo pipefail
+. "$(dirname "$0")/lib.sh"
 [ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
 
 KREL=7.2.11-m3gpu+
-OUT=/home/user/m3gpu/out
 KSTAGE="$OUT/kernel-$KREL"
-WANT=66eae5b9c8006bf035d76a1412d0864a15afa00aedccc3c89f28f8f7ed77a30f
+WANT="${AGX_IMAGE_SHA:-66eae5b9c8006bf035d76a1412d0864a15afa00aedccc3c89f28f8f7ed77a30f}"
 BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-masked"
 
 [ "$(sha256sum "$KSTAGE/boot/vmlinuz-$KREL" | cut -d' ' -f1)" = "$WANT" ] || { echo "Staged image hash mismatch" >&2; exit 1; }

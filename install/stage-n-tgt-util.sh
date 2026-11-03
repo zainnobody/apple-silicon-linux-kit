@@ -7,11 +7,12 @@
 # Undo: cp -a <backup>/boot files back to /boot, rsync -a --delete <backup>/modules/ to the modules folder,
 #       grubby --update-kernel=/boot/vmlinuz-7.2.11-m3gpu+ --remove-args=asahi.g15_perf_tgt_util=50
 set -euo pipefail
+. "$(dirname "$0")/lib.sh"
 [ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
 KREL=7.2.11-m3gpu+
 ARG=asahi.g15_perf_tgt_util=50
-STAGE=/home/user/m3gpu/out/kernel-$KREL-tgt-util
-WANT=3f032b51e79df0e26cd81a5646f41f7d60054bc8ffb7fe3719789b76c5c112ea
+STAGE=$OUT/kernel-$KREL-tgt-util
+WANT="${AGX_IMAGE_SHA:-3f032b51e79df0e26cd81a5646f41f7d60054bc8ffb7fe3719789b76c5c112ea}"
 MODS=/usr/lib/modules/$KREL
 BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-tgt-util"
 

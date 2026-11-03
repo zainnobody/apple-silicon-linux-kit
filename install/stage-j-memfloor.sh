@@ -5,9 +5,10 @@
 # Backs up the installed files first. Does not touch boot.bin, DTBs, Mesa or the default
 # GRUB entry. Does not reboot. Run with sudo.
 set -euo pipefail
+. "$(dirname "$0")/lib.sh"
 [ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
 KREL=7.2.11-m3gpu+
-KSTAGE=/home/user/m3gpu/out/kernel-$KREL-memfloor
+KSTAGE=$OUT/kernel-$KREL-memfloor
 BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-memfloor"
 [ -f "$KSTAGE/boot/vmlinuz-$KREL" ] || { echo "No staged image in $KSTAGE" >&2; exit 1; }
 grep -q " apple_pmp_t6030_floor_work$" "$KSTAGE/boot/System.map-$KREL" || { echo "Staged image lacks the memory floor" >&2; exit 1; }

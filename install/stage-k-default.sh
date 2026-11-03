@@ -7,12 +7,13 @@
 # - Installs /usr/local/sbin/m3gpu-default (status, gpu, stock) with a no-password sudo rule.
 # Backs up first. Does not reboot. Run with sudo.
 set -euo pipefail
+. "$(dirname "$0")/lib.sh"
 [ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
 KREL=7.2.11-m3gpu+
-IMG_SHA=65798c912f6b14c382cef3a818d66584d644604224694ee298182a39d962c113
-STAGEE_SHA=f3197272d588f4b0a037c5f81f0cfb2c36dfc6c7398a4205910ed8b9cbaa0725
+IMG_SHA="${AGX_IMAGE_SHA:-65798c912f6b14c382cef3a818d66584d644604224694ee298182a39d962c113}"
+STAGEE_SHA="${AGX_STAGEE_SHA:-f3197272d588f4b0a037c5f81f0cfb2c36dfc6c7398a4205910ed8b9cbaa0725}"
 ESP=/boot/efi/m1n1
-USER_NAME=user
+USER_NAME="$AGX_USER"
 BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-default"
 
 # Checks before any change.

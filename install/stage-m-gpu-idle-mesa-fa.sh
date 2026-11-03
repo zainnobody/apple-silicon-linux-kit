@@ -9,11 +9,12 @@
 # Undo: rsync -a --delete <backup>/mesa-m3/ /opt/mesa-m3/
 #       grubby --update-kernel=/boot/vmlinuz-7.2.11-m3gpu+ --remove-args=asahi.g15_idle_standby_us=100000
 set -euo pipefail
+. "$(dirname "$0")/lib.sh"
 [ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
 KREL=7.2.11-m3gpu+
 KIMG=/boot/vmlinuz-$KREL
 ARG=asahi.g15_idle_standby_us=100000
-STAGE=/home/user/m3gpu/out/mesa-stage-fa/opt/mesa-m3
+STAGE=$OUT/mesa-stage-fa/opt/mesa-m3
 BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-mesa-fa"
 
 # Checks before any change.

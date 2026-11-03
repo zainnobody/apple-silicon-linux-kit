@@ -8,9 +8,10 @@
 # Does not reboot. Run with sudo.
 # Undo: cp the backup hci_bcm4377.ko back, rm the thunderbolt_apple.ko and the modprobe.d file, depmod -a 7.2.11-m3gpu+
 set -euo pipefail
+. "$(dirname "$0")/lib.sh"
 [ "$(id -u)" = 0 ] || { echo "Run with sudo" >&2; exit 1; }
 KREL=7.2.11-m3gpu+
-STAGE=/home/user/m3gpu/out/kernel-$KREL-usb4-bt
+STAGE=$OUT/kernel-$KREL-usb4-bt
 SMOD="$STAGE/lib/modules/$KREL/kernel/drivers"
 IMOD="/usr/lib/modules/$KREL/kernel/drivers"
 BACKUP="/root/m3gpu-backup/$(date +%Y%m%d-%H%M%S)-pre-usb4-bt"
