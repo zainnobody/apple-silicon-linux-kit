@@ -1,6 +1,41 @@
-# agx-linux-kit
+# M3 Pro Asahi Linux kit
 
-Build, install and test native GPU acceleration for Linux on Apple silicon Macs (the Apple GPU is called AGX).
+Drivers, patches and install scripts that add GPU acceleration, Touch ID and other fixes to Fedora Asahi Remix on the MacBook Pro 16-inch M3 Pro (J516S).
+
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE)
+![Tested on: M3 Pro J516S](https://img.shields.io/badge/tested%20on-M3%20Pro%20J516S-555)
+![Status: unofficial](https://img.shields.io/badge/Asahi%20Linux-unofficial-orange)
+
+> **Unofficial.** This is not Asahi Linux code. The Asahi developers do not support it. Report problems in this repository, not to Asahi.
+
+**Start here: [GUIDE.md](GUIDE.md).** It takes you from a fresh Fedora Asahi Remix install to the tested state, step by step, with undo steps.
+
+## What it adds
+
+| Area | Result on the tested Mac | Details |
+|---|---|---|
+| GPU | OpenGL 4.6, GLES 3.2, Vulkan 1.4 on the native Mesa driver. KDE runs on the GPU. | [GUIDE.md](GUIDE.md), `install/` |
+| Memory speed | About 130 GB/s instead of about 32 GB/s, with the PMP memory floor patch | `docs/memory-pmp-findings.md` |
+| Touch ID | Unlocks the KDE lock screen and the login screen. A wrong finger is refused. sudo stays password-only. | `docs/features/touchid.md` |
+| Video decode | H.264, HEVC, VP9 and AV1 in hardware. Includes a fix for an AV1 driver bug. | `docs/features/audio-camera-video.md` |
+| Displays and ports | HDMI, DisplayPort over USB-C, USB4 links | `docs/features/display-hdmi.md` |
+| Bluetooth | Resume fix. AirPods through LibrePods with three local patches. | `docs/features/bluetooth.md` |
+| Fans | A kernel patch and a fan curve service. Without them the fans stay off. | `docs/features/fans-heat.md` |
+| Power key | A short press locks the screen. Only a long hold powers off. | `install/power-key/` |
+
+Not done: sleep drains the battery, the Neural Engine is research only, and video encode uses the CPU. The full table is in [GUIDE.md, section 3](GUIDE.md#3-status-of-each-feature).
+
+## Project repositories
+
+| Repository | Contents |
+|---|---|
+| **m3-pro-asahi-agx-kit** (this one) | The guide, the patches, and the build, install and test scripts |
+| [m3-pro-asahi-distro-pack](https://github.com/zainnobody/m3-pro-asahi-distro-pack) | The `agx` installer for other distributions, a Fedora kernel RPM build, and a Mac-like KDE desktop and lock screen |
+| [m3-pro-ane-linux](https://github.com/zainnobody/m3-pro-ane-linux) | Neural Engine research, and llama.cpp fixes for local LLMs on the M3 GPU |
+
+## About the GPU part
+
+The Apple GPU is called AGX.
 
 The kit builds a community kernel, m1n1 and Mesa from pinned commits, and installs them next to your distribution's own kernel in small stages that you can undo. The stock kernel stays installed and stays the default boot. The GPU kernel boots only when you select it.
 
@@ -191,4 +226,18 @@ The documents in `docs/` record the work on the tested machine. They use the nam
 
 ## License
 
-No license is chosen yet for the scripts and documents in this repository. The kernel, m1n1 and Mesa sources keep their own licenses.
+The scripts, tools and documents in this repository are under the GNU General Public License version 2 ([LICENSE](LICENSE)).
+
+A patch is a change to another project's code. Each patch keeps the license of the project it changes:
+
+| Patches | Project | License |
+|---|---|---|
+| `patches/g15-*`, `patches/t6030-*`, `patches/avd-*`, `patches/hci-*`, `patches/macsmc-*`, `patches/m3-kernel-tree-*`, `patches/touchid/` | Linux kernel | GPL-2.0 |
+| `patches/mesa-*` | Mesa | MIT |
+| `patches/librepods-*` | LibrePods | The LibrePods license |
+
+The GPU firmware is not in this repository. Fedora Asahi Remix copies it from macOS during the install.
+
+## Credits
+
+This work is built on the Asahi Linux project and on the community SiliconForest fork. Thanks to their developers.
