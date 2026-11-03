@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Installer, kernel RPM or desktop problem
+    url: https://github.com/zainnobody/apple-silicon-linux-desktop/issues/new/choose
+    about: Problems with the agx installer, the kernel RPM, the KDE desktop or the lock screen go there.
+  - name: Problem that also happens without these patches
+    url: https://asahilinux.org/community/
+    about: If the problem also happens on a stock Asahi install, ask the Asahi community.

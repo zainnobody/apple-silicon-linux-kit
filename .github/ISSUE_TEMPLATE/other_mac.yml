@@ -1,0 +1,44 @@
+name: Test report from another Mac
+description: Results from a Mac other than the M3 Pro (J516S). They help us add a machine profile.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only the M3 Pro (J516S) is tested. Do not force an unknown GPU firmware with the prefix override. Run only the steps that the guide allows for your Mac.
+
+        Before you paste output, remove serial numbers, MAC addresses, user names and host names.
+  - type: input
+    id: mac
+    attributes:
+      label: Mac model
+      description: "Run: cat /proc/device-tree/model"
+    validations:
+      required: true
+  - type: input
+    id: distro
+    attributes:
+      label: Distribution, version and kernel
+      description: "Distribution name, and the output of uname -r"
+    validations:
+      required: true
+  - type: textarea
+    id: results
+    attributes:
+      label: What you tried, and the result
+      description: For each feature or guide step, say if it works, fails or was not tested.
+    validations:
+      required: true
+  - type: textarea
+    id: selftest
+    attributes:
+      label: Self-test output
+      description: "Run tests/m3-selftest.sh --quick and paste the full output."
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Before you send
+      options:
+        - label: I removed serial numbers, MAC addresses and names from the output.
+          required: true
