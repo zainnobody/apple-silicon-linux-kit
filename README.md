@@ -1,12 +1,27 @@
-# Apple Silicon Linux Kit
+<p align="center">
+  <img src="assets/banner.jpg" alt="Apple Silicon Linux Kit: the guide, kernel and Mesa patches, install stages and tests" width="100%">
+</p>
+
+<p align="center">
+  <a href="https://github.com/zainnobody/orchard"><b>Orchard hub</b></a> ·
+  <a href="GUIDE.md"><b>Guide</b></a> ·
+  <a href="#get-the-full-setup"><b>Get the full setup</b></a> ·
+  <a href="docs/claude-code-setup.md"><b>Set up with Claude Code</b></a> ·
+  <a href="docs/test-results-2026-11.md"><b>Test results</b></a>
+</p>
+
+<div align="center">
+
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE) ![Tested on: M3 Pro J516S](https://img.shields.io/badge/tested%20on-M3%20Pro%20J516S-555) ![Community project](https://img.shields.io/badge/community-project-2f8f4e)
+
+</div>
 
 Drivers, patches and install scripts that add GPU acceleration, Touch ID and other fixes to Fedora Asahi Remix on Apple silicon Macs. Tested on the MacBook Pro 16-inch M3 Pro (J516S); other Macs need a machine profile.
 
-[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE) ![Tested on: M3 Pro J516S](https://img.shields.io/badge/tested%20on-M3%20Pro%20J516S-555) ![Status: unofficial](https://img.shields.io/badge/Asahi%20Linux-unofficial-orange)
 
 Part of [Orchard](https://github.com/zainnobody/orchard), extra drivers and fixes for Linux on Apple silicon Macs.
 
-> **Unofficial.** This is not Asahi Linux code. The Asahi developers do not support it. Report problems in this repository, not to Asahi.
+> **Community project.** It builds on Asahi Linux but is not part of it, and the Asahi developers do not support it. Please report problems here, not to Asahi.
 
 **Start here: [GUIDE.md](GUIDE.md).** It takes you from a fresh Fedora Asahi Remix install to the tested state, step by step, with undo steps.
 
@@ -154,7 +169,7 @@ Details: `docs/performance.md` and the test log `TEST-LOG.html` (build it with `
 
 ## Read this first
 
-- **Unofficial.** This is not Asahi Linux code, and the Asahi project does not support it. The tested source set is the community SiliconForest fork (`iconidentify/siliconforest-*`, based on `omacom/linux-aurora`).
+- **Community project.** This is not Asahi Linux code, and the Asahi project does not support it. The tested source set is the community SiliconForest fork (`iconidentify/siliconforest-*`, based on `omacom/linux-aurora`).
 - **Private use.** The SiliconForest Mesa contains instruction tables derived from Apple's LLVM AGX3 encoder. Their license status is unclear. Build it for yourself; do not redistribute the binaries.
 - **Firmware identity.** The M3-generation GPU driver accepts only firmware builds it knows by hash. If yours is refused, read `docs/gpu-firmware-investigation.md` before you add a pin. Never force an unknown build with the prefix override.
 - **Safe kernel config.** `build/build-kernel.sh` turns off the SEP driver (it writes to xART storage shared with macOS), the user 4K page mode, livepatch and KUnit. See `docs/gpu-stack-review.md`.
