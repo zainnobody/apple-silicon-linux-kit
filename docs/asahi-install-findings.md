@@ -62,10 +62,10 @@ Refused: gateway.icloud.com, updates.cdn-apple.com, non-Apple hosts. No sign-in 
   7.1.13-402.asahi.fc44; 12 CPUs, no failed units, Tailscale back, GPU still simpledrm only.
 - macOS 15.6.1 boots (SIP on, FileVault off). "USB Link" service removed (grep count 0),
   ~/asahi-install deleted. Default startup disk is still the Fedora stub (/dev/disk1s2).
-- Installer log kept on host: scratchpad m3-logs/installer.log.
+- Installer log kept on the host Mac: m3-logs/installer.log.
 
 ## Left
 
-- Host: scratchpad copies (15.6.1 IPSW, Asahi mirror, installer check, catalog, photos) deleted
+- Host Mac: the downloaded copies (15.6.1 IPSW, Asahi mirror, installer check, catalog, photos) deleted
   on the user's request. Kept: small scripts in tools/ and m3-logs/installer.log.
 - Optional: set macOS as default in System Settings > General > Startup Disk.
