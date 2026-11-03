@@ -62,10 +62,17 @@ Each step links to its section in the guide. Each section has the commands, a ve
 
 ```mermaid
 flowchart LR
-    prep["Step 1: Prepare<br/>backup, rollback rehearsal,<br/>Fedora Asahi Remix 44"] --> build["Step 2: Build<br/>kernel, m1n1, Mesa"]
-    build --> install["Step 3: Install stages A to E<br/>3 reboots, stock kernel<br/>stays as fallback"]
-    install --> gpu["Step 4: GPU desktop and fixes<br/>memory, fans, Bluetooth,<br/>video decode"]
-    gpu --> extra["Step 5: Optional and check<br/>Mac-like desktop, Touch ID,<br/>self-test"]
+    prep(["Step 1: Prepare<br/><small>backup, rollback rehearsal,<br/>Fedora Asahi Remix 44</small>"]):::hw
+    build("Step 2: Build<br/><small>kernel, m1n1, Mesa</small>"):::core
+    install("Step 3: Install stages A to E<br/><small>3 reboots, stock kernel<br/>stays as fallback</small>"):::core
+    gpu("Step 4: GPU desktop and fixes<br/><small>memory, fans, Bluetooth,<br/>video decode</small>"):::ui
+    extra(["Step 5: Optional and check<br/><small>Mac-like desktop, Touch ID,<br/>self-test</small>"]):::ai
+    prep --> build --> install --> gpu --> extra
+    classDef hw fill:#e8f0fe,stroke:#4a72d9,stroke-width:1.5px,color:#14264d
+    classDef core fill:#e6f4ea,stroke:#2f8f4e,stroke-width:1.5px,color:#0f3a1f
+    classDef ui fill:#f3e8fd,stroke:#8e44c9,stroke-width:1.5px,color:#38174f
+    classDef ai fill:#fdeee0,stroke:#d9822b,stroke-width:1.5px,color:#4a2706
+    classDef todo fill:#f1f3f4,stroke:#9aa0a6,stroke-width:1.5px,stroke-dasharray:5 4,color:#3c4043
 ```
 
 1. [Before you start](GUIDE.md#4-before-you-start): back up macOS, connect the charger, free 40 GB, and rehearse the rollback.
