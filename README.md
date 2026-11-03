@@ -2,9 +2,7 @@
 
 Drivers, patches and install scripts that add GPU acceleration, Touch ID and other fixes to Fedora Asahi Remix on the MacBook Pro 16-inch M3 Pro (J516S).
 
-[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE)
-![Tested on: M3 Pro J516S](https://img.shields.io/badge/tested%20on-M3%20Pro%20J516S-555)
-![Status: unofficial](https://img.shields.io/badge/Asahi%20Linux-unofficial-orange)
+[![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE) ![Tested on: M3 Pro J516S](https://img.shields.io/badge/tested%20on-M3%20Pro%20J516S-555) ![Status: unofficial](https://img.shields.io/badge/Asahi%20Linux-unofficial-orange)
 
 > **Unofficial.** This is not Asahi Linux code. The Asahi developers do not support it. Report problems in this repository, not to Asahi.
 
@@ -14,14 +12,14 @@ Drivers, patches and install scripts that add GPU acceleration, Touch ID and oth
 
 | Area | Result on the tested Mac | Details |
 |---|---|---|
-| GPU | OpenGL 4.6, GLES 3.2, Vulkan 1.4 on the native Mesa driver. KDE runs on the GPU. | [GUIDE.md](GUIDE.md), `install/` |
-| Memory speed | About 130 GB/s instead of about 32 GB/s, with the PMP memory floor patch | `docs/memory-pmp-findings.md` |
-| Touch ID | Unlocks the KDE lock screen and the login screen. A wrong finger is refused. sudo stays password-only. | `docs/features/touchid.md` |
-| Video decode | H.264, HEVC, VP9 and AV1 in hardware. Includes a fix for an AV1 driver bug. | `docs/features/audio-camera-video.md` |
-| Displays and ports | HDMI, DisplayPort over USB-C, USB4 links | `docs/features/display-hdmi.md` |
-| Bluetooth | Resume fix. AirPods through LibrePods with three local patches. | `docs/features/bluetooth.md` |
-| Fans | A kernel patch and a fan curve service. Without them the fans stay off. | `docs/features/fans-heat.md` |
-| Power key | A short press locks the screen. Only a long hold powers off. | `install/power-key/` |
+| GPU | OpenGL 4.6, GLES 3.2, Vulkan 1.4 on the native Mesa driver. KDE runs on the GPU. | [GUIDE.md](GUIDE.md), [install/](install/) |
+| Memory speed | About 130 GB/s instead of about 32 GB/s, with the PMP memory floor patch | [memory-pmp-findings.md](docs/memory-pmp-findings.md) |
+| Touch ID | Unlocks the KDE lock screen and the login screen. A wrong finger is refused. sudo stays password-only. | [touchid.md](docs/features/touchid.md) |
+| Video decode | H.264, HEVC, VP9 and AV1 in hardware. Includes a fix for an AV1 driver bug. | [audio-camera-video.md](docs/features/audio-camera-video.md) |
+| Displays and ports | HDMI, DisplayPort over USB-C, USB4 links | [display-hdmi.md](docs/features/display-hdmi.md) |
+| Bluetooth | Resume fix. AirPods through LibrePods with three local patches. | [bluetooth.md](docs/features/bluetooth.md) |
+| Fans | A kernel patch and a fan curve service. Without them the fans stay off. | [fans-heat.md](docs/features/fans-heat.md) |
+| Power key | A short press locks the screen. Only a long hold powers off. | [power-key/](install/power-key/) |
 
 Not done: sleep drains the battery, the Neural Engine is research only, and video encode uses the CPU. The full table is in [GUIDE.md, section 3](GUIDE.md#3-status-of-each-feature).
 
