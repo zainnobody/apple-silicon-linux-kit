@@ -269,7 +269,7 @@ git -C ~/agx-work/src/linux apply "$KIT/patches/avd-av1-ref-idx-bounds.patch"
 
 The project tested this patch as an external module. Applying it before the kernel build is the same source change. That route is not tested.
 
-Do not apply these patches in this step: `g15-perf-boost-base.patch` (a test), `apple-sep-sensor-probe.patch` and `patches/touchid/` (Touch ID, section 6).
+Do not apply these patches in this step: `g15-perf-boost-base.patch` (a test) and `patches/touchid/` (Touch ID, section 6). `build/build-apple-sep.sh` applies the Touch ID patches to a copy.
 
 Check the configuration first. This changes nothing outside the build folder:
 
@@ -427,7 +427,32 @@ A normal reboot afterward gives the stock kernel again.
 
 **The default boot.** The kit has no generic script to make the GPU kernel the default boot. Stage K does it for the author's machine. It has fixed hashes, a fixed user name and the old names. Do not run it unchanged. Use the `test-once` boot above, or copy stage K and adapt it after you read it.
 
-**Stages H to P.** Stages H, I, J, K, L, M, N, O and P are copies from the author's machine. They have fixed paths and hashes. You do not need H, I and J, because the kernel patch in Step 3 already holds their changes. The stages M, N and P are GPU clock tests. Do not run them.
+**Stages H to P.** Stages H, I, J, K, L, M, N, O and P are copies from the author's machine. They read your user name and work folder from `config.sh`. You do not need most of them:
+
+| Stage | What it installs | Do you need it? |
+|---|---|---|
+| H, I, J | Test kernel images (firmware digest log, masked identity, memory floor) | No. The patch in Step 3 holds these changes. Use stage F. |
+| L | The USB4 module and the Bluetooth resume fix | No. Step 3 builds both. Stage F installs them. |
+| O | The GPU fault recovery fix (`g15-recovery-drain-halt.patch`) | No. Step 3 applies it. Stage F installs it. |
+| K | The default boot | Do not run it. It calls `m3gpu-boot`, and stage G removes that file. Use the `test-once` boot above. |
+| M, N, P | GPU clock experiments (Mesa wait fix, `tgt_util`, DVFS boost) | No. Do not run them. |
+
+If you run one anyway, these rules apply. Each script stops before any change when a rule is not met:
+
+- The kernel release must be `7.2.11-m3gpu+`. Set `LOCALVERSION=-m3gpu` in `config.local.sh` (Step 1).
+- The script reads a staged folder next to the one that `build/build-kernel.sh` writes. The names are `kernel-7.2.11-m3gpu+-memfloor` (J), `-usb4-bt` (L), `-tgt-util` (N), `-recovery` (O) and `-boost` (P). H and I read `kernel-7.2.11-m3gpu+`. Make a variant after a build with the patch applied:
+
+  ```bash
+  cp -a ~/agx-work/out/kernel-7.2.11-m3gpu+ ~/agx-work/out/kernel-7.2.11-m3gpu+-recovery
+  ```
+
+- The script checks the SHA-256 of the staged image. The default is the author's hash. Give the hash of your image in `AGX_IMAGE_SHA`. Stage K also reads `AGX_STAGEE_SHA` (the hash of `boot.bin.stageE`). Run the script with `sudo env`, so that the variable reaches it:
+
+  ```bash
+  sudo env AGX_IMAGE_SHA="$(sha256sum ~/agx-work/out/kernel-7.2.11-m3gpu+-recovery/boot/vmlinuz-7.2.11-m3gpu+ | cut -d' ' -f1)" install/stage-o-recovery.sh
+  ```
+
+  The other stages use the same form with their own script name: `stage-h-diag.sh`, `stage-i-masked.sh`, `stage-n-tgt-util.sh` and `stage-p-boost.sh`. Stages J and L check no image hash. Run them as `sudo install/stage-j-memfloor.sh` and `sudo install/stage-l-usb4-bt.sh`. Stage L needs a staged image equal to the installed image. Stage M reads `~/agx-work/out/mesa-stage-fa/opt/mesa-m3` and `/opt/mesa-m3`: `sudo install/stage-m-gpu-idle-mesa-fa.sh`.
 
 ### Step 6. Desktop on the native Mesa (stage G)
 
@@ -926,9 +951,7 @@ The Touch ID scripts expect the author's file names. They also check fixed hashe
 
 **Gaps in the docs.** Read these before you start:
 
-- The kit has no script that builds the `apple_sep.ko` module. The docs describe an out-of-tree build in words only (`docs/features/touchid-stage2-plan.md`, step A1b): build it from a copy of `drivers/soc/apple` with the `patches/touchid/` patches, against your kernel build folder. The module vermagic must equal your kernel release.
-- `ti-install.sh` pins the module hash, the RPM hash, the hash of `boot.bin.stageE` and the hash of the base device tree. Your files differ. See "Install" below for the overrides.
-- `ti-run.sh` does not pass the override variables to the installer.
+- `ti-install.sh` pins the module hash, the RPM hash, the hash of `boot.bin.stageE` and the hash of the base device tree. Your files differ. See "Part 5" below for the `TI_*` overrides.
 
 ### Part 1: Install the power key safety
 
@@ -946,7 +969,11 @@ The sensor is the power key. A short press must never power off. The kit has a f
 
 The driver needs a per-device calibration file. It is in your Mac's iBootSystemContainer partition. The file never leaves your Mac. Do not commit it.
 
-The scripts expect the folder `~/window`. Copy `tools/touchid/window/*` to `~/window/`. Copy `tools/touchid/integration/` to `~/window/integration/`. Copy `tools/touchid/sepbio.py` to `~/window/touchid/`. No script does this copy.
+The scripts expect the folder `~/window`. Copy the files from the kit folder:
+
+```bash
+mkdir -p ~/window/touchid ~/window/integration && cp tools/touchid/window/* ~/window/ && cp -R tools/touchid/integration/. ~/window/integration/ && cp tools/touchid/sepbio.py ~/window/touchid/
+```
 
 First run the read-only check. It writes nothing to the partition:
 
@@ -984,7 +1011,23 @@ Other commands: `touchid-xart.sh diff` lists the xART slots that changed against
 
 ### Part 4: Build the inputs
 
-1. **The kernel module.** The kit has no script. See "Gaps" above. The patch order from `docs/whats-in-the-repo.md` is: `t6030-profile`, `t6030-sepos13`, `sensor-probe`, `guard-loaded-only`, `sensor-poll-trace`, `sensor-rearm` and `sensor-rearm-settle` (all in `patches/touchid/`). The module must have the parameter `sensor_rearm_mode`. The installer checks for it. Name the file `apple-sep-3f.ko` and put it in `~/window/touchid/`, or set `TI_MODULE` to its path. Do not unload the module after it loads. Reboot instead.
+1. **The kernel module.** `build/build-apple-sep.sh` builds it. It needs the kernel tree (`build/fetch-sources.sh`) and the kernel build folder (`build/build-kernel.sh`) from section 5. It copies `drivers/soc/apple` to `~/agx-work/apple-sep-build`, applies the patches of `patches/touchid/` in this order: `t6030-profile`, `t6030-sepos13`, `sensor-probe`, `guard-loaded-only`, `sensor-poll-trace`, `sensor-rearm` and `sensor-rearm-settle`. It builds the module against your build folder. The kernel tree and build folder stay unchanged.
+
+   To check only that the patches apply, run it with `PATCH_ONLY=1`.
+
+   ```bash
+   PATCH_ONLY=1 build/build-apple-sep.sh
+   ```
+
+   Then build the module.
+
+   ```bash
+   build/build-apple-sep.sh
+   ```
+
+   The script checks that the vermagic equals your kernel release. The module is `~/agx-work/out/touchid/apple-sep.ko`. The last lines show the two `TI_*` variables for the installer. Keep them for Part 5. The hash of your module differs from the author's hash that the installer pins. `WITH_ENTROPY_TRACE=1` adds the diagnostic patch `sep-entropy-trace.patch`. Leave it off for normal use. The module must have the parameter `sensor_rearm_mode`. The installer checks for it. Do not unload the module after it loads. Reboot instead.
+
+   Build the module again after each kernel rebuild. A module for another kernel release does not load.
 2. **The private libfprint RPM.** The recipe is `tools/touchid/packaging/libfprint-aurora.spec`. It builds libfprint 1.94.100 with the aurora Apple SEP driver under `/opt/aurora-sep`. The distro `libfprint` is not touched. The patch is in your SiliconForest kernel tree: `~/agx-work/src/linux/tools/aurora-sep/patches/libfprint-1.94.100-apple-sep.patch`. The full build plan with every command is `docs/features/touchid-libfprint-build-plan.md`. In short:
 
    ```bash
@@ -1015,28 +1058,45 @@ Other commands: `touchid-xart.sh diff` lists the xART slots that changed against
 
 Authenticate sudo first, so that `sudo -n` works. The install checks the charger, takes a backup, builds the new boot file as a dry run and then runs the root installer.
 
-With the author's exact files:
+The installer pins the author's files by hash. Your builds have other hashes. Set the `TI_*` variables below in your shell. `ti-run.sh` and `ti-install.sh` read them. `ti-run.sh` passes every `TI_*` variable, and `TOUCHID_BACKUP_DIR`, through `sudo` to the installer.
+
+| Variable | Meaning | Default |
+|---|---|---|
+| `TI_MODULE` | Path of your `apple-sep.ko` | `~/window/touchid/apple-sep-3f.ko` |
+| `TI_MODULE_SHA` | SHA-256 of your module | The author's module |
+| `TI_RPM` | Path of your `libfprint-aurora` RPM | `~/aurora-build/rpmbuild/RPMS/aarch64/libfprint-aurora-1.94.100-1.fc44.aarch64.rpm` |
+| `TI_RPM_SHA` | SHA-256 of your RPM | The author's RPM |
+| `TI_STAGEE_SHA` | SHA-256 of `/boot/efi/m1n1/boot.bin.stageE` | The author's file |
+| `TI_BASE_DTB_PFX` | First 8 characters of the SHA-256 of `/boot/dtb-<release>/apple/t6030-j516s.dtb` | The author's value |
+| `TI_KREL` | Your kernel release | `7.2.11-m3gpu+` |
+| `TI_BOOT_NEW`, `TI_BOOT_DTB` | The new boot file and merged device tree that the boot script builds | `~/window/touchid/dry/expected-boot.bin.sep` and `~/window/touchid/work/merged.dtb` |
+| `TI_ALLOW_BATTERY` | `1` allows an install on battery power at 80 % or more | Off |
+| `TI_UHOME` | The home folder that holds the files above | The home folder of the sudo user |
+| `TI_WINDOW` | The window folder (`ti-run.sh` only) | `~/window` |
+| `TOUCHID_BACKUP_DIR` | Folder of the xART backup | `/data/touchid-backup` |
+
+Set them, then run the installer. Replace the values with your own:
+
+```bash
+export TI_MODULE=~/agx-work/out/touchid/apple-sep.ko
+export TI_MODULE_SHA=$(sha256sum "$TI_MODULE" | cut -d' ' -f1)
+export TI_RPM=$(ls ~/aurora-build/rpmbuild/RPMS/aarch64/libfprint-aurora-*.rpm)
+export TI_RPM_SHA=$(sha256sum "$TI_RPM" | cut -d' ' -f1)
+export TI_STAGEE_SHA=$(sha256sum /boot/efi/m1n1/boot.bin.stageE | cut -d' ' -f1)
+export TI_BASE_DTB_PFX=$(sha256sum /boot/dtb-$(uname -r)/apple/t6030-j516s.dtb | cut -c1-8)
+export TI_KREL=$(uname -r)
+```
+
+Run the checks first. They change nothing. Fix every `FAIL` line first.
+
+```bash
+cd ~/window/integration && sudo env TI_MODULE="$TI_MODULE" TI_MODULE_SHA="$TI_MODULE_SHA" TI_RPM="$TI_RPM" TI_RPM_SHA="$TI_RPM_SHA" TI_STAGEE_SHA="$TI_STAGEE_SHA" TI_BASE_DTB_PFX="$TI_BASE_DTB_PFX" TI_KREL="$TI_KREL" ./ti-install.sh preflight
+```
+
+Then install. `ti-run.sh` takes the xART backup, builds the boot file as a dry run and runs the root installer:
 
 ```bash
 cd ~/window/integration && ./ti-run.sh install
-```
-
-With your own builds, the pinned hashes differ. Run the three parts by hand instead. First the backup (Part 3). Then the dry run of the boot file:
-
-```bash
-~/window/touchid-boot.sh --dry --sensor-irq
-```
-
-It must end with `DRY RUN done`. Then run the root installer with your hashes. `TI_MODULE_SHA` is the SHA-256 of your module. `TI_RPM_SHA` is the SHA-256 of your RPM. `TI_STAGEE_SHA` is the SHA-256 of `/boot/efi/m1n1/boot.bin.stageE`. `TI_BASE_DTB_PFX` is the first 8 characters of the SHA-256 of `/boot/dtb-<release>/apple/t6030-j516s.dtb`. Add `TI_KREL=<your release>` if your release is not `7.2.11-m3gpu+`.
-
-```bash
-cd ~/window/integration && sudo ./ti-install.sh preflight
-```
-
-Preflight checks only. Fix every `FAIL` line first. Then:
-
-```bash
-sudo env TI_MODULE_SHA=<sha> TI_RPM_SHA=<sha> TI_STAGEE_SHA=<sha> TI_BASE_DTB_PFX=<8 chars> ./ti-install.sh install
 ```
 
 The installer runs eight steps in order: `module units selinux libfprint dropin pam-lock pam-login bootbin`. The boot file step is last. If a step fails, the script undoes the steps of that run. After `pam-login` it runs a password test. You type your account password. A wrong password must be refused and the right one accepted, for the services `kde` and `plasmalogin`. If the test fails, everything of the run is undone.
@@ -1070,7 +1130,7 @@ Reboot once. The boot uses `boot.bin.stageS`. Log in with the password. Then:
 cd ~/window/integration && ./ti-run.sh verify
 ```
 
-This runs the checks and the alarm check. Look for `VERIFY AND ALARM CHECK OK`. If it says NOT OK, do not enrol. If you used your own hashes, run `sudo m3-touchid-install verify` and `~/window/touchid-3b.sh alarm` yourself.
+This runs the checks and the alarm check. Look for `VERIFY AND ALARM CHECK OK`. If it says NOT OK, do not enrol. The verify step reads `TI_KREL`. If your release is not `7.2.11-m3gpu+`, export `TI_KREL` again in a new shell.
 
 Then check by hand:
 
@@ -1083,7 +1143,7 @@ Then enrol:
 cd ~/window/integration && ./ti-run.sh enroll right-index-finger
 ```
 
-The script stops `fprintd` and lists the identities in the enclave. It asks you to type `DELETE`. It then removes all identities, because an identity made outside `fprintd` would win the match and break it. On a fresh install the list should be empty. If you answer anything else, the script stops and does not enrol. Then it runs `fprintd-enroll`. Touch and lift as asked. Stop after 3 failed tries. Then it runs `fprintd-verify`.
+The script stops `fprintd` and lists the identities in the enclave. On a fresh install the list is empty, and the script goes on to the enrolment. If the list holds an identity, the script asks you to type `DELETE`. It then removes all identities, because an identity made outside `fprintd` would win the match and break it. If you answer anything else, the script stops and does not enrol. Then it runs `fprintd-enroll`. Touch and lift as asked. Stop after 3 failed tries. Then it runs `fprintd-verify`.
 
 Last checks by hand. Lock the screen and rest the finger on the key for about 2 seconds without pressing. It unlocks. A wrong finger must not unlock.
 
