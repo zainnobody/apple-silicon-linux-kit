@@ -268,6 +268,15 @@ Rule: after the startup options, Recovery or macOS, take a new xART backup in a 
 
 **Still open.** One logout test at the M3 (empty field, Enter, finger). Copy the new xART backup to the Mac (the copy timed out on cafe Wi-Fi). A login with the finger does not open KWallet.
 
+## Plasma 6.8 and the lock screen (2026-11-03)
+
+- The Fedora update of 2026-11-02 and 11-03 moved KDE to Plasma 6.8.2 (see the outer repo report `docs/fedora-updates-2026-11.md`). The flat 6.7 lock screen copy was moved aside.
+- Stock Plasma 6.8 starts the fingerprint check only after a key press or mouse move. Log of a lock at 08:42:42: no sensor activity until a key press at 08:43:06.
+- Fix: `distro-pack/desktop/80-lockscreen.sh touchid`. It copies the stock shell and makes two edits in `LockScreenUi.qml`: the existing `Component.onCompleted` also calls `authenticator.startAuthenticating()`, and the 1 s heartbeat timer runs while locked, not only when the prompt shows. The heartbeat is needed: at lock the greeter logs "Worker not ready yet, cannot authenticate", so one start at lock comes too early.
+- A first try added a second `Component.onCompleted` to the same object. Plasma 6.8 already has one there (the launch animation), so the QML failed with "Property value set multiple times" and KDE used its built-in fallback locker. The two handlers are merged now.
+- Test on the M3 (2026-11-03): lock at 08:56:03, sensor on at 08:56:04 with no key press, finger match and unlock at 08:56:07. xART guard: the normal rewrite of the loaded record, no alarm.
+- The login guard from `80-lockscreen.sh` records the system shell. After a Plasma update it removes the copy at login, and the stock lock screen is used until `touchid` runs again.
+
 ## Sources (all read on 2026-10-26)
 
 - Asahi M3 feature support: <https://asahilinux.org/docs/platform/feature-support/m3/>

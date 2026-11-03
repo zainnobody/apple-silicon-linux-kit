@@ -1270,6 +1270,8 @@ It compares the partition with the newest backup. The result must be OK. An ALAR
 | Boot | In some stage D boots the microphone card is missing (audio coprocessor crash). It is intermittent. | Reboot. |
 | Boot | `M1N1_UPDATE_DISABLED=1` stops automatic m1n1 updates. | Keep it while you use these boot files. |
 | Kernel | A kernel update installs a stock kernel. It has no GPU driver, no fan patch and no Touch ID module. | Boot your kernel from the GRUB menu. Rebuild for new kernels. |
+| Updates | A partial KDE update can give a black screen after the GRUB menu. In 2026-11, KDE Frameworks 6.31 with KWin 6.7.5 stopped KWin at start (`undefined symbol` in `libkwin.so.6`). The kernel and the display were fine. | Update KDE Frameworks, KWin and Plasma together, or hold all of them. If the screen is black: boot from GRUB with `systemd.wants=sshd.service` added to the `linux` line, connect over SSH, run `journalctl -b _COMM=kwin_wayland`, then finish the KDE update. |
+| Updates | A `rust` update stops `build/build-apple-sep.sh` (`E0514: found crate core compiled by an incompatible version of rustc`). The kernel build folder must use the same `rustc`. | Run `build/build-kernel.sh` again after a Rust update, before you build the Touch ID module. |
 | Memory | The tested Mac has 18 GB. Builds and local AI can cause out-of-memory events. | Close other heavy programs. |
 | Camera | The sensor grain stays. The driver has no exposure or gain control. | Use `tools/camera-clean.sh`. |
 | Audio | The listening test of the speakers is not complete. The headphone jack is not tested. | |
