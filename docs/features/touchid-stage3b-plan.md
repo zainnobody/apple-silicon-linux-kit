@@ -32,7 +32,7 @@ What 3b does **not** touch: the macOS and Linux root volumes, the boot files (th
 | `touchid-xart.sh backup / verify / restore` | Read-only layout check, raw copy of the partition, two-read hash proof, state files, MANIFEST; verify; guarded restore. Tested against a synthetic partition in a Linux container with real sudo: pass case, refusal on a snapshot, refusal on a wrong extent size, restore, refusal on a corrupt image. |
 | `touchid-3b.sh pre / load / open / enrol / verify / status` | The test-boot steps with the stop rule built in: after every step it prints any refusal, failure or timeout line from the kernel log and stops the sequence. Parsing and verdicts tested against stubbed logs (pass, guard refusal, incomplete load, open failure, enrol, verify). The hardware paths are untested. |
 | `tools/touchid/sepbio.py` | Client for `/dev/sep-bio`: info, list, enrol, verify, cancel, delete. Struct sizes and ioctl numbers checked against the real header compiled in a Linux container (identical); logic tested against a fake device. Never prints the verify token. |
-| `patches/apple-sep-sensor-probe.patch`, `apple-sep-3b.ko` | The 3b module is the 3a+ build (probe option off) plus the 13.5 key-store profile for this firmware (see section 9). The first 3b load used the 3a+ module as it was and failed; the fix is in `apple-sep-3b.ko`. |
+| `patches/touchid/sensor-probe.patch`, `apple-sep-3b.ko` | The 3b module is the 3a+ build (probe option off) plus the 13.5 key-store profile for this firmware (see section 9). The first 3b load used the 3a+ module as it was and failed; the fix is in `apple-sep-3b.ko`. |
 | Patched libfprint build commands (section 7) | Not run. |
 
 ## 4. The steps

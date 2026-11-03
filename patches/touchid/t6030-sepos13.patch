@@ -1,5 +1,5 @@
---- /tmp/p/profile.rs.orig	2026-10-27 14:09:46
-+++ /tmp/p/profile.rs	2026-10-27 14:09:46
+--- a/drivers/soc/apple/profile.rs
++++ b/drivers/soc/apple/profile.rs
 @@ -447,6 +447,25 @@
      ..T8112
  };

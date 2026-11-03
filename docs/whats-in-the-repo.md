@@ -19,7 +19,7 @@ All stage A to L kernel changes together: `patches/m3-kernel-tree-2026-10-26.pat
 | GPU target utilisation parameter (`tgt_util`) | `patches/g15-perf-tgt-util.patch` | Stage N; tested, no gain at 50 |
 | GPU fault recovery: drain and halt instead of a fail-stop | `patches/g15-recovery-drain-halt.patch` | Stage O, the current default boot (pinned in `tests/pre-reboot-check.sh`) |
 | Fan control: set `Ftst` before a fan mode write | `patches/macsmc-hwmon-ftst-unlock.patch` | Module in `updates/`, used by the fan curve. Every new kernel build must carry it |
-| Touch ID (SEP), stages 3a to 3f | `patches/touchid/` and `patches/apple-sep-sensor-probe.patch` | Test boots only, see the Touch ID section |
+| Touch ID (SEP), stages 3a to 3f | `patches/touchid/`, built by `build/build-apple-sep.sh` | Test boots only, see the Touch ID section |
 
 Kernel config: `m3-legacy/kernel/config-7.2.11-m3gpu+-installed` (installed image) and `config-7.2.11-m3gpu+-usb4` (stage L modules). The safe settings (SEP off, user 4K pages off, livepatch off, KUnit off) are set and checked by `build/build-kernel.sh`. The Touch ID test modules are built out of tree against this kernel.
 
