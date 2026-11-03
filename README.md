@@ -1,8 +1,10 @@
-# M3 Pro Asahi Linux kit
+# Apple Silicon Linux Kit
 
-Drivers, patches and install scripts that add GPU acceleration, Touch ID and other fixes to Fedora Asahi Remix on the MacBook Pro 16-inch M3 Pro (J516S).
+Drivers, patches and install scripts that add GPU acceleration, Touch ID and other fixes to Fedora Asahi Remix on Apple silicon Macs. Tested on the MacBook Pro 16-inch M3 Pro (J516S); other Macs need a machine profile.
 
 [![License: GPL-2.0](https://img.shields.io/badge/license-GPL--2.0-blue)](LICENSE) ![Tested on: M3 Pro J516S](https://img.shields.io/badge/tested%20on-M3%20Pro%20J516S-555) ![Status: unofficial](https://img.shields.io/badge/Asahi%20Linux-unofficial-orange)
+
+Part of [Orchard](https://github.com/zainnobody/orchard), extra drivers and fixes for Linux on Apple silicon Macs.
 
 > **Unofficial.** This is not Asahi Linux code. The Asahi developers do not support it. Report problems in this repository, not to Asahi.
 
@@ -25,7 +27,7 @@ Not done: sleep drains the battery, the Neural Engine is research only, and vide
 
 ## Screenshots
 
-Fedora Asahi Remix 44 with the Mac-like KDE desktop from [m3-pro-asahi-distro-pack](https://github.com/zainnobody/m3-pro-asahi-distro-pack), running on the native GPU driver.
+Fedora Asahi Remix 44 with the Mac-like KDE desktop from [apple-silicon-linux-desktop](https://github.com/zainnobody/apple-silicon-linux-desktop), running on the native GPU driver.
 
 <table>
 <tr>
@@ -85,7 +87,7 @@ To let Claude Code do the work with you, see [docs/claude-code-setup.md](docs/cl
 | GPU readback and render correctness | Exact pixel and integer results | `tests/`, [performance.md](docs/performance.md) |
 | GPU shader stress, 10 min | 228 billion pixel-iterations per second, 0 wrong values in 32,621 checks | [performance.md](docs/performance.md) |
 | Memory bandwidth | 123 GB/s (P cores) and 130 GB/s (GPU) with the memory floor patch, about 32 GB/s without | [memory-pmp-findings.md](docs/memory-pmp-findings.md) |
-| llama.cpp on the GPU | Llama 3.1 8B: 150 tokens/s prompt, 22.7 tokens/s generation | [m3-pro-ane-linux](https://github.com/zainnobody/m3-pro-ane-linux/blob/main/docs/llm-baseline.md) |
+| llama.cpp on the GPU | Llama 3.1 8B: 150 tokens/s prompt, 22.7 tokens/s generation | [apple-silicon-neural-engine](https://github.com/zainnobody/apple-silicon-neural-engine/blob/main/docs/llm-baseline.md) |
 | Video decode | H.264, HEVC, VP9 and AV1: 300 of 300 frames each | [audio-camera-video.md](docs/features/audio-camera-video.md) |
 | Touch ID | Lock screen and login unlock with the enrolled finger. A wrong finger is refused. | [touchid.md](docs/features/touchid.md) |
 | Touch ID install scripts, offline | 50 of 50 pass (`tests/touchid-integration-test.sh`) | `tests/` |
@@ -98,9 +100,10 @@ The feature reports in [docs/features/](docs/features/) have the full test steps
 
 | Repository | Contents |
 |---|---|
-| **m3-pro-asahi-agx-kit** (this one) | The guide, the patches, and the build, install and test scripts |
-| [m3-pro-asahi-distro-pack](https://github.com/zainnobody/m3-pro-asahi-distro-pack) | The `agx` installer for other distributions, a Fedora kernel RPM build, and a Mac-like KDE desktop and lock screen |
-| [m3-pro-ane-linux](https://github.com/zainnobody/m3-pro-ane-linux) | Neural Engine research, and llama.cpp fixes for local LLMs on the M3 GPU |
+| [orchard](https://github.com/zainnobody/orchard) | The project hub: overview, status and links |
+| **apple-silicon-linux-kit** (this one) | The guide, the patches, and the build, install and test scripts |
+| [apple-silicon-linux-desktop](https://github.com/zainnobody/apple-silicon-linux-desktop) | The `agx` installer for other distributions, a Fedora kernel RPM build, and a Mac-like KDE desktop and lock screen |
+| [apple-silicon-neural-engine](https://github.com/zainnobody/apple-silicon-neural-engine) | Neural Engine research, and llama.cpp fixes for local LLMs on the M3 GPU |
 
 ## About the GPU part
 

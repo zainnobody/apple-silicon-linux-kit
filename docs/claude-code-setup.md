@@ -63,11 +63,11 @@ If `NAME.local` does not resolve, both computers must be on the same network. On
 Open Claude Code in an empty folder on the Mac (Option A) or on the M3 (Option B). Paste this prompt. For Option B, change the first line to "You run on the M3 itself."
 
 ```text
-You help me install the M3 Pro Asahi Linux kit on my MacBook Pro M3 Pro (J516S),
+You help me install the Apple Silicon Linux Kit on my MacBook Pro M3 Pro (J516S),
 which already runs Fedora Asahi Remix 44 (KDE). The M3 is reachable with `ssh m3`.
 
-Source of truth: GUIDE.md in https://github.com/zainnobody/m3-pro-asahi-agx-kit.
-On the M3, follow GUIDE.md Step 1 to clone the three repositories into ~/m3-asahi.
+Source of truth: GUIDE.md in https://github.com/zainnobody/apple-silicon-linux-kit.
+On the M3, follow GUIDE.md Step 1 to clone the three repositories into ~/apple-silicon-linux.
 Read GUIDE.md sections 1 to 5 before you run anything. Then show me a short plan:
 the steps I want, which ones reboot, and where you need me.
 
@@ -85,7 +85,7 @@ How to work:
   kernel), and read the next step while they run. Do not poll in a tight loop.
 - After every reboot, reconnect and run `tests/m3-selftest.sh --quick` from the kit.
   Report the PASS, WARN and FAIL counts.
-- Keep a short log of what you ran and what changed in ~/m3-asahi/setup-log.md.
+- Keep a short log of what you ran and what changed in ~/apple-silicon-linux/setup-log.md.
 
 Stop and wait for me:
 - Before every sudo command. I type the password myself in my own terminal.
