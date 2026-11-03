@@ -143,6 +143,33 @@ echo tamper >> "$R/boot/efi/m1n1/boot.bin.stageE"
 # 7 shell and python syntax of the boot-time pieces
 chk "m3-touchid-load: sh -n" sh -n "$INT/m3-touchid-load"
 chk "ti-run.sh: bash -n" bash -n "$INT/ti-run.sh"
+chk "build-apple-sep.sh: bash -n" bash -n "$HERE/../build/build-apple-sep.sh"
 chk "pam-auth-test.py compiles" python3 -I -c "import ast,sys; ast.parse(open(sys.argv[1]).read())" "$INT/pam-auth-test.py"
+
+# 8 ti-run.sh: TI_* overrides reach root, and enroll skips the DELETE prompt when the enclave is empty
+if [ "$(id -u)" = 0 ]; then echo "SKIP  ti-run.sh tests (run as a normal user)"; else
+	RS="$T/runstubs"; mkdir -p "$RS" "$T/win"
+	cat > "$RS/sudo" <<SH
+#!/bin/sh
+echo "sudo \$*" >> "$T/run.log"
+[ "\$1" = -n ] && shift
+[ "\$1" = true ] && exit 0
+case "\$*" in *"sepbio.py list"*) cat "$T/list.out";; esac
+exit 0
+SH
+	chmod +x "$RS/sudo"
+	runner() { PATH="$RS:$PATH" TI_WINDOW="$T/win" "$INT/ti-run.sh" "$@"; }
+	: > "$T/run.log"
+	TI_MODULE=/x/mod.ko TI_MODULE_SHA=abc123 TI_KREL=9.9.9-test TOUCHID_BACKUP_DIR=/x/bk runner status >/dev/null 2>&1
+	chk "ti-run.sh passes TI_* and TOUCHID_BACKUP_DIR through sudo" sh -c "grep -q 'TI_MODULE=/x/mod.ko' '$T/run.log' && grep -q 'TI_MODULE_SHA=abc123' '$T/run.log' && grep -q 'TI_KREL=9.9.9-test' '$T/run.log' && grep -q 'TOUCHID_BACKUP_DIR=/x/bk' '$T/run.log'"
+	echo "0 identities" > "$T/list.out"; : > "$T/run.log"
+	echo "" | runner enroll >"$T/o8a" 2>&1 && ok "enroll with an empty enclave runs without the DELETE prompt" || { no "enroll with an empty enclave"; cat "$T/o8a"; }
+	chk "empty enclave: nothing deleted, enrol started" sh -c "! grep -q delete-all '$T/run.log' && grep -q fprintd-enroll '$T/run.log'"
+	printf '1 identities\n  0123  label\n' > "$T/list.out"; : > "$T/run.log"
+	echo "no" | runner enroll >/dev/null 2>&1 && no "enroll must stop when the answer is not DELETE" || ok "enroll stops when the answer is not DELETE"
+	chk "wrong answer: nothing deleted" sh -c "! grep -q delete-all '$T/run.log'"
+	echo "DELETE" | runner enroll >/dev/null 2>&1
+	chk "answer DELETE: identities deleted, enrol started" sh -c "grep -q 'delete-all --yes' '$T/run.log' && grep -q fprintd-enroll '$T/run.log'"
+fi
 
 echo "---- $pass passed, $fail failed"; [ $fail = 0 ]

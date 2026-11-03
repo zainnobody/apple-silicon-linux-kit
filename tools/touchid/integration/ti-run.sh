@@ -14,7 +14,10 @@ WIN="${TI_WINDOW:-$HOME/window}"
 INST=/usr/local/sbin/m3-touchid-install
 say() { echo "[ti-run] $*"; }
 die() { echo "[ti-run] STOP: $*" >&2; exit 1; }
-rt() { sudo -n "$@"; }
+# sudo drops the environment: pass every TI_* override (TI_MODULE, TI_MODULE_SHA, TI_KREL, ...) and
+# TOUCHID_BACKUP_DIR on to the installer.
+FWD=(); for v in $(compgen -v TI_; compgen -v TOUCHID_); do FWD+=("$v=${!v}"); done
+rt() { sudo -n env ${FWD[@]+"${FWD[@]}"} "$@"; }
 sudo -n true 2>/dev/null || die "sudo -n does not work (the sudo window is closed)"
 CMD="${1:-}"; shift || true
 case "$CMD" in
@@ -34,7 +37,7 @@ install)
 	out=$("$WIN/touchid-boot.sh" --dry --sensor-irq 2>&1); rc=$?; echo "$out" | tail -n 14
 	[ $rc = 0 ] && echo "$out" | grep -q 'DRY RUN done' || die "boot file dry run failed"
 	say "3/3 install (root)"
-	rt env TI_ALLOW_BATTERY="${TI_ALLOW_BATTERY:-}" "$HERE/ti-install.sh" install "${PASS[@]}" ;;
+	rt "$HERE/ti-install.sh" install "${PASS[@]}" ;;
 undo)
 	if [ -x "$INST" ]; then rt "$INST" undo "$@"; else rt "$HERE/ti-install.sh" undo "$@"; fi ;;
 status)
@@ -56,10 +59,14 @@ enroll)
 	FINGER="${1:-right-index-finger}"
 	say "stopping fprintd, then listing the identities in the enclave"
 	rt systemctl stop fprintd.service
-	rt timeout 60 python3 -I "$WIN/touchid/sepbio.py" list || die "sepbio list failed"
-	echo "[ti-run] The old test identity is not known to fprintd, and it would win the match. Type DELETE to remove all identities, anything else to stop."
-	read -r ans; [ "$ans" = DELETE ] || die "stopped; nothing deleted"
-	rt timeout 60 python3 -I "$WIN/touchid/sepbio.py" delete-all --yes || die "delete failed"
+	list=$(rt timeout 60 python3 -I "$WIN/touchid/sepbio.py" list) || die "sepbio list failed"
+	echo "$list"
+	if [ "$(echo "$list" | head -n 1)" = "0 identities" ]; then say "no identity in the enclave: nothing to delete"
+	else
+		echo "[ti-run] The old test identity is not known to fprintd, and it would win the match. Type DELETE to remove all identities, anything else to stop."
+		read -r ans; [ "$ans" = DELETE ] || die "stopped; nothing deleted"
+		rt timeout 60 python3 -I "$WIN/touchid/sepbio.py" delete-all --yes || die "delete failed"
+	fi
 	rt systemctl start fprintd.service
 	say "enrol $FINGER through fprintd: touch and lift as asked (at most 3 tries; stop after 3 failures)"
 	# Through sudo: polkit refuses enrol and verify to an SSH session (not the active local seat).
