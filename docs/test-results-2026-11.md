@@ -3,7 +3,9 @@
 Date: 2026-11-02. Machine: MacBook Pro 16 (J516S, M3 Pro), Fedora Asahi Remix 44, KDE Plasma 6.7.5 on Wayland.
 Kernel: `7.2.11-m3gpu+`. Mesa: 26.3.0-devel (git-7515336b3d) from `/opt/mesa-m3`.
 All checks ran over SSH as the desktop user (`user@m3`) from a copy of the kit in `~/kit-check/`. No stage was installed, no module was loaded or built, and the machine did not reboot.
-Battery was 8 to 11 % and charging for the whole run. The long runs (full selftest, health check, module build) need 30 % or more, so they are listed under "Not checked".
+Battery was 8 to 14 % and charging for the whole run. The user asked to run the long tests below the usual 30 % limit. The charge level did not drop during the full selftest or the build attempt.
+
+A `dnf upgrade` (546 packages, including `rust` 1.99.0 to 1.99.1 and a new Fedora kernel `7.2.12-402.asahi`) ran on the M3 at 22:42 local time, in the middle of this test run. The checks after that time (health check, full selftest, build) ran on the upgraded system. The running kernel stayed `7.2.11-m3gpu+`.
 
 ## Feature checks
 
@@ -37,6 +39,20 @@ PASS means the check gave the expected result. It does not mean more than the ch
 - 24 PASS, 0 WARN, 0 FAIL.
 - SKIP: `boot.bin` and `smart` (they need `sudo -n`), `camera capture` and `gpu load` (quick mode).
 
+## Selftest, normal mode and health check
+
+`tests/m3-selftest.sh` (normal mode, after the upgrade): 27 PASS, 0 WARN, 0 FAIL. It adds `camera capture` (60 frames in 2 s), `gpu load` (20 s, 104.45 G, 0 wrong) and `gpu faults` (none during the load). SKIP: `boot.bin` and `smart` (no `sudo -n`).
+
+`tests/health-check.sh`: `HEALTH_OK`. Every `ok:` line passed:
+
+- The kernel, render node, no GPU fault, Vulkan compute test.
+- The PMP memory floor accepted. CPU read 127.1 GB/s, GPU read 134.9 GB/s.
+- `thunderbolt_apple` loaded, 3 USB-PD controllers and 3 ACIO bound.
+- `hci_bcm4377` patched and loaded, Bluetooth powered, no `hci0` command timeouts.
+- `devices_deferred` was skipped (needs sudo).
+
+The health check lists 34 error-level kernel log lines this boot. The main ones: 11 times `apple_sep ... sks: endpoint 0x12 (key store) not advertised`, 10 times `Bluetooth: hci0: Failed to read codec capabilities (-22)`, a few `brcmfmac` `-52` lines at Wi-Fi start, and one `hwrng: survey failed after 5 attempts (EIO)`. The check treats them as known.
+
 ## Touch ID on the lock screen
 
 1. Lock with Meta+L, finger on the key, no mouse or key press, with the lock screen file from `distro-pack` (commit 6dc5510): FAIL. It did not unlock. The user had to press a key and type the password.
@@ -58,13 +74,19 @@ The script waits 1 s before its first check, so 1.0 s means at or below 1 s. The
 
 ## Build check
 
-NOT RUN. `build/build-apple-sep.sh` needs the battery at 30 % or more.
-Installed module, read only: `/lib/modules/7.2.11-m3gpu+/updates/apple_sep.ko*`, vermagic `7.2.11-m3gpu+ SMP preempt mod_unload aarch64`. It is loaded. Nothing to compare yet.
+FAIL. `build/build-apple-sep.sh` applied all 7 patches, then the Rust compile stopped with `E0514: found crate core compiled by an incompatible version of rustc`. No `apple-sep.ko` was produced.
+
+- The kernel build folder (`build-linux`, kernel `7.2.11-m3gpu+`) was built with `rustc 1.99.0 (Fedora 1.99.0-1.fc44)`. Its `.config` records that version.
+- The `dnf upgrade` at 22:42 replaced it with `rustc 1.99.1 (Fedora 1.99.1-2.fc44)`. Rust refuses crates from another compiler version, so the module build cannot link to the old `core` and `kernel` crates.
+- So `build-apple-sep.sh` works only while the installed `rustc` matches the one that built `build-linux`. After a Rust update, rebuild the kernel build folder with `build/build-kernel.sh`, or keep the old `rust` package. The guide should say this.
+- How the run was set up: the kit copy was in `~/kit-check/`, with `AGX_ROOT` set to a scratch folder that links to the existing source tree (commit `0e1f466`, the pinned one) and build folder. Nothing was installed or loaded, and the scratch build folder was removed.
+
+Installed module, read only: `/lib/modules/7.2.11-m3gpu+/updates/apple_sep.ko*`, vermagic `7.2.11-m3gpu+ SMP preempt mod_unload aarch64`. It is loaded. A comparison with a fresh build was not possible.
 
 ## Not checked
 
-- `tests/health-check.sh` and `tests/m3-selftest.sh` in normal mode (20 s GPU load, camera capture): battery below 30 %.
-- `build/build-apple-sep.sh` and the vermagic comparison with a fresh build: battery below 30 %.
+- A successful `build/build-apple-sep.sh` run and the vermagic comparison with a fresh build (the Rust version blocked it, see above).
+- A repeat of the checks on the stock Fedora kernel `7.2.12-402.asahi`, which the upgrade installed.
 - `sudo /usr/local/sbin/ti-install.sh verify`: needs the sudo password, and the user did not run it.
 - `tests/touchid-integration-test.sh` and the `distro-pack` `tests/run.sh` on the M3. They passed offline on the Mac (50 of 50 and 12) and were not repeated.
 - A wrong finger was not tested this session.
