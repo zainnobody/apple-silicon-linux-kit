@@ -60,6 +60,14 @@ Fedora Asahi Remix 44 with the Mac-like KDE desktop from [apple-silicon-linux-de
 
 Each step links to its section in the guide. Each section has the commands, a verify check and an undo step. Do not go on when a verify check fails.
 
+```mermaid
+flowchart LR
+    prep["Step 1: Prepare<br/>backup, rollback rehearsal,<br/>Fedora Asahi Remix 44"] --> build["Step 2: Build<br/>kernel, m1n1, Mesa"]
+    build --> install["Step 3: Install stages A to E<br/>3 reboots, stock kernel<br/>stays as fallback"]
+    install --> gpu["Step 4: GPU desktop and fixes<br/>memory, fans, Bluetooth,<br/>video decode"]
+    gpu --> extra["Step 5: Optional and check<br/>Mac-like desktop, Touch ID,<br/>self-test"]
+```
+
 1. [Before you start](GUIDE.md#4-before-you-start): back up macOS, connect the charger, free 40 GB, and rehearse the rollback.
 2. [Install Fedora Asahi Remix 44](GUIDE.md#step-0-official-asahi-install) with the official Asahi installer.
 3. [Get the kit](GUIDE.md#step-1-get-the-kit-and-choose-the-profile) on the M3, and pick the `j516s` profile.
