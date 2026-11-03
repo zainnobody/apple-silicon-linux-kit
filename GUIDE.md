@@ -48,9 +48,9 @@ Rules you must know:
 - The kernel, m1n1 and Mesa come from the community SiliconForest fork. The kit builds them from pinned commits.
 - The SiliconForest Mesa has instruction tables whose license is unclear. Build it for yourself. Do not share the binaries.
 - The kit never ships Apple firmware. The Asahi installer copies it from your own macOS.
-- No license is chosen yet for the kit scripts and documents. The kernel, m1n1 and Mesa sources keep their own licenses.
+- The kit scripts and documents are under GPL-2.0 (`LICENSE`). Each patch keeps the license of the project it changes. The kernel, m1n1 and Mesa sources keep their own licenses.
 
-Paths in this guide are relative to the `agx-linux-kit` folder, unless a path starts with `distro-pack/` or `ane-linux/`. Those are sibling folders.
+Paths in this guide are relative to the `agx-linux-kit` folder, unless a path starts with `distro-pack/` or `ane-linux/`. Those are sibling folders: run those commands from the parent folder `~/m3-asahi` (see Step 1).
 
 ## 2. Who it is for
 
@@ -192,7 +192,27 @@ The tested Mac showed system firmware 15.6 and an OS stub from macOS 14.7. A dif
 
 **What it does.** It sets your work folder, your machine profile and your names.
 
-**Commands.** Copy the kit folder to your Mac. Then:
+**Commands.** On the M3, put the three repositories side by side in one folder, `~/m3-asahi`:
+
+```bash
+mkdir -p ~/m3-asahi && cd ~/m3-asahi
+```
+
+```bash
+git clone https://github.com/zainnobody/m3-pro-asahi-agx-kit.git agx-linux-kit
+```
+
+```bash
+git clone https://github.com/zainnobody/m3-pro-asahi-distro-pack.git distro-pack
+```
+
+```bash
+git clone https://github.com/zainnobody/m3-pro-ane-linux.git ane-linux
+```
+
+```bash
+cd agx-linux-kit
+```
 
 ```bash
 cp config.local.example.sh config.local.sh
@@ -502,7 +522,7 @@ sudo install/stage-g.sh
    tests/m3-selftest.sh
    ```
 
-   It is written for the tested machine.
+   It reads your kernel name from the build output and your Mesa folder from `MESA_PREFIX` (or `/opt/mesa-agx`). Some checks are for the J516S only.
 
 **Undo.**
 

@@ -29,7 +29,9 @@ echo "m3-selftest $TS, mode $MODE, kernel $(uname -r), up $(uptime -p | sed 's/^
 
 # ---- boot
 STAGEE=f3197272d588f4b0a037c5f81f0cfb2c36dfc6c7398a4205910ed8b9cbaa0725
-[ "$(uname -r)" = 7.2.11-m3gpu+ ] && r PASS boot kernel "$(uname -r)" || r WARN boot kernel "$(uname -r) (expected 7.2.11-m3gpu+)"
+# The expected GPU kernel: AGX_KREL, else the kit build output, else the tested M3's name
+KREL=${AGX_KREL:-$(cat "$HOME/agx-work/out/kernel-release" 2>/dev/null || echo 7.2.11-m3gpu+)}
+[ "$(uname -r)" = "$KREL" ] && r PASS boot kernel "$(uname -r)" || r WARN boot kernel "$(uname -r) (expected $KREL)"
 bb=$(SU sha256sum /boot/efi/m1n1/boot.bin | cut -d' ' -f1)
 if [ -z "$bb" ]; then r SKIP boot boot.bin "no sudo -n"
 elif [ "$bb" = $STAGEE ]; then r PASS boot boot.bin "stageE"
@@ -120,7 +122,7 @@ then r PASS video vaapi "v4l2_request driver initialises"
 else r FAIL video vaapi "init failed"; fi
 
 # ---- GPU
-MESA=/opt/mesa-m3
+MESA=${MESA_PREFIX:-$( [ -d /opt/mesa-agx ] && echo /opt/mesa-agx || echo /opt/mesa-m3 )}
 export LD_LIBRARY_PATH=$MESA/lib64 VK_DRIVER_FILES=$MESA/share/vulkan/icd.d/asahi_icd.aarch64.json
 dev=$(timeout 20 vulkaninfo --summary 2>/dev/null | awk -F= '/deviceName/{print $2; exit}' | xargs)
 [ -n "$dev" ] && r PASS gpu vulkan "$dev" || r FAIL gpu vulkan "no Vulkan device"

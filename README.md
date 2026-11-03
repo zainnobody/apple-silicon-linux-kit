@@ -23,6 +23,67 @@ Drivers, patches and install scripts that add GPU acceleration, Touch ID and oth
 
 Not done: sleep drains the battery, the Neural Engine is research only, and video encode uses the CPU. The full table is in [GUIDE.md, section 3](GUIDE.md#3-status-of-each-feature).
 
+## Screenshots
+
+Fedora Asahi Remix 44 with the Mac-like KDE desktop from [m3-pro-asahi-distro-pack](https://github.com/zainnobody/m3-pro-asahi-distro-pack), running on the native GPU driver.
+
+<table>
+<tr>
+<td><img src="docs/screenshots/desktop.jpg" alt="KDE desktop with a top bar and a dock"></td>
+<td><img src="docs/screenshots/lock-screen.jpg" alt="Flat lock screen with a password field and a fingerprint hint"></td>
+</tr>
+<tr>
+<td align="center">Desktop with top bar and dock</td>
+<td align="center">Lock screen: password or Touch ID</td>
+</tr>
+<tr>
+<td><img src="docs/screenshots/search.jpg" alt="Meta+Space search over a file manager window"></td>
+<td><img src="docs/screenshots/overview.jpg" alt="Window overview with the desktop bar"></td>
+</tr>
+<tr>
+<td align="center">Meta+Space search</td>
+<td align="center">Window overview</td>
+</tr>
+</table>
+
+## Get the full setup
+
+Each step links to its section in the guide. Each section has the commands, a verify check and an undo step. Do not go on when a verify check fails.
+
+1. [Before you start](GUIDE.md#4-before-you-start): back up macOS, connect the charger, free 40 GB, and rehearse the rollback.
+2. [Install Fedora Asahi Remix 44](GUIDE.md#step-0-official-asahi-install) with the official Asahi installer.
+3. [Get the kit](GUIDE.md#step-1-get-the-kit-and-choose-the-profile) on the M3, and pick the `j516s` profile.
+4. [Fetch the sources](GUIDE.md#step-2-fetch-the-sources-and-install-build-tools), then build [the kernel](GUIDE.md#step-3-patch-and-build-the-kernel), [m1n1 and Mesa](GUIDE.md#step-4-patch-and-build-m1n1-and-mesa).
+5. [Install stages A to E](GUIDE.md#step-5-install-in-stages-a-to-e). Three of them reboot once. The stock kernel stays your fallback.
+6. [Desktop on the native GPU](GUIDE.md#step-6-desktop-on-the-native-mesa-stage-g) (stage G).
+7. [Feature fixes](GUIDE.md#step-7-feature-fixes): memory speed, Bluetooth, fans, video decode, USB-C displays, camera.
+8. [Mac-like desktop and lock screen](GUIDE.md#step-9-mac-like-kde-desktop-and-flat-lock-screen) from the distro pack. Optional.
+9. [File sharing](GUIDE.md#step-10-file-sharing) with LocalSend. Optional.
+10. [Touch ID](GUIDE.md#6-touch-id). Optional and advanced. Read its warnings first.
+11. Check that everything works. Run the self-test as your desktop user, after each reboot and at the end:
+
+    ```bash
+    tests/m3-selftest.sh
+    ```
+
+    It prints one line for each check (boot, GPU, display, audio, camera, video decode, ports, network, power, fans and heat, services, storage) with PASS, WARN, FAIL or SKIP. The exit code is the number of FAILs. Use `--quick` to skip the GPU load and the camera capture.
+
+To let Claude Code do the work with you, see [docs/claude-code-setup.md](docs/claude-code-setup.md). It has a ready prompt.
+
+## Test results
+
+| Test | Result | Source |
+|---|---|---|
+| GPU readback and render correctness | Exact pixel and integer results | `tests/`, [performance.md](docs/performance.md) |
+| GPU shader stress, 10 min | 228 billion pixel-iterations per second, 0 wrong values in 32,621 checks | [performance.md](docs/performance.md) |
+| Memory bandwidth | 123 GB/s (P cores) and 130 GB/s (GPU) with the memory floor patch, about 32 GB/s without | [memory-pmp-findings.md](docs/memory-pmp-findings.md) |
+| llama.cpp on the GPU | Llama 3.1 8B: 150 tokens/s prompt, 22.7 tokens/s generation | [m3-pro-ane-linux](https://github.com/zainnobody/m3-pro-ane-linux/blob/main/docs/llm-baseline.md) |
+| Video decode | H.264, HEVC, VP9 and AV1: 300 of 300 frames each | [audio-camera-video.md](docs/features/audio-camera-video.md) |
+| Touch ID | Lock screen and login unlock with the enrolled finger. A wrong finger is refused. | [touchid.md](docs/features/touchid.md) |
+| Touch ID install scripts, offline | 50 of 50 pass (`tests/touchid-integration-test.sh`) | `tests/` |
+
+The feature reports in [docs/features/](docs/features/) have the full test steps and logs.
+
 ## Project repositories
 
 | Repository | Contents |
