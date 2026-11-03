@@ -44,6 +44,14 @@ Fedora Asahi Remix 44 with the Mac-like KDE desktop from [m3-pro-asahi-distro-pa
 <td align="center">Meta+Space search</td>
 <td align="center">Window overview</td>
 </tr>
+<tr>
+<td><img src="docs/screenshots/konsole-gpu.jpg" alt="Terminal showing the OpenGL 4.6 and Vulkan 1.4 driver for the Apple M3 Pro GPU"></td>
+<td><img src="docs/screenshots/kinfocenter-about.jpg" alt="KDE About this System page: Fedora Asahi Remix 44 on a MacBook Pro 16-inch M3 Pro"></td>
+</tr>
+<tr>
+<td align="center">Native GPU driver: OpenGL 4.6 and Vulkan 1.4</td>
+<td align="center">About this System (2026-11-02)</td>
+</tr>
 </table>
 
 ## Get the full setup
@@ -81,6 +89,8 @@ To let Claude Code do the work with you, see [docs/claude-code-setup.md](docs/cl
 | Video decode | H.264, HEVC, VP9 and AV1: 300 of 300 frames each | [audio-camera-video.md](docs/features/audio-camera-video.md) |
 | Touch ID | Lock screen and login unlock with the enrolled finger. A wrong finger is refused. | [touchid.md](docs/features/touchid.md) |
 | Touch ID install scripts, offline | 50 of 50 pass (`tests/touchid-integration-test.sh`) | `tests/` |
+| Self-test on the M3 (2026-11-02) | 27 PASS, 0 WARN, 0 FAIL. GPU load 20 s with 0 wrong values. Camera 60 frames in 2 s. | [test-results-2026-11.md](docs/test-results-2026-11.md) |
+| Touch ID speed, lock to unlock | About 1 s with the finger on the key. Unlocks on the clock screen with no key press. | [test-results-2026-11.md](docs/test-results-2026-11.md), [touchid.md](docs/features/touchid.md) |
 
 The feature reports in [docs/features/](docs/features/) have the full test steps and logs.
 
